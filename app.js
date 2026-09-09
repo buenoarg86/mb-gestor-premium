@@ -1,0 +1,500 @@
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'mb_gestor_premium_v1';
+  const DEFAULT_STATE = {
+    version: 1,
+    students: [],
+    expenses: [],
+    payments: [],
+    settings: {
+      studioName: 'Studio Márcio Bueno',
+      trainerName: 'Márcio Bueno',
+      chargeDaysBefore: 3,
+      currency: 'BRL'
+    }
+  };
+
+  const NAV = [
+    {id:'dashboard', label:'Início', icon:'home', title:'Visão geral'},
+    {id:'students', label:'Alunos', icon:'users', title:'Alunos'},
+    {id:'finance', label:'Financeiro', icon:'wallet', title:'Financeiro'},
+    {id:'charges', label:'Cobranças', icon:'bell', title:'Cobranças'},
+    {id:'consent', label:'Termos', icon:'file', title:'Termos de consentimento'},
+    {id:'settings', label:'Ajustes', icon:'settings', title:'Ajustes'}
+  ];
+
+  let state = loadState();
+  let currentView = 'dashboard';
+  let deferredInstallPrompt = null;
+  let financeTab = 'summary';
+  let chargeTab = 'all';
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+  const viewEl = $('#view');
+  const pageTitle = $('#pageTitle');
+  const modalRoot = $('#modalRoot');
+  const toastRoot = $('#toastRoot');
+
+  function uid(prefix='id') {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return structuredClone(DEFAULT_STATE);
+      const parsed = JSON.parse(raw);
+      return {
+        ...structuredClone(DEFAULT_STATE),
+        ...parsed,
+        students: Array.isArray(parsed.students) ? parsed.students : [],
+        expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+        payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+        settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
+      };
+    } catch (err) {
+      console.error('Falha ao carregar dados', err);
+      return structuredClone(DEFAULT_STATE);
+    }
+  }
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function escapeHTML(value='') {
+    return String(value)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#039;');
+  }
+
+  function icon(name) {
+    return `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  }
+
+  function parseLocalDate(value) {
+    if (!value) return null;
+    const [y,m,d] = value.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m-1, d, 12, 0, 0, 0);
+  }
+
+  function todayNoon() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate(), 12, 0, 0, 0);
+  }
+
+  function isoToday() {
+    const d = todayNoon();
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+
+  function fmtDate(value) {
+    const d = parseLocalDate(value);
+    return d ? new Intl.DateTimeFormat('pt-BR').format(d) : '—';
+  }
+
+  function fmtMoney(value) {
+    return new Intl.NumberFormat('pt-BR',{style:'currency',currency:state.settings.currency || 'BRL'}).format(Number(value)||0);
+  }
+
+  function ageFromBirth(value) {
+    const birth = parseLocalDate(value);
+    if (!birth) return null;
+    const now = todayNoon();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    return Math.max(0, age);
+  }
+
+  function daysBetween(a,b) {
+    const one = parseLocalDate(a);
+    const two = b instanceof Date ? b : parseLocalDate(b);
+    if (!one || !two) return 99999;
+    return Math.round((one-two)/86400000);
+  }
+
+  function dueInfo(student) {
+    const days = daysBetween(student.dueDate, todayNoon());
+    if (days < 0) return {key:'overdue', cls:'danger', text:`Vencida há ${Math.abs(days)} dia${Math.abs(days)===1?'':'s'}`, days};
+    if (days === 0) return {key:'today', cls:'warn', text:'Vence hoje', days};
+    if (days <= Number(state.settings.chargeDaysBefore || 3)) return {key:'soon', cls:'warn', text:`Vence em ${days} dia${days===1?'':'s'}`, days};
+    return {key:'ok', cls:'ok', text:`Em dia • ${fmtDate(student.dueDate)}`, days};
+  }
+
+  function activeStudents() {
+    return state.students.filter(s => s.active !== false);
+  }
+
+  function monthKey(dateValue) {
+    const d = dateValue ? parseLocalDate(dateValue) : todayNoon();
+    if (!d) return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  function metrics() {
+    const students = activeStudents();
+    const expected = students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
+    const mk = monthKey();
+    const received = state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
+    const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
+    const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
+    return {students:students.length, expected, received, expenses, net:received-expenses, overdue, soon};
+  }
+
+  function renderNav() {
+    const desktop = $('#desktopNav');
+    const mobile = $('#mobileNav');
+    desktop.innerHTML = NAV.map(n=>navButton(n)).join('');
+    mobile.innerHTML = NAV.slice(0,5).map(n=>navButton(n)).join('');
+    $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
+  }
+
+  function navButton(n) {
+    return `<button class="nav-btn ${currentView===n.id?'active':''}" data-nav="${n.id}" type="button">${icon(n.icon)}<span>${n.label}</span></button>`;
+  }
+
+  function navigate(id) {
+    currentView = NAV.some(n=>n.id===id) ? id : 'dashboard';
+    const item = NAV.find(n=>n.id===currentView);
+    pageTitle.textContent = item?.title || 'MB Gestor';
+    renderNav();
+    render();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  function render() {
+    const renderer = {
+      dashboard: renderDashboard,
+      students: renderStudents,
+      finance: renderFinance,
+      charges: renderCharges,
+      consent: renderConsent,
+      settings: renderSettings
+    }[currentView] || renderDashboard;
+    renderer();
+  }
+
+  function metricCard(iconName, value, label, cls='') {
+    return `<article class="metric ${cls}"><div class="metric-icon">${icon(iconName)}</div><div class="value">${value}</div><div class="label">${label}</div></article>`;
+  }
+
+  function renderDashboard() {
+    const m = metrics();
+    const upcoming = activeStudents()
+      .map(s=>({s,info:dueInfo(s)}))
+      .filter(x=>x.info.days<=7)
+      .sort((a,b)=>a.info.days-b.info.days)
+      .slice(0,6);
+
+    viewEl.innerHTML = `
+      <section class="hero">
+        <div class="hero-grid">
+          <div>
+            <span class="badge">Gestão privada • Premium</span>
+            <h2>Seu studio, alunos e financeiro em um só lugar.</h2>
+            <p>Controle mensalidades, receitas, gastos, cobranças e termos sem misturar com avaliações ou treinos.</p>
+          </div>
+          <img class="hero-logo" src="assets/logo-interna.jpg" alt="Identidade Márcio Bueno Personal Trainer" />
+        </div>
+      </section>
+      <section class="metrics">
+        ${metricCard('users', m.students, 'Alunos ativos')}
+        ${metricCard('wallet', fmtMoney(m.expected), 'Receita mensal prevista')}
+        ${metricCard('chart', fmtMoney(m.received), 'Recebido neste mês', 'good')}
+        ${metricCard('bell', m.overdue, 'Mensalidades vencidas', m.overdue?'danger':'good')}
+      </section>
+      <div class="section-head"><div><h3>Resumo financeiro</h3><p>Mês atual</p></div><button class="btn btn-secondary btn-small" data-nav="finance">Ver financeiro</button></div>
+      <section class="finance-grid">
+        <article class="card highlight"><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados no mês</span></div><strong class="money-positive">${fmtMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas no mês</span></div><strong class="money-negative">${fmtMoney(m.expenses)}</strong></div><div class="list-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${fmtMoney(m.net)}</strong></div></article>
+        <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Receita prevista</strong><span>Soma das mensalidades dos alunos ativos</span></div><strong>${fmtMoney(m.expected)}</strong></div></article>
+      </section>
+      <div class="section-head"><div><h3>Próximos vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Aluno</button></div>
+      <section class="cards">${upcoming.length ? upcoming.map(({s,info})=>chargeMiniRow(s,info)).join('') : emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>
+    `;
+    $('#quickAddStudent')?.addEventListener('click',()=>openStudentModal());
+    $$('[data-nav]', viewEl).forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
+    $$('.js-charge-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
+  }
+
+  function emptyState(title, text) {
+    return `<div class="empty"><strong>${escapeHTML(title)}</strong>${escapeHTML(text)}</div>`;
+  }
+
+  function chargeMiniRow(student, info) {
+    return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(student.name)}</strong><span>${info.text} • ${fmtMoney(student.monthlyFee)}</span></div><button class="mini-icon js-charge-whatsapp" data-id="${student.id}" title="Enviar cobrança">${icon('message')}</button></div></article>`;
+  }
+
+  function renderStudents() {
+    const students = [...state.students].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    viewEl.innerHTML = `
+      <div class="section-head"><div><h3>Cadastro de alunos</h3><p>${students.length} cadastrado${students.length===1?'':'s'}</p></div><button class="btn btn-primary" id="addStudent">${icon('plus')} Novo aluno</button></div>
+      <div class="search-wrap">${icon('search')}<input id="studentSearch" type="search" placeholder="Buscar por nome, WhatsApp ou e-mail" autocomplete="off" /></div>
+      <section id="studentsList" class="cards"></section>
+    `;
+    const list = $('#studentsList');
+    const draw = (query='') => {
+      const q = query.trim().toLowerCase();
+      const filtered = students.filter(s=>[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(q)));
+      list.innerHTML = filtered.length ? filtered.map(studentCard).join('') : emptyState('Nenhum aluno encontrado', q?'Tente outro termo de busca.':'Cadastre seu primeiro aluno para começar.');
+      bindStudentActions();
+    };
+    draw();
+    $('#studentSearch').addEventListener('input',e=>draw(e.target.value));
+    $('#addStudent').addEventListener('click',()=>openStudentModal());
+  }
+
+  function studentCard(s) {
+    const age = ageFromBirth(s.birthDate);
+    const info = dueInfo(s);
+    return `<article class="card student-card">
+      <div>
+        <div class="student-name">${escapeHTML(s.name)}</div>
+        <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
+        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
+        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''}</div>
+      </div>
+      <div class="student-actions">
+        <button class="mini-icon js-edit-student" data-id="${s.id}" title="Editar aluno">${icon('edit')}</button>
+        <button class="mini-icon danger js-delete-student" data-id="${s.id}" title="Excluir aluno">${icon('trash')}</button>
+      </div>
+    </article>`;
+  }
+
+  function bindStudentActions() {
+    $$('.js-edit-student',viewEl).forEach(b=>b.addEventListener('click',()=>openStudentModal(b.dataset.id)));
+    $$('.js-delete-student',viewEl).forEach(b=>b.addEventListener('click',()=>confirmDeleteStudent(b.dataset.id)));
+  }
+
+  function openStudentModal(id=null) {
+    const s = id ? state.students.find(x=>x.id===id) : null;
+    const title = s ? 'Editar aluno' : 'Novo aluno';
+    openModal(title, `
+      <form id="studentForm" class="form-grid two">
+        <div class="field" style="grid-column:1/-1"><label>Nome completo *</label><input name="name" required value="${escapeHTML(s?.name||'')}" placeholder="Nome do aluno" /></div>
+        <div class="field"><label>Data de nascimento *</label><input name="birthDate" type="date" required value="${escapeHTML(s?.birthDate||'')}" /></div>
+        <div class="field"><label>Idade</label><input id="agePreview" disabled value="${s?.birthDate ? `${ageFromBirth(s.birthDate)} anos` : 'Calculada automaticamente'}" /></div>
+        <div class="field"><label>WhatsApp *</label><input name="whatsapp" inputmode="tel" required value="${escapeHTML(s?.whatsapp||'')}" placeholder="(31) 99999-9999" /></div>
+        <div class="field"><label>E-mail</label><input name="email" type="email" value="${escapeHTML(s?.email||'')}" placeholder="aluno@email.com" /></div>
+        <div class="field"><label>Data de início dos treinos *</label><input name="startDate" type="date" required value="${escapeHTML(s?.startDate||isoToday())}" /></div>
+        <div class="field"><label>Vencimento da mensalidade *</label><input name="dueDate" type="date" required value="${escapeHTML(s?.dueDate||isoToday())}" /></div>
+        <div class="field"><label>Valor da mensalidade *</label><input name="monthlyFee" type="number" min="0" step="0.01" required value="${escapeHTML(s?.monthlyFee ?? '')}" placeholder="0,00" /></div>
+        <div class="field"><label>Situação</label><select name="active"><option value="true" ${s?.active!==false?'selected':''}>Ativo</option><option value="false" ${s?.active===false?'selected':''}>Inativo</option></select></div>
+        <div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${s?'Salvar alterações':'Criar aluno'}</button></div>
+      </form>
+    `);
+    const form = $('#studentForm');
+    form.birthDate.addEventListener('change',()=>{$('#agePreview').value = form.birthDate.value ? `${ageFromBirth(form.birthDate.value)} anos` : 'Calculada automaticamente';});
+    form.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(form);
+      const record = {
+        id: s?.id || uid('stu'),
+        name: String(fd.get('name')).trim(),
+        birthDate: String(fd.get('birthDate')),
+        whatsapp: String(fd.get('whatsapp')).trim(),
+        email: String(fd.get('email')).trim(),
+        startDate: String(fd.get('startDate')),
+        dueDate: String(fd.get('dueDate')),
+        monthlyFee: Number(fd.get('monthlyFee')) || 0,
+        active: String(fd.get('active')) === 'true',
+        consent: s?.consent || {sentAt:null,acceptedAt:null},
+        createdAt: s?.createdAt || new Date().toISOString()
+      };
+      if (s) state.students = state.students.map(x=>x.id===s.id?record:x); else state.students.push(record);
+      saveState(); closeModal(); toast(s?'Aluno atualizado.':'Aluno criado com sucesso.'); render();
+    });
+  }
+
+  function confirmDeleteStudent(id) {
+    const s = state.students.find(x=>x.id===id); if (!s) return;
+    openModal('Excluir aluno', `<div class="notice">Você está prestes a excluir <strong>${escapeHTML(s.name)}</strong>. Os pagamentos já registrados serão mantidos no histórico financeiro.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDelete">${icon('trash')} Excluir</button></div>`);
+    $('#confirmDelete').addEventListener('click',()=>{state.students=state.students.filter(x=>x.id!==id); saveState(); closeModal(); toast('Aluno excluído.'); render();});
+  }
+
+  function renderFinance() {
+    const m = metrics();
+    const tabs = [
+      ['summary','Resumo'],['payments','Receitas'],['expenses','Gastos']
+    ];
+    viewEl.innerHTML = `
+      <div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${financeTab===id?'active':''}" data-fin-tab="${id}">${l}</button>`).join('')}</div>
+      <div id="financeContent"></div>`;
+    $$('[data-fin-tab]').forEach(b=>b.addEventListener('click',()=>{financeTab=b.dataset.finTab;renderFinance();}));
+    const c = $('#financeContent');
+    if (financeTab==='summary') {
+      c.innerHTML = `
+        <section class="metrics">
+          ${metricCard('wallet',fmtMoney(m.expected),'Receita mensal prevista')}
+          ${metricCard('chart',fmtMoney(m.received),'Receita recebida','good')}
+          ${metricCard('receipt',fmtMoney(m.expenses),'Gastos do mês',m.expenses?'danger':'')}
+          ${metricCard('wallet',fmtMoney(m.net),'Saldo do mês',m.net>=0?'good':'danger')}
+        </section>
+        <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente</p></div></div>
+        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${fmtMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>Alunos com mensalidade vencida</span></div><strong>${m.overdue}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
+    } else if (financeTab==='payments') renderPayments(c);
+    else renderExpenses(c);
+  }
+
+  function renderPayments(c) {
+    const payments = [...state.payments].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    c.innerHTML = `
+      <div class="section-head"><div><h3>Receitas</h3><p>Histórico de mensalidades recebidas</p></div><button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button></div>
+      <section class="cards">${payments.length?payments.map(p=>{const s=state.students.find(x=>x.id===p.studentId); return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`;}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}</section>`;
+    $('#addPayment').addEventListener('click',()=>openPaymentModal());
+  }
+
+  function openPaymentModal(preselectedId='') {
+    const students = activeStudents();
+    if (!students.length) return toast('Cadastre um aluno antes de registrar uma mensalidade.');
+    openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(s=>`<option value="${s.id}" ${s.id===preselectedId?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
+    const form=$('#paymentForm');
+    const syncAmount=()=>{const s=state.students.find(x=>x.id===form.studentId.value); if(s) form.amount.value=Number(s.monthlyFee||0).toFixed(2);};
+    form.studentId.addEventListener('change',syncAmount); syncAmount();
+    form.addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(form); const sid=String(fd.get('studentId')); const s=state.students.find(x=>x.id===sid); const payment={id:uid('pay'),studentId:sid,studentName:s?.name||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,reference:String(fd.get('reference')).trim(),createdAt:new Date().toISOString()}; state.payments.push(payment); if($('#advanceDue').checked && s){s.dueDate=addMonthsISO(s.dueDate||isoToday(),1);} saveState(); closeModal(); toast('Receita registrada.'); render();});
+  }
+
+  function addMonthsISO(value, months) {
+    const d=parseLocalDate(value)||todayNoon();
+    const originalDay=d.getDate();
+    d.setDate(1); d.setMonth(d.getMonth()+months);
+    const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    d.setDate(Math.min(originalDay,last));
+    const p=n=>String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  }
+
+  function renderExpenses(c) {
+    const expenses=[...state.expenses].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    c.innerHTML=`<div class="section-head"><div><h3>Gastos</h3><p>Despesas do studio</p></div><button class="btn btn-primary" id="addExpense">${icon('plus')} Novo gasto</button></div><section class="cards">${expenses.length?expenses.map(e=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(e.description)}</strong><span>${fmtDate(e.date)} • ${escapeHTML(e.category||'Outros')}</span></div><div style="display:flex;align-items:center;gap:8px"><strong class="money-negative">${fmtMoney(e.amount)}</strong><button class="mini-icon danger js-del-expense" data-id="${e.id}">${icon('trash')}</button></div></div></article>`).join(''):emptyState('Nenhum gasto cadastrado','Cadastre aluguel, energia, equipamentos e outras despesas.')}</section>`;
+    $('#addExpense').addEventListener('click',openExpenseModal); $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{state.expenses=state.expenses.filter(e=>e.id!==b.dataset.id);saveState();render();}));
+  }
+
+  function openExpenseModal() {
+    openModal('Novo gasto',`<form id="expenseForm" class="form-grid"><div class="field"><label>Descrição *</label><input name="description" required placeholder="Ex.: Energia elétrica" /></div><div class="form-grid two"><div class="field"><label>Categoria</label><select name="category"><option>Estrutura</option><option>Energia</option><option>Água</option><option>Equipamentos</option><option>Manutenção</option><option>Marketing</option><option>Impostos</option><option>Outros</option></select></div><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div></div><div class="field"><label>Valor *</label><input type="number" name="amount" min="0" step="0.01" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar gasto</button></div></form>`);
+    $('#expenseForm').addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(e.currentTarget); state.expenses.push({id:uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,createdAt:new Date().toISOString()}); saveState(); closeModal(); toast('Gasto registrado.'); render();});
+  }
+
+  function renderCharges() {
+    const students=activeStudents().map(s=>({s,info:dueInfo(s)})).sort((a,b)=>a.info.days-b.info.days);
+    const tabs=[['all','Todos'],['overdue','Vencidos'],['soon','Vencendo']];
+    const filtered=students.filter(x=>chargeTab==='all'||(chargeTab==='overdue'?x.info.key==='overdue':['today','soon'].includes(x.info.key)));
+    viewEl.innerHTML=`<div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${chargeTab===id?'active':''}" data-charge-tab="${id}">${l}</button>`).join('')}</div><div class="notice">O botão de WhatsApp abre uma mensagem pronta. O envio só acontece quando você confirma no WhatsApp.</div><div class="section-head"><div><h3>Lembretes de mensalidade</h3><p>Vencimentos e cobranças</p></div></div><section class="cards">${filtered.length?filtered.map(({s,info})=>`<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div><div style="margin-top:9px"><span class="status ${info.cls}">${info.text}</span></div></div><div class="student-actions"><button class="mini-icon js-charge-whatsapp" data-id="${s.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon js-mark-paid" data-id="${s.id}" title="Registrar pagamento">${icon('check')}</button></div></div></article>`).join(''):emptyState('Nenhum aluno nessa situação','As cobranças aparecerão aqui conforme as datas de vencimento.')}</section>`;
+    $$('[data-charge-tab]').forEach(b=>b.addEventListener('click',()=>{chargeTab=b.dataset.chargeTab;renderCharges();}));
+    $$('.js-charge-whatsapp').forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
+    $$('.js-mark-paid').forEach(b=>b.addEventListener('click',()=>openPaymentModal(b.dataset.id)));
+  }
+
+  function cleanPhone(value) {
+    const digits=String(value||'').replace(/\D/g,'');
+    if (!digits) return '';
+    return digits.startsWith('55') ? digits : `55${digits}`;
+  }
+
+  function chargeMessage(s) {
+    const info=dueInfo(s);
+    const first=s.name.split(' ')[0];
+    if (info.key==='overdue') return `Olá, ${first}! Tudo bem? Passando para lembrar que sua mensalidade do Studio Márcio Bueno, no valor de ${fmtMoney(s.monthlyFee)}, venceu em ${fmtDate(s.dueDate)}. Quando puder, me confirme o pagamento. Obrigado!`;
+    if (info.key==='today') return `Olá, ${first}! Tudo bem? Passando para lembrar que sua mensalidade do Studio Márcio Bueno, no valor de ${fmtMoney(s.monthlyFee)}, vence hoje (${fmtDate(s.dueDate)}). Obrigado!`;
+    return `Olá, ${first}! Tudo bem? Só passando para lembrar que sua mensalidade do Studio Márcio Bueno, no valor de ${fmtMoney(s.monthlyFee)}, vence em ${fmtDate(s.dueDate)}. Obrigado!`;
+  }
+
+  function sendChargeWhatsApp(id) {
+    const s=state.students.find(x=>x.id===id); if(!s)return;
+    const phone=cleanPhone(s.whatsapp);
+    if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');
+    const url=`https://wa.me/${phone}?text=${encodeURIComponent(chargeMessage(s))}`;
+    window.open(url,'_blank','noopener,noreferrer');
+  }
+
+  function consentText(s) {
+    const age=ageFromBirth(s.birthDate);
+    return `TERMO DE CONSENTIMENTO E AUTODECLARAÇÃO PARA PRÁTICA DE ATIVIDADE FÍSICA\n\nEu, ${s.name}, ${age ?? '___'} anos, declaro que as informações sobre minha saúde fornecidas ao profissional responsável são verdadeiras e que não tenho conhecimento de condição que me impeça de participar das atividades físicas propostas.\n\nComprometo-me a informar imediatamente qualquer dor, mal-estar, alteração de saúde, uso de medicamento relevante ou orientação médica que possa interferir na prática de exercícios.\n\nEstou ciente de que este termo não substitui avaliação, diagnóstico ou liberação médica quando houver indicação, sintomas, fatores de risco ou recomendação de profissional de saúde.\n\nAo responder “LI E ACEITO” a esta mensagem, confirmo que li e compreendi o conteúdo acima e autorizo o registro deste aceite pelo Studio Márcio Bueno.\n\nData: ${fmtDate(isoToday())}\nStudio Márcio Bueno • Personal Trainer`;
+  }
+
+  function renderConsent() {
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    viewEl.innerHTML=`<div class="notice">Este modelo é uma autodeclaração de consentimento e não substitui avaliação ou liberação médica quando indicada.</div><div class="section-head"><div><h3>Termos dos alunos</h3><p>Envie, copie e registre o aceite</p></div></div><section class="cards">${students.length?students.map(s=>{const c=s.consent||{};return `<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Enviado: <strong>${c.sentAt?fmtDate(c.sentAt.slice(0,10)):'Não'}</strong></span><span>Aceite: <strong>${c.acceptedAt?fmtDate(c.acceptedAt.slice(0,10)):'Pendente'}</strong></span></div></div><div class="student-actions"><button class="mini-icon js-open-term" data-id="${s.id}" title="Abrir termo">${icon('file')}</button></div></div></article>`}).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar os termos.')}</section>`;
+    $$('.js-open-term').forEach(b=>b.addEventListener('click',()=>openConsentModal(b.dataset.id)));
+  }
+
+  function openConsentModal(id) {
+    const s=state.students.find(x=>x.id===id); if(!s)return;
+    const text=consentText(s);
+    openModal('Termo de consentimento',`<div class="consent-box" id="consentText">${escapeHTML(text)}</div><div class="modal-actions"><button class="btn btn-secondary" id="copyConsent">Copiar</button><button class="btn btn-primary" id="sendConsent">${icon('message')} WhatsApp</button></div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button><button class="btn btn-primary" id="acceptConsent">${icon('check')} Registrar aceite</button></div>`);
+    $('#copyConsent').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(text);toast('Termo copiado.');}catch{fallbackCopy(text);}});
+    $('#sendConsent').addEventListener('click',()=>{const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre o WhatsApp deste aluno.'); s.consent=s.consent||{}; s.consent.sentAt=new Date().toISOString(); saveState(); window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');});
+    $('#acceptConsent').addEventListener('click',()=>{s.consent=s.consent||{};s.consent.acceptedAt=new Date().toISOString();saveState();closeModal();toast('Aceite registrado.');render();});
+  }
+
+  function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Texto copiado.');}
+
+  function renderSettings() {
+    const m=metrics();
+    viewEl.innerHTML=`
+      <section class="logo-feature"><img src="assets/logo-interna.jpg" alt="Márcio Bueno Personal Trainer" /></section>
+      <div class="section-head"><div><h3>Aplicativo</h3><p>Uso privado no seu dispositivo</p></div></div>
+      <section class="card">
+        <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
+        <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
+        <div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
+      </section>
+      <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados</p></div></div>
+      <section class="card">
+        <div class="settings-row"><div><strong>Exportar backup</strong><span>Baixa um arquivo JSON com todos os dados do aplicativo.</span></div><button class="btn btn-secondary btn-small" id="exportBackup">${icon('download')} Exportar</button></div>
+        <div class="settings-row"><div><strong>Importar backup</strong><span>Restaura um backup exportado por este aplicativo.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Importar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
+      </section>
+      <div class="section-head"><div><h3>Resumo atual</h3></div></div>
+      <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',fmtMoney(m.expected),'Receita prevista')}${metricCard('chart',fmtMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',fmtMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
+    `;
+    $('#installSettings').addEventListener('click',installApp);
+    $('#changeDays').addEventListener('click',changeChargeDays);
+    $('#exportBackup').addEventListener('click',exportBackup);
+    $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
+    $('#backupFile').addEventListener('change',importBackup);
+  }
+
+  function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
+
+  function exportBackup(){const payload={app:'MB Gestor Premium',exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup gerado.');}
+
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+
+  function openModal(title, bodyHTML) {
+    modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
+    $$('[data-close-modal]',modalRoot).forEach(b=>b.addEventListener('click',closeModal));
+    $('.modal-backdrop',modalRoot).addEventListener('click',e=>{if(e.target.classList.contains('modal-backdrop'))closeModal();});
+  }
+  function closeModal(){modalRoot.innerHTML='';}
+  function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;toastRoot.appendChild(t);setTimeout(()=>t.remove(),3200);}
+
+  async function installApp(){
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch {}
+      deferredInstallPrompt=null; updateInstallButtons(); return;
+    }
+    openModal('Instalar aplicativo',`<div class="notice">Se o botão automático de instalação não aparecer, abra este endereço no Chrome, toque no menu ⋮ e escolha <strong>“Adicionar à tela inicial”</strong> ou <strong>“Instalar app”</strong>. Para instalação completa, o aplicativo precisa estar publicado em um endereço HTTPS.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Entendi</button></div>`);
+  }
+  function updateInstallButtons(){const can=Boolean(deferredInstallPrompt);$('#installBtnTop')?.classList.toggle('hidden',!can);$('#installBtnSide')?.classList.toggle('hidden',!can);}
+
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;updateInstallButtons();});
+  window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;updateInstallButtons();toast('Aplicativo instalado.');});
+  $('#installBtnTop')?.addEventListener('click',installApp);
+  $('#installBtnSide')?.addEventListener('click',installApp);
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker não registrado',err)));
+  }
+
+  renderNav();
+  render();
+})();
