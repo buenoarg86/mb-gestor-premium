@@ -9,6 +9,7 @@
     payments: [],
     schedule: {},
     attendance: {},
+    makeups: {},
     reminderDrafts: [],
     birthdayNotifications: {},
     settings: {
@@ -60,6 +61,7 @@
         payments: Array.isArray(parsed.payments) ? parsed.payments : [],
         schedule: (parsed.schedule && typeof parsed.schedule === 'object') ? parsed.schedule : {},
         attendance: (parsed.attendance && typeof parsed.attendance === 'object') ? parsed.attendance : {},
+        makeups: (parsed.makeups && typeof parsed.makeups === 'object') ? parsed.makeups : {},
         reminderDrafts: Array.isArray(parsed.reminderDrafts) ? parsed.reminderDrafts : [],
         birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
