@@ -589,28 +589,104 @@
     return `TERMO DE CONSENTIMENTO E AUTODECLARAÇÃO PARA PRÁTICA DE ATIVIDADE FÍSICA\n\nEu, ${s.name}, ${age ?? '___'} anos, declaro que as informações sobre minha saúde fornecidas ao profissional responsável são verdadeiras e que não tenho conhecimento de condição que me impeça de participar das atividades físicas propostas.\n\nComprometo-me a informar imediatamente qualquer dor, mal-estar, alteração de saúde, uso de medicamento relevante ou orientação médica que possa interferir na prática de exercícios.\n\nEstou ciente de que este termo não substitui avaliação, diagnóstico ou liberação médica quando houver indicação, sintomas, fatores de risco ou recomendação de profissional de saúde.\n\nAo responder “LI E ACEITO” a esta mensagem, confirmo que li e compreendi o conteúdo acima e autorizo o registro deste aceite pelo Studio Márcio Bueno.\n\nData: ${fmtDate(isoToday())}\nStudio Márcio Bueno • Personal Trainer`;
   }
 
+  function formatPhoneBR(value){
+    const digits=String(value||'').replace(/\D/g,'');
+    let n=digits.startsWith('55')?digits.slice(2):digits;
+    if(n.length===11) return `+55 (${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`;
+    if(n.length===10) return `+55 (${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`;
+    return value||'Sem WhatsApp';
+  }
+
+  function reminderTemplate(type){
+    const templates={
+      charge:'Olá, [nome]! Tudo bem? Passando para lembrar sobre sua mensalidade do Studio Márcio Bueno. Quando puder, me confirme o pagamento. Obrigado!',
+      birthday:'Olá, [nome]! 🎉 Passando para desejar um feliz aniversário! Que seu novo ciclo seja cheio de saúde, conquistas e bons momentos. Um abraço do Studio Márcio Bueno!',
+      absence:'Olá, [nome]! Tudo bem? Sentimos sua falta nos últimos treinos. Quando puder, me avise para organizarmos sua rotina e mantermos a frequência. 💪',
+      general:'Olá, [nome]! Tudo bem? Passando para deixar um lembrete do Studio Márcio Bueno.'
+    };
+    return templates[type]||templates.general;
+  }
+
   function renderReminders(){
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    viewEl.innerHTML=`<div class="notice">Escreva uma mensagem, selecione um ou mais alunos e prepare os envios. O WhatsApp pedirá sua confirmação em cada conversa.</div>
-      <div class="section-head"><div><h3>Lembrete rápido</h3><p>Envio individual ou em lote pelo WhatsApp</p></div></div>
-      <section class="card"><div class="field"><label>Mensagem</label><textarea id="reminderMessage" placeholder="Ex.: Olá, [nome]! Passando para lembrar que..."></textarea><small>Use <strong>[nome]</strong> para personalizar automaticamente.</small></div>
-      <div class="reminder-toolbar"><button type="button" class="btn btn-secondary btn-small" id="selectAllReminder">Todos</button><button type="button" class="btn btn-secondary btn-small" id="selectOverdueReminder">Vencidos</button><button type="button" class="btn btn-secondary btn-small" id="selectBirthdayReminder">Aniversários 7 dias</button><button type="button" class="btn btn-secondary btn-small" id="selectAbsentReminder">Com faltas no mês</button><button type="button" class="btn btn-secondary btn-small" id="clearReminder">Limpar</button></div>
-      <div class="reminder-students">${students.map(s=>`<label class="reminder-student"><input type="checkbox" name="reminderStudent" value="${s.id}"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</small></span></label>`).join('')}</div>
-      <div class="modal-actions"><button type="button" class="btn btn-primary" id="prepareReminder">${icon('message')} Preparar envios</button></div></section><section id="reminderQueue" class="cards" style="margin-top:12px"></section>`;
-    const setReminderSelection=(ids)=>{const set=new Set(ids.map(String));$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=set.has(String(x.value)))};
-    $('#selectAllReminder').addEventListener('click',()=>setReminderSelection(students.map(s=>s.id)));
-    $('#selectOverdueReminder').addEventListener('click',()=>setReminderSelection(students.filter(s=>dueInfo(s).key==='overdue').map(s=>s.id)));
-    $('#selectBirthdayReminder').addEventListener('click',()=>setReminderSelection(birthdayStudents(7).map(x=>x.s.id)));
-    $('#selectAbsentReminder').addEventListener('click',()=>setReminderSelection(students.filter(s=>monthlyAttendanceStats(s.id).absent>0).map(s=>s.id)));
-    $('#clearReminder').addEventListener('click',()=>$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=false));
+    const overdueIds=new Set(students.filter(s=>dueInfo(s).key==='overdue').map(s=>String(s.id)));
+    const birthdayIds=new Set(birthdayStudents(7).map(x=>String(x.s.id)));
+    const absentIds=new Set(students.filter(s=>monthlyAttendanceStats(s.id).absent>0).map(s=>String(s.id)));
+    let activeFilter='all';
+    const selectedIds=new Set();
+
+    const filterMeta={
+      all:{label:'Todos',icon:'users',ids:new Set(students.map(s=>String(s.id)))},
+      overdue:{label:'Vencidos',icon:'bell',ids:overdueIds},
+      birthday:{label:'Aniversários 7 dias',icon:'calendar',ids:birthdayIds},
+      absent:{label:'Com faltas no mês',icon:'chart',ids:absentIds}
+    };
+
+    viewEl.innerHTML=`<div class="notice reminder-intro">${icon('message')}<div><strong>Central de comunicação</strong><span>Filtre os alunos, escolha uma mensagem e prepare os envios. O WhatsApp só envia depois da sua confirmação.</span></div></div>
+      <div class="section-head"><div><h3>Lembretes e WhatsApp</h3><p>Comunicação individual ou em lote, organizada por situação</p></div></div>
+      <section class="card reminder-card">
+        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" placeholder="Ex.: Olá, [nome]! Passando para lembrar que..."></textarea><small>Use <strong>[nome]</strong> para inserir automaticamente o primeiro nome de cada aluno.</small></div>
+        <div class="reminder-template-head"><strong>Mensagens prontas</strong><span>Toque para preencher e edite se quiser</span></div>
+        <div class="reminder-templates">
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="charge">${icon('bell')} Cobrança</button>
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="birthday">${icon('calendar')} Aniversário</button>
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="absence">${icon('users')} Retorno aos treinos</button>
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="general">${icon('message')} Geral</button>
+        </div>
+        <div class="reminder-filter-head"><div><strong>Filtrar alunos</strong><span id="reminderFilterCaption">Exibindo todos os alunos ativos</span></div><span class="status neutral" id="reminderSelectedCount">0 selecionados</span></div>
+        <div class="reminder-toolbar" id="reminderFilters">
+          ${Object.entries(filterMeta).map(([key,m])=>`<button type="button" class="btn btn-secondary btn-small reminder-filter ${key==='all'?'active':''}" data-filter="${key}">${icon(m.icon)} ${m.label} <span class="filter-count">${m.ids.size}</span></button>`).join('')}
+          <button type="button" class="btn btn-secondary btn-small" id="clearReminder">${icon('x')} Limpar seleção</button>
+        </div>
+        <div id="reminderStudents" class="reminder-students"></div>
+        <div class="reminder-footer"><div class="reminder-selection-summary" id="reminderSelectionSummary">Nenhum aluno selecionado</div><button type="button" class="btn btn-primary" id="prepareReminder">${icon('message')} Preparar envios</button></div>
+      </section><section id="reminderQueue" class="cards" style="margin-top:12px"></section>`;
+
+    const visibleStudents=()=>{
+      const ids=filterMeta[activeFilter].ids;
+      return students.filter(s=>ids.has(String(s.id)));
+    };
+    const updateSummary=()=>{
+      const n=selectedIds.size;
+      $('#reminderSelectedCount').textContent=`${n} selecionado${n===1?'':'s'}`;
+      $('#reminderSelectionSummary').textContent=n?`${n} aluno${n===1?'':'s'} pronto${n===1?'':'s'} para receber a mensagem`:'Nenhum aluno selecionado';
+    };
+    const drawStudents=()=>{
+      const list=visibleStudents();
+      const root=$('#reminderStudents');
+      $('#reminderFilterCaption').textContent=activeFilter==='all'?`Exibindo ${students.length} alunos ativos`:`Exibindo ${list.length} de ${students.length} alunos ativos`;
+      root.innerHTML=list.length?list.map(s=>{
+        const sid=String(s.id), checked=selectedIds.has(sid), info=dueInfo(s), st=monthlyAttendanceStats(s.id);
+        const tags=[];
+        if(info.key==='overdue') tags.push('<span class="status danger">Vencido</span>');
+        if(birthdayIds.has(sid)) tags.push('<span class="status warn">Aniversário</span>');
+        if(st.absent>0) tags.push(`<span class="status neutral">${st.absent} falta${st.absent===1?'':'s'}</span>`);
+        return `<label class="reminder-student ${checked?'selected':''}"><input type="checkbox" name="reminderStudent" value="${escapeHTML(sid)}" ${checked?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span class="reminder-student-info"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(formatPhoneBR(s.whatsapp))}</small><span class="reminder-tags">${tags.join('')}</span></span></label>`;
+      }).join(''):`<div class="empty compact"><strong>Nenhum aluno neste filtro</strong>Não há alunos que atendam a este critério no momento.</div>`;
+      $$('input[name="reminderStudent"]',root).forEach(x=>x.addEventListener('change',()=>{if(x.checked)selectedIds.add(String(x.value));else selectedIds.delete(String(x.value));x.closest('.reminder-student')?.classList.toggle('selected',x.checked);updateSummary();}));
+      updateSummary();
+    };
+    const applyFilter=(key)=>{
+      activeFilter=key;
+      $$('.reminder-filter',viewEl).forEach(b=>b.classList.toggle('active',b.dataset.filter===key));
+      drawStudents();
+      const list=visibleStudents();
+      toast(key==='all'?`Mostrando ${list.length} alunos ativos.`:`Filtro aplicado: ${filterMeta[key].label} (${list.length}).`);
+    };
+
+    $$('.reminder-filter',viewEl).forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));
+    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{const ta=$('#reminderMessage');ta.value=reminderTemplate(b.dataset.template);ta.focus();toast('Mensagem pronta inserida. Você pode editar antes de enviar.');}));
+    $('#clearReminder').addEventListener('click',()=>{selectedIds.clear();drawStudents();$('#reminderQueue').innerHTML='';toast('Seleção limpa.');});
     $('#prepareReminder').addEventListener('click',()=>{
-      const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva a mensagem primeiro.');
-      const ids=$$('input[name="reminderStudent"]:checked',viewEl).map(x=>x.value);if(!ids.length)return toast('Selecione pelo menos um aluno.');
-      const selected=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
-      $('#reminderQueue').innerHTML=selected.map(s=>{const phone=cleanPhone(s.whatsapp);const text=msg.replaceAll('[nome]',s.name.split(' ')[0]||s.name);return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?'Mensagem pronta':'WhatsApp não cadastrado'}</span></div>${phone?`<button class="btn btn-primary btn-small js-open-reminder" data-url="https://wa.me/${phone}?text=${encodeURIComponent(text)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</div></article>`}).join('');
+      const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva ou escolha uma mensagem primeiro.');
+      const ids=[...selectedIds];if(!ids.length)return toast('Selecione pelo menos um aluno.');
+      const selected=ids.map(id=>state.students.find(s=>String(s.id)===String(id))).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+      $('#reminderQueue').innerHTML=`<div class="section-head"><div><h3>Envios preparados</h3><p>${selected.length} conversa${selected.length===1?'':'s'} pronta${selected.length===1?'':'s'} para abrir no WhatsApp</p></div></div>`+selected.map(s=>{const phone=cleanPhone(s.whatsapp);const text=msg.replaceAll('[nome]',s.name.split(' ')[0]||s.name);return `<article class="card reminder-ready"><div class="list-row"><div class="student-profile"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?escapeHTML(formatPhoneBR(s.whatsapp)):'WhatsApp não cadastrado'}</span></div></div>${phone?`<button class="btn btn-primary btn-small js-open-reminder" data-url="https://wa.me/${phone}?text=${encodeURIComponent(text)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</div></article>`}).join('');
       $$('.js-open-reminder',viewEl).forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener,noreferrer')));
       toast(`${selected.length} envio${selected.length===1?'':'s'} preparado${selected.length===1?'':'s'}.`);
+      $('#reminderQueue').scrollIntoView({behavior:'smooth',block:'start'});
     });
+    drawStudents();
   }
 
   function renderConsent() {
@@ -658,13 +734,15 @@
 
   function monthlyReportRow(s,mk){
     const st=monthlyAttendanceStats(s.id,mk);
-    return `<article class="card"><div class="list-row"><div class="student-profile"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${st.present} presença${st.present===1?'':'s'} • ${st.absent} falta${st.absent===1?'':'s'} • ${st.makeups} reposição${st.makeups===1?'':'ões'} em ${monthLabel(mk)}</span></div></div><button class="mini-icon js-month-whatsapp" data-id="${s.id}" title="Enviar resumo pelo WhatsApp">${icon('message')}</button></div></article>`;
+    const makeupText=st.makeups===1?'sendo 1 reposição':`sendo ${st.makeups} reposições`;
+    return `<article class="card monthly-report-card"><div class="list-row"><div class="student-profile"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span><strong>${st.present} treino${st.present===1?'':'s'} realizado${st.present===1?'':'s'}</strong> • ${st.absent} falta${st.absent===1?'':'s'} • ${makeupText}</span><small>${monthLabel(mk)}</small></div></div><button class="mini-icon js-month-whatsapp" data-id="${s.id}" title="Enviar resumo mensal pelo WhatsApp">${icon('message')}</button></div></article>`;
   }
 
   function sendMonthlyAttendanceWhatsApp(id,mk){
     const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');
     const st=monthlyAttendanceStats(id,mk);const first=(s.name||'').split(' ')[0]||s.name;
-    const text=`Olá, ${first}! Seu resumo de ${monthLabel(mk)} no Studio Márcio Bueno: ${st.present} presença${st.present===1?'':'s'}, ${st.absent} falta${st.absent===1?'':'s'} e ${st.makeups} reposição${st.makeups===1?'':'ões'}. 💪`;
+    const makeupText=st.makeups===1?'sendo 1 reposição':`sendo ${st.makeups} reposições`;
+    const text=`Olá, ${first}! Seu resumo de ${monthLabel(mk)} no Studio Márcio Bueno: ${st.present} treino${st.present===1?'':'s'} realizado${st.present===1?'':'s'}, ${st.absent} falta${st.absent===1?'':'s'}, ${makeupText}. 💪`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
   }
 
