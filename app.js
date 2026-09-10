@@ -9,7 +9,6 @@
     payments: [],
     schedule: {},
     attendance: {},
-    makeups: {},
     reminderDrafts: [],
     birthdayNotifications: {},
     settings: {
@@ -61,7 +60,6 @@
         payments: Array.isArray(parsed.payments) ? parsed.payments : [],
         schedule: (parsed.schedule && typeof parsed.schedule === 'object') ? parsed.schedule : {},
         attendance: (parsed.attendance && typeof parsed.attendance === 'object') ? parsed.attendance : {},
-        makeups: (parsed.makeups && typeof parsed.makeups === 'object') ? parsed.makeups : {},
         reminderDrafts: Array.isArray(parsed.reminderDrafts) ? parsed.reminderDrafts : [],
         birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
@@ -328,10 +326,11 @@
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
         <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
-        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} <span class="status neutral">Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span></div>
+        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span></div>
         </div>
       </div>
       <div class="student-actions">
+        <button class="mini-icon js-student-training-whatsapp" data-id="${s.id}" data-month="${mk}" title="Enviar treinos pelo WhatsApp">${icon('message')}</button>
         <button class="mini-icon js-edit-student" data-id="${s.id}" title="Editar aluno">${icon('edit')}</button>
         <button class="mini-icon danger js-delete-student" data-id="${s.id}" title="Excluir aluno">${icon('trash')}</button>
       </div>
@@ -339,6 +338,7 @@
   }
 
   function bindStudentActions() {
+    $$('.js-student-training-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(b.dataset.id,b.dataset.month)));
     $$('.js-edit-student',viewEl).forEach(b=>b.addEventListener('click',()=>openStudentModal(b.dataset.id)));
     $$('.js-delete-student',viewEl).forEach(b=>b.addEventListener('click',()=>confirmDeleteStudent(b.dataset.id)));
   }
