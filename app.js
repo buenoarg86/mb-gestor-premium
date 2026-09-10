@@ -35,6 +35,8 @@
   let deferredInstallPrompt = null;
   let financeTab = 'summary';
   let chargeTab = 'all';
+  // Privacidade: os valores financeiros começam ocultos a cada abertura do app.
+  let financialValuesVisible = false;
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -113,6 +115,9 @@
   function fmtMoney(value) {
     return new Intl.NumberFormat('pt-BR',{style:'currency',currency:state.settings.currency || 'BRL'}).format(Number(value)||0);
   }
+
+  function privateMoney(value) { return financialValuesVisible ? fmtMoney(value) : 'R$ •••••'; }
+  function toggleFinancialVisibility() { financialValuesVisible=!financialValuesVisible; render(); }
 
   function ageFromBirth(value) {
     const birth = parseLocalDate(value);
@@ -203,10 +208,13 @@
     const expected = students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
     const mk = monthKey();
     const received = state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const monthPayments = state.payments.filter(p=>monthKey(p.date)===mk);
+    const pix = monthPayments.filter(p=>p.paymentMethod==='pix').reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const cash = monthPayments.filter(p=>p.paymentMethod==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
     const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
     const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
-    return {students:students.length, expected, received, expenses, net:received-expenses, overdue, soon};
+    return {students:students.length, expected, received, pix, cash, expenses, net:received-expenses, overdue, soon};
   }
 
   function renderNav() {
@@ -269,20 +277,21 @@
       </section>
       <section class="metrics">
         ${metricCard('users', m.students, 'Alunos ativos')}
-        ${metricCard('wallet', fmtMoney(m.expected), 'Receita mensal prevista')}
-        ${metricCard('chart', fmtMoney(m.received), 'Recebido neste mês', 'good')}
+        ${metricCard('wallet', privateMoney(m.expected), 'Receita mensal prevista')}
+        ${metricCard('chart', privateMoney(m.received), 'Recebido neste mês', 'good')}
         ${metricCard('bell', m.overdue, 'Mensalidades vencidas', m.overdue?'danger':'good')}
       </section>
-      <div class="section-head"><div><h3>Resumo financeiro</h3><p>Mês atual</p></div><button class="btn btn-secondary btn-small" data-nav="finance">Ver financeiro</button></div>
+      <div class="section-head"><div><h3>Resumo financeiro</h3><p>Mês atual</p></div><div class="privacy-actions"><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button><button class="btn btn-secondary btn-small" data-nav="finance">Ver financeiro</button></div></div>
       <section class="finance-grid">
-        <article class="card highlight"><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados no mês</span></div><strong class="money-positive">${fmtMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas no mês</span></div><strong class="money-negative">${fmtMoney(m.expenses)}</strong></div><div class="list-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${fmtMoney(m.net)}</strong></div></article>
-        <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Receita prevista</strong><span>Soma das mensalidades dos alunos ativos</span></div><strong>${fmtMoney(m.expected)}</strong></div></article>
+        <article class="card highlight"><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados no mês</span></div><strong class="money-positive">${privateMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas no mês</span></div><strong class="money-negative">${privateMoney(m.expenses)}</strong></div><div class="list-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${privateMoney(m.net)}</strong></div></article>
+        <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Receita prevista</strong><span>Soma das mensalidades dos alunos ativos</span></div><strong>${privateMoney(m.expected)}</strong></div></article>
       </section>
       ${renderBirthdayPanel()}
       <div class="section-head"><div><h3>Próximos vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Aluno</button></div>
       <section class="cards">${upcoming.length ? upcoming.map(({s,info})=>chargeMiniRow(s,info)).join('') : emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>
     `;
     $('#quickAddStudent')?.addEventListener('click',()=>openStudentModal());
+    $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     $$('[data-nav]', viewEl).forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
     $$('.js-charge-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
   }
@@ -357,6 +366,7 @@
         <div class="field"><label>Data de início dos treinos *</label><input name="startDate" type="date" required value="${escapeHTML(s?.startDate||isoToday())}" /></div>
         <div class="field"><label>Vencimento da mensalidade *</label><input name="dueDate" type="date" required value="${escapeHTML(s?.dueDate||isoToday())}" /></div>
         <div class="field"><label>Valor da mensalidade *</label><input name="monthlyFee" type="number" min="0" step="0.01" required value="${escapeHTML(s?.monthlyFee ?? '')}" placeholder="0,00" /></div>
+        <div class="field"><label>Forma de pagamento preferencial</label><select name="paymentMethod"><option value="pix" ${s?.paymentMethod!=='cash'?'selected':''}>PIX</option><option value="cash" ${s?.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div>
         <div class="field"><label>Situação</label><select name="active"><option value="true" ${s?.active!==false?'selected':''}>Ativo</option><option value="false" ${s?.active===false?'selected':''}>Inativo</option></select></div>
         <div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${s?'Salvar alterações':'Criar aluno'}</button></div>
       </form>
@@ -382,6 +392,7 @@
         startDate: String(fd.get('startDate')),
         dueDate: String(fd.get('dueDate')),
         monthlyFee: Number(fd.get('monthlyFee')) || 0,
+        paymentMethod: String(fd.get('paymentMethod')||'pix'),
         active: String(fd.get('active')) === 'true',
         photoData,
         consent: s?.consent || {sentAt:null,acceptedAt:null},
@@ -411,13 +422,15 @@
     if (financeTab==='summary') {
       c.innerHTML = `
         <section class="metrics">
-          ${metricCard('wallet',fmtMoney(m.expected),'Receita mensal prevista')}
-          ${metricCard('chart',fmtMoney(m.received),'Receita recebida','good')}
-          ${metricCard('receipt',fmtMoney(m.expenses),'Gastos do mês',m.expenses?'danger':'')}
-          ${metricCard('wallet',fmtMoney(m.net),'Saldo do mês',m.net>=0?'good':'danger')}
+          ${metricCard('wallet',privateMoney(m.expected),'Receita mensal prevista')}
+          ${metricCard('chart',privateMoney(m.received),'Receita recebida','good')}
+          ${metricCard('receipt',privateMoney(m.expenses),'Gastos do mês',m.expenses?'danger':'')}
+          ${metricCard('wallet',privateMoney(m.net),'Saldo do mês',m.net>=0?'good':'danger')}
         </section>
-        <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente</p></div></div>
-        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${fmtMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>Alunos com mensalidade vencida</span></div><strong>${m.overdue}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
+        <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente</p></div><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button></div>
+        <section class="cards grid2 payment-breakdown"><article class="card"><div class="list-row"><div class="list-main"><strong>Recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div></article><article class="card"><div class="list-row"><div class="list-main"><strong>Recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div></article></section>
+        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>Alunos com mensalidade vencida</span></div><strong>${m.overdue}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
+          $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     } else if (financeTab==='payments') renderPayments(c);
     else renderExpenses(c);
   }
@@ -426,18 +439,19 @@
     const payments = [...state.payments].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     c.innerHTML = `
       <div class="section-head"><div><h3>Receitas</h3><p>Histórico de mensalidades recebidas</p></div><button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button></div>
-      <section class="cards">${payments.length?payments.map(p=>{const s=state.students.find(x=>x.id===p.studentId); return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`;}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}</section>`;
+      <section class="cards">${payments.length?payments.map(p=>{const s=state.students.find(x=>x.id===p.studentId); return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')} • ${p.paymentMethod==='cash'?'Dinheiro':p.paymentMethod==='pix'?'PIX':'Não informado'}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`;}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}</section>`;
     $('#addPayment').addEventListener('click',()=>openPaymentModal());
   }
 
   function openPaymentModal(preselectedId='') {
     const students = activeStudents();
     if (!students.length) return toast('Cadastre um aluno antes de registrar uma mensalidade.');
-    openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(s=>`<option value="${s.id}" ${s.id===preselectedId?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
+    openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(s=>`<option value="${s.id}" ${s.id===preselectedId?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod" required><option value="pix">PIX</option><option value="cash">Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
     const form=$('#paymentForm');
     const syncAmount=()=>{const s=state.students.find(x=>x.id===form.studentId.value); if(s) form.amount.value=Number(s.monthlyFee||0).toFixed(2);};
-    form.studentId.addEventListener('change',syncAmount); syncAmount();
-    form.addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(form); const sid=String(fd.get('studentId')); const s=state.students.find(x=>x.id===sid); const payment={id:uid('pay'),studentId:sid,studentName:s?.name||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,reference:String(fd.get('reference')).trim(),createdAt:new Date().toISOString()}; state.payments.push(payment); if($('#advanceDue').checked && s){s.dueDate=addMonthsISO(s.dueDate||isoToday(),1);} saveState(); closeModal(); toast('Receita registrada.'); render();});
+    const syncPaymentMethod=()=>{const s=state.students.find(x=>x.id===form.studentId.value); if(s) form.paymentMethod.value=s.paymentMethod||'pix';};
+    form.studentId.addEventListener('change',()=>{syncAmount();syncPaymentMethod();}); syncAmount(); syncPaymentMethod();
+    form.addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(form); const sid=String(fd.get('studentId')); const s=state.students.find(x=>x.id===sid); const payment={id:uid('pay'),studentId:sid,studentName:s?.name||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,paymentMethod:String(fd.get('paymentMethod')||'pix'),reference:String(fd.get('reference')).trim(),createdAt:new Date().toISOString()}; state.payments.push(payment); if($('#advanceDue').checked && s){s.dueDate=addMonthsISO(s.dueDate||isoToday(),1);} saveState(); closeModal(); toast('Receita registrada.'); render();});
   }
 
   function addMonthsISO(value, months) {
