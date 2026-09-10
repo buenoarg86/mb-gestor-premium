@@ -210,20 +210,28 @@
     const monthPayments = state.payments.filter(p=>monthKey(p.date)===mk);
     const received = monthPayments.reduce((a,p)=>a+(Number(p.amount)||0),0);
 
-    // V6.2: a divisão PIX/Dinheiro segue SEMPRE a forma de pagamento
-    // preferencial atual definida na ficha do aluno. Assim, ao alterar a ficha,
-    // o Financeiro é recalculado automaticamente sem precisar editar pagamentos antigos.
+    // V6.3: a divisão PIX/Dinheiro segue SEMPRE a forma de pagamento
+    // preferencial atual da ficha do aluno. Também aceita registros legados
+    // que tenham salvo "Dinheiro"/"PIX" por extenso.
+    const normalizePaymentMethod = (value) => {
+      const v = String(value || '').trim().toLowerCase();
+      if (v === 'cash' || v === 'dinheiro') return 'cash';
+      if (v === 'pix') return 'pix';
+      return '';
+    };
     const paymentMethodFor = (p) => {
-      const student = state.students.find(s=>s.id===p.studentId);
-      if (student?.paymentMethod === 'cash') return 'cash';
-      if (student?.paymentMethod === 'pix') return 'pix';
-      // Fallback apenas para pagamentos de alunos removidos ou registros legados sem aluno.
-      if (p.paymentMethod === 'cash' || p.paymentMethod === 'pix') return p.paymentMethod;
+      const student = state.students.find(s=>String(s.id)===String(p.studentId));
+      const preferred = normalizePaymentMethod(student?.paymentMethod);
+      if (preferred) return preferred;
+      const legacy = normalizePaymentMethod(p.paymentMethod);
+      if (legacy) return legacy;
+      // Mantém a conciliação: todo recebimento sem classificação conhecida
+      // continua compondo o total e entra provisoriamente em PIX.
       return 'pix';
     };
 
-    const pix = monthPayments.filter(p=>paymentMethodFor(p)==='pix').reduce((a,p)=>a+(Number(p.amount)||0),0);
-    const cash = monthPayments.filter(p=>paymentMethodFor(p)==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const pix = monthPayments.reduce((sum,p)=>sum+(paymentMethodFor(p)==='pix'?(Number(p.amount)||0):0),0);
+    const cash = monthPayments.reduce((sum,p)=>sum+(paymentMethodFor(p)==='cash'?(Number(p.amount)||0):0),0);
     const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
     const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
