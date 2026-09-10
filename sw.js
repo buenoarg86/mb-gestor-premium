@@ -1,4 +1,4 @@
-const CACHE='mb-gestor-v6-3-financeiro';
+const CACHE='mb-gestor-premium-v7';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 
 self.addEventListener('install', event => {

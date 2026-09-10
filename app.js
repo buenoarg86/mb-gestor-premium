@@ -232,10 +232,16 @@
 
     const pix = monthPayments.reduce((sum,p)=>sum+(paymentMethodFor(p)==='pix'?(Number(p.amount)||0):0),0);
     const cash = monthPayments.reduce((sum,p)=>sum+(paymentMethodFor(p)==='cash'?(Number(p.amount)||0):0),0);
+    // V7: potencial de recebimento por forma preferencial, independente de pagamento realizado.
+    const potentialPix = students.filter(s=>s.paymentMethod!=='cash').reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
+    const potentialCash = students.filter(s=>s.paymentMethod==='cash').reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
+    const remainingPix = Math.max(0, potentialPix-pix);
+    const remainingCash = Math.max(0, potentialCash-cash);
+    const remainingTotal = Math.max(0, expected-received);
     const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
     const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
-    return {students:students.length, expected, received, pix, cash, expenses, net:received-expenses, overdue, soon};
+    return {students:students.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, soon};
   }
 
   function renderNav() {
@@ -305,7 +311,7 @@
       <div class="section-head"><div><h3>Resumo financeiro</h3><p>Mês atual</p></div><div class="privacy-actions"><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button><button class="btn btn-secondary btn-small" data-nav="finance">Ver financeiro</button></div></div>
       <section class="finance-grid">
         <article class="card highlight"><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados no mês</span></div><strong class="money-positive">${privateMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas no mês</span></div><strong class="money-negative">${privateMoney(m.expenses)}</strong></div><div class="list-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${privateMoney(m.net)}</strong></div></article>
-        <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Receita prevista</strong><span>Soma das mensalidades dos alunos ativos</span></div><strong>${privateMoney(m.expected)}</strong></div></article>
+        <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Potencial PIX</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial dinheiro</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialCash)}</strong></div><div class="list-row"><div class="list-main"><strong>A receber no mês</strong><span>Previsto menos recebido</span></div><strong>${privateMoney(m.remainingTotal)}</strong></div></article>
       </section>
       ${renderBirthdayPanel()}
       <div class="section-head"><div><h3>Próximos vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Aluno</button></div>
@@ -449,7 +455,10 @@
           ${metricCard('wallet',privateMoney(m.net),'Saldo do mês',m.net>=0?'good':'danger')}
         </section>
         <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente</p></div><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button></div>
-        <section class="cards grid2 payment-breakdown"><article class="card"><div class="list-row"><div class="list-main"><strong>Recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div></article><article class="card"><div class="list-row"><div class="list-main"><strong>Recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div></article></section>
+        <section class="cards grid2 payment-breakdown">
+          <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial via PIX</strong><span>Todos os alunos ativos cadastrados como PIX</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>PIX</span></div><strong>${privateMoney(m.remainingPix)}</strong></div></article>
+          <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial em dinheiro</strong><span>Todos os alunos ativos cadastrados como Dinheiro</span></div><strong>${privateMoney(m.potentialCash)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>Dinheiro</span></div><strong>${privateMoney(m.remainingCash)}</strong></div></article>
+        </section>
         <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>Alunos com mensalidade vencida</span></div><strong>${m.overdue}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
           $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     } else if (financeTab==='payments') renderPayments(c);
