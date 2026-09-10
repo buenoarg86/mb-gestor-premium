@@ -8,6 +8,8 @@
     expenses: [],
     payments: [],
     schedule: {},
+    attendance: {},
+    reminderDrafts: [],
     birthdayNotifications: {},
     settings: {
       studioName: 'Studio Márcio Bueno',
@@ -22,6 +24,7 @@
     {id:'students', label:'Alunos', icon:'users', title:'Alunos'},
     {id:'finance', label:'Financeiro', icon:'wallet', title:'Financeiro'},
     {id:'charges', label:'Cobranças', icon:'bell', title:'Cobranças'},
+    {id:'reminders', label:'Lembretes', icon:'message', title:'Lembretes e WhatsApp'},
     {id:'consent', label:'Termos', icon:'file', title:'Termos de consentimento'},
     {id:'schedule', label:'Agenda', icon:'calendar', title:'Agenda semanal'},
     {id:'settings', label:'Ajustes', icon:'settings', title:'Ajustes'}
@@ -56,6 +59,8 @@
         expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
         payments: Array.isArray(parsed.payments) ? parsed.payments : [],
         schedule: (parsed.schedule && typeof parsed.schedule === 'object') ? parsed.schedule : {},
+        attendance: (parsed.attendance && typeof parsed.attendance === 'object') ? parsed.attendance : {},
+        reminderDrafts: Array.isArray(parsed.reminderDrafts) ? parsed.reminderDrafts : [],
         birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
       };
@@ -156,6 +161,18 @@
   function slotKey(day,time){return `${day}_${time}`}
   function slotStudents(day,time){return Array.isArray(state.schedule?.[slotKey(day,time)])?state.schedule[slotKey(day,time)]:[]}
 
+  function isoDate(d){const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`}
+  function addDays(date,days){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate(),12);d.setDate(d.getDate()+days);return d}
+  function mondayOf(date=todayNoon()){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate(),12);const wd=d.getDay()||7;d.setDate(d.getDate()-wd+1);return d}
+  let scheduleWeekStart=mondayOf();
+  function scheduleDateForDay(day){const idx=SCHEDULE_DAYS.findIndex(d=>d.id===day);return isoDate(addDays(scheduleWeekStart,Math.max(0,idx)))}
+  function attendanceKey(date,day,time){return `${date}__${slotKey(day,time)}`}
+  function attendanceMap(date,day,time){return state.attendance?.[attendanceKey(date,day,time)]||{}}
+  function attendanceStatus(date,day,time,studentId){return attendanceMap(date,day,time)[studentId]||''}
+  function setAttendance(date,day,time,studentId,status){state.attendance=state.attendance||{};const k=attendanceKey(date,day,time);state.attendance[k]=state.attendance[k]||{};if(status)state.attendance[k][studentId]=status;else delete state.attendance[k][studentId];saveState()}
+  function monthLabel(key){if(!/^\d{4}-\d{2}$/.test(key))return key;const [y,m]=key.split('-').map(Number);return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1,12))}
+  function monthlyAttendanceCount(studentId,mk=monthKey()){let count=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(date.startsWith(mk)&&map&&map[studentId]==='present')count++});return count}
+
   function daysBetween(a,b) {
     const one = parseLocalDate(a);
     const two = b instanceof Date ? b : parseLocalDate(b);
@@ -219,6 +236,7 @@
       students: renderStudents,
       finance: renderFinance,
       charges: renderCharges,
+      reminders: renderReminders,
       consent: renderConsent,
       schedule: renderSchedule,
       settings: renderSettings
@@ -300,11 +318,14 @@
     const age = ageFromBirth(s.birthDate);
     const info = dueInfo(s);
     return `<article class="card student-card">
-      <div>
+      <div class="student-profile">
+        <div class="student-photo">${s.photoData?`<img src="${s.photoData}" alt="Foto de ${escapeHTML(s.name)}" />`:`<span>${escapeHTML((s.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div>
+        <div class="student-info">
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
         <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
         <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''}</div>
+        </div>
       </div>
       <div class="student-actions">
         <button class="mini-icon js-edit-student" data-id="${s.id}" title="Editar aluno">${icon('edit')}</button>
@@ -323,6 +344,7 @@
     const title = s ? 'Editar aluno' : 'Novo aluno';
     openModal(title, `
       <form id="studentForm" class="form-grid two">
+        <div class="field" style="grid-column:1/-1"><label>Foto do aluno</label><div class="photo-picker"><div id="photoPreview" class="photo-preview">${s?.photoData?`<img src="${s.photoData}" alt="Foto do aluno" />`:`<span>${escapeHTML((s?.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div><div><input id="studentPhoto" type="file" accept="image/*" /><small>Opcional. A foto será reduzida e salva somente no app.</small><button id="removePhoto" type="button" class="btn btn-secondary btn-small ${s?.photoData?'':'hidden'}" style="margin-top:8px">Remover foto</button></div></div></div>
         <div class="field" style="grid-column:1/-1"><label>Nome completo *</label><input name="name" required value="${escapeHTML(s?.name||'')}" placeholder="Nome do aluno" /></div>
         <div class="field"><label>Data de nascimento *</label><input name="birthDate" type="date" required value="${escapeHTML(s?.birthDate||'')}" /></div>
         <div class="field"><label>Idade</label><input id="agePreview" disabled value="${s?.birthDate ? `${ageFromBirth(s.birthDate)} anos` : 'Calculada automaticamente'}" /></div>
@@ -336,6 +358,13 @@
       </form>
     `);
     const form = $('#studentForm');
+    let photoData=s?.photoData||'';
+    const photoInput=$('#studentPhoto');
+    const photoPreview=$('#photoPreview');
+    const removePhoto=$('#removePhoto');
+    async function compressPhoto(file){return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const max=320,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',.72))};img.onerror=reject;img.src=reader.result};reader.onerror=reject;reader.readAsDataURL(file)});}
+    photoInput.addEventListener('change',async()=>{const file=photoInput.files?.[0];if(!file)return;try{photoData=await compressPhoto(file);photoPreview.innerHTML=`<img src="${photoData}" alt="Foto do aluno" />`;removePhoto.classList.remove('hidden')}catch(e){toast('Não foi possível carregar essa foto.')}});
+    removePhoto.addEventListener('click',()=>{photoData='';photoInput.value='';photoPreview.innerHTML='<span>?</span>';removePhoto.classList.add('hidden')});
     form.birthDate.addEventListener('change',()=>{$('#agePreview').value = form.birthDate.value ? `${ageFromBirth(form.birthDate.value)} anos` : 'Calculada automaticamente';});
     form.addEventListener('submit', e=>{
       e.preventDefault();
@@ -350,6 +379,7 @@
         dueDate: String(fd.get('dueDate')),
         monthlyFee: Number(fd.get('monthlyFee')) || 0,
         active: String(fd.get('active')) === 'true',
+        photoData,
         consent: s?.consent || {sentAt:null,acceptedAt:null},
         createdAt: s?.createdAt || new Date().toISOString()
       };
@@ -464,6 +494,26 @@
     return `TERMO DE CONSENTIMENTO E AUTODECLARAÇÃO PARA PRÁTICA DE ATIVIDADE FÍSICA\n\nEu, ${s.name}, ${age ?? '___'} anos, declaro que as informações sobre minha saúde fornecidas ao profissional responsável são verdadeiras e que não tenho conhecimento de condição que me impeça de participar das atividades físicas propostas.\n\nComprometo-me a informar imediatamente qualquer dor, mal-estar, alteração de saúde, uso de medicamento relevante ou orientação médica que possa interferir na prática de exercícios.\n\nEstou ciente de que este termo não substitui avaliação, diagnóstico ou liberação médica quando houver indicação, sintomas, fatores de risco ou recomendação de profissional de saúde.\n\nAo responder “LI E ACEITO” a esta mensagem, confirmo que li e compreendi o conteúdo acima e autorizo o registro deste aceite pelo Studio Márcio Bueno.\n\nData: ${fmtDate(isoToday())}\nStudio Márcio Bueno • Personal Trainer`;
   }
 
+  function renderReminders(){
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    viewEl.innerHTML=`<div class="notice">Escreva uma mensagem, selecione um ou mais alunos e prepare os envios. O WhatsApp pedirá sua confirmação em cada conversa.</div>
+      <div class="section-head"><div><h3>Lembrete rápido</h3><p>Envio individual ou em lote pelo WhatsApp</p></div></div>
+      <section class="card"><div class="field"><label>Mensagem</label><textarea id="reminderMessage" placeholder="Ex.: Olá, [nome]! Passando para lembrar que..."></textarea><small>Use <strong>[nome]</strong> para personalizar automaticamente.</small></div>
+      <div class="reminder-toolbar"><button type="button" class="btn btn-secondary btn-small" id="selectAllReminder">Selecionar todos</button><button type="button" class="btn btn-secondary btn-small" id="clearReminder">Limpar seleção</button></div>
+      <div class="reminder-students">${students.map(s=>`<label class="reminder-student"><input type="checkbox" name="reminderStudent" value="${s.id}"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</small></span></label>`).join('')}</div>
+      <div class="modal-actions"><button type="button" class="btn btn-primary" id="prepareReminder">${icon('message')} Preparar envios</button></div></section><section id="reminderQueue" class="cards" style="margin-top:12px"></section>`;
+    $('#selectAllReminder').addEventListener('click',()=>$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=true));
+    $('#clearReminder').addEventListener('click',()=>$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=false));
+    $('#prepareReminder').addEventListener('click',()=>{
+      const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva a mensagem primeiro.');
+      const ids=$$('input[name="reminderStudent"]:checked',viewEl).map(x=>x.value);if(!ids.length)return toast('Selecione pelo menos um aluno.');
+      const selected=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
+      $('#reminderQueue').innerHTML=selected.map(s=>{const phone=cleanPhone(s.whatsapp);const text=msg.replaceAll('[nome]',s.name.split(' ')[0]||s.name);return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?'Mensagem pronta':'WhatsApp não cadastrado'}</span></div>${phone?`<button class="btn btn-primary btn-small js-open-reminder" data-url="https://wa.me/${phone}?text=${encodeURIComponent(text)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</div></article>`}).join('');
+      $$('.js-open-reminder',viewEl).forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener,noreferrer')));
+      toast(`${selected.length} envio${selected.length===1?'':'s'} preparado${selected.length===1?'':'s'}.`);
+    });
+  }
+
   function renderConsent() {
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
     viewEl.innerHTML=`<div class="notice">Este modelo é uma autodeclaração de consentimento e não substitui avaliação ou liberação médica quando indicada.</div><div class="section-head"><div><h3>Termos dos alunos</h3><p>Envie, copie e registre o aceite</p></div></div><section class="cards">${students.length?students.map(s=>{const c=s.consent||{};return `<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Enviado: <strong>${c.sentAt?fmtDate(c.sentAt.slice(0,10)):'Não'}</strong></span><span>Aceite: <strong>${c.acceptedAt?fmtDate(c.acceptedAt.slice(0,10)):'Pendente'}</strong></span></div></div><div class="student-actions"><button class="mini-icon js-open-term" data-id="${s.id}" title="Abrir termo">${icon('file')}</button></div></div></article>`}).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar os termos.')}</section>`;
@@ -490,40 +540,53 @@
   }
 
   function renderSchedule(){
-    viewEl.innerHTML=`<div class="section-head"><div><h3>Agenda semanal</h3><p>4 vagas por turma • toque em uma aula para organizar os alunos</p></div></div>
-      <div class="schedule-days">${SCHEDULE_DAYS.map(d=>`<section class="schedule-day"><div class="schedule-day-title">${d.label}</div><div class="schedule-slots">${scheduleHours(d.id).map(t=>scheduleSlotHTML(d.id,t)).join('')}</div></section>`).join('')}</div>`;
+    const weekEnd=addDays(scheduleWeekStart,4);
+    const mk=monthKey();
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    viewEl.innerHTML=`<div class="section-head"><div><h3>Agenda semanal</h3><p>4 vagas por turma • registre presença ou falta em cada semana</p></div></div>
+      <div class="week-nav"><button class="btn btn-secondary btn-small" id="prevWeek">‹ Semana anterior</button><div class="week-label"><strong>${fmtDate(isoDate(scheduleWeekStart))} a ${fmtDate(isoDate(weekEnd))}</strong><button class="link-btn" id="currentWeek">Ir para semana atual</button></div><button class="btn btn-secondary btn-small" id="nextWeek">Próxima semana ›</button></div>
+      <div class="schedule-days">${SCHEDULE_DAYS.map(d=>`<section class="schedule-day"><div class="schedule-day-title">${d.label}<span>${fmtDate(scheduleDateForDay(d.id)).slice(0,5)}</span></div><div class="schedule-slots">${scheduleHours(d.id).map(t=>scheduleSlotHTML(d.id,t)).join('')}</div></section>`).join('')}</div>
+      <div class="section-head"><div><h3>Resumo mensal de treinos</h3><p>${monthLabel(mk)} • baseado nas presenças registradas</p></div></div>
+      <section class="cards">${students.length?students.map(s=>monthlyReportRow(s,mk)).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar o resumo mensal.')}</section>`;
     $$('.schedule-slot',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.day,b.dataset.time)));
+    $('#prevWeek').addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,-7);renderSchedule()});
+    $('#nextWeek').addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,7);renderSchedule()});
+    $('#currentWeek').addEventListener('click',()=>{scheduleWeekStart=mondayOf();renderSchedule()});
+    $$('.js-month-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(b.dataset.id,mk)));
+  }
+
+  function monthlyReportRow(s,mk){
+    const count=monthlyAttendanceCount(s.id,mk);
+    return `<article class="card"><div class="list-row"><div class="student-profile"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${count} treino${count===1?'':'s'} realizado${count===1?'':'s'} em ${monthLabel(mk)}</span></div></div><button class="mini-icon js-month-whatsapp" data-id="${s.id}" title="Enviar resumo pelo WhatsApp">${icon('message')}</button></div></article>`;
+  }
+
+  function sendMonthlyAttendanceWhatsApp(id,mk){
+    const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');
+    const count=monthlyAttendanceCount(id,mk);const first=(s.name||'').split(' ')[0]||s.name;
+    const text=`Olá, ${first}! Seu resumo de treinos de ${monthLabel(mk)}: você realizou ${count} treino${count===1?'':'s'} no Studio Márcio Bueno. 💪`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
   }
 
   function scheduleSlotHTML(day,time){
-    const ids=slotStudents(day,time);
+    const ids=slotStudents(day,time),date=scheduleDateForDay(day),map=attendanceMap(date,day,time);
     const names=ids.map(id=>state.students.find(s=>s.id===id)?.name).filter(Boolean);
+    const present=ids.filter(id=>map[id]==='present').length, absent=ids.filter(id=>map[id]==='absent').length;
     return `<button type="button" class="schedule-slot ${ids.length>=4?'full':''}" data-day="${day}" data-time="${time}">
       <div class="schedule-time">${time}</div><div class="schedule-count">${ids.length}/4</div>
-      <div class="schedule-names">${names.length?names.map(escapeHTML).join(' • '):'Vagas disponíveis'}</div>
+      <div><div class="schedule-names">${names.length?names.map(escapeHTML).join(' • '):'Vagas disponíveis'}</div>${(present||absent)?`<div class="attendance-mini"><span>✓ ${present}</span><span>✕ ${absent}</span></div>`:''}</div>
     </button>`;
   }
 
   function openScheduleSlot(day,time){
-    const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day;
-    const selected=new Set(slotStudents(day,time));
+    const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day),selected=new Set(slotStudents(day,time));
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    openModal(`${dayLabel} • ${time}`,`<div class="notice">Selecione até 4 alunos para esta turma.</div>
-      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span>${escapeHTML(s.name)}</span></label>`).join('')}</div>
+    openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`<div class="notice">Organize a turma e marque a presença desta semana. A presença registrada alimenta automaticamente o resumo mensal.</div>
+      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<div class="attendance-row"><label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></label><div class="attendance-actions ${selected.has(s.id)?'':'hidden'}" data-att-for="${s.id}"><button type="button" class="attendance-btn present ${attendanceStatus(date,day,time,s.id)==='present'?'active':''}" data-att="present" data-id="${s.id}">✓ Presença</button><button type="button" class="attendance-btn absent ${attendanceStatus(date,day,time,s.id)==='absent'?'active':''}" data-att="absent" data-id="${s.id}">✕ Falta</button></div></div>`).join('')}</div>
       <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar turma</button></div></form>`);
     const form=$('#slotForm');
-    form.addEventListener('change',e=>{
-      if(e.target.name==='student'){
-        const checked=$$('input[name="student"]:checked',form);
-        if(checked.length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos.');}
-      }
-    });
-    form.addEventListener('submit',e=>{
-      e.preventDefault();
-      const ids=$$('input[name="student"]:checked',form).map(x=>x.value);
-      state.schedule=state.schedule||{}; state.schedule[slotKey(day,time)]=ids;
-      saveState();closeModal();toast('Turma atualizada.');renderSchedule();
-    });
+    form.addEventListener('change',e=>{if(e.target.name==='student'){const checked=$$('input[name="student"]:checked',form);if(checked.length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos.');}const actions=$(`[data-att-for="${e.target.value}"]`,form);actions?.classList.toggle('hidden',!e.target.checked)}});
+    $$('.attendance-btn',form).forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.id,status=b.dataset.att;setAttendance(date,day,time,id,status);$$(`.attendance-btn[data-id="${id}"]`,form).forEach(x=>x.classList.toggle('active',x.dataset.att===status));toast(status==='present'?'Presença registrada.':'Falta registrada.')}));
+    form.addEventListener('submit',e=>{e.preventDefault();const ids=$$('input[name="student"]:checked',form).map(x=>x.value);state.schedule=state.schedule||{};state.schedule[slotKey(day,time)]=ids;saveState();closeModal();toast('Turma atualizada.');renderSchedule()});
   }
 
   async function enableBirthdayNotifications(){
@@ -578,7 +641,7 @@
 
   function exportBackup(){const payload={app:'MB Gestor Premium',exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup gerado.');}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
