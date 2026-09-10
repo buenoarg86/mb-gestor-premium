@@ -317,6 +317,8 @@
   function studentCard(s) {
     const age = ageFromBirth(s.birthDate);
     const info = dueInfo(s);
+    const mk = monthKey();
+    const trainingCount = monthlyAttendanceCount(s.id,mk);
     return `<article class="card student-card">
       <div class="student-profile">
         <div class="student-photo">${s.photoData?`<img src="${s.photoData}" alt="Foto de ${escapeHTML(s.name)}" />`:`<span>${escapeHTML((s.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div>
@@ -324,7 +326,7 @@
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
         <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
-        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''}</div>
+        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} <span class="status neutral">Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span></div>
         </div>
       </div>
       <div class="student-actions">
