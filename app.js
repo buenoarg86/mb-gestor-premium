@@ -570,23 +570,84 @@
   function scheduleSlotHTML(day,time){
     const ids=slotStudents(day,time),date=scheduleDateForDay(day),map=attendanceMap(date,day,time);
     const names=ids.map(id=>state.students.find(s=>s.id===id)?.name).filter(Boolean);
-    const present=ids.filter(id=>map[id]==='present').length, absent=ids.filter(id=>map[id]==='absent').length;
-    return `<button type="button" class="schedule-slot ${ids.length>=4?'full':''}" data-day="${day}" data-time="${time}">
-      <div class="schedule-time">${time}</div><div class="schedule-count">${ids.length}/4</div>
-      <div><div class="schedule-names">${names.length?names.map(escapeHTML).join(' • '):'Vagas disponíveis'}</div>${(present||absent)?`<div class="attendance-mini"><span>✓ ${present}</span><span>✕ ${absent}</span></div>`:''}</div>
+    const makeupId=makeupStudentId(date,day,time), makeup=state.students.find(s=>s.id===makeupId);
+    const allIds=makeupId?[...ids,makeupId]:ids;
+    const present=allIds.filter(id=>map[id]==='present').length, absent=allIds.filter(id=>map[id]==='absent').length;
+    return `<button type="button" class="schedule-slot ${ids.length>=4?'full':''} ${makeup?'has-makeup':''}" data-day="${day}" data-time="${time}">
+      <div class="schedule-time">${time}</div><div class="schedule-count">${ids.length}/4${makeup?'<span class="makeup-dot">+R</span>':''}</div>
+      <div><div class="schedule-names">${names.length?names.map(escapeHTML).join(' • '):'Vagas disponíveis'}${makeup?` <span class="makeup-inline">• Reposição: ${escapeHTML(makeup.name)}</span>`:''}</div>${(present||absent)?`<div class="attendance-mini"><span>✓ ${present}</span><span>✕ ${absent}</span></div>`:''}</div>
     </button>`;
   }
 
+  function makeupStudentId(date,day,time){return state.makeups?.[attendanceKey(date,day,time)]||''}
+  function setMakeupStudent(date,day,time,studentId){
+    state.makeups=state.makeups||{};
+    const k=attendanceKey(date,day,time);
+    if(studentId){state.makeups[k]=studentId;setAttendance(date,day,time,studentId,'present')}
+    else {const old=state.makeups[k];if(old)setAttendance(date,day,time,old,'');delete state.makeups[k];saveState()}
+  }
+
+  function attendanceStudentCard(s,date,day,time,isMakeup=false){
+    const st=attendanceStatus(date,day,time,s.id);
+    return `<div class="daily-attendance-card ${isMakeup?'makeup-card':''}">
+      <div class="daily-student"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
+      <div><strong>${escapeHTML(s.name)}</strong>${isMakeup?'<small>REPOSIÇÃO</small>':''}</div></div>
+      <div class="attendance-actions">
+        <button type="button" class="attendance-btn present ${st==='present'?'active':''}" data-att="present" data-id="${s.id}">✓ Presente</button>
+        <button type="button" class="attendance-btn absent ${st==='absent'?'active':''}" data-att="absent" data-id="${s.id}">✕ Falta</button>
+      </div>
+      ${isMakeup?'<button type="button" class="remove-makeup" data-remove-makeup>Remover reposição</button>':''}
+    </div>`;
+  }
+
+  function bindAttendanceButtons(root,date,day,time){
+    $$('.attendance-btn',root).forEach(b=>b.addEventListener('click',()=>{
+      const id=b.dataset.id,status=b.dataset.att;setAttendance(date,day,time,id,status);
+      $$(`.attendance-btn[data-id="${id}"]`,root).forEach(x=>x.classList.toggle('active',x.dataset.att===status));
+      toast(status==='present'?'Presença registrada.':'Falta registrada.');
+    }));
+  }
+
   function openScheduleSlot(day,time){
+    const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day);
+    const ids=slotStudents(day,time);
+    const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
+    const makeupId=makeupStudentId(date,day,time);
+    const makeup=state.students.find(s=>s.id===makeupId);
+    openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`
+      <div class="notice">Marque Presente ou Falta somente para os alunos desta aula. As presenças alimentam automaticamente o resumo mensal.</div>
+      <div class="daily-attendance-list">${enrolled.length?enrolled.map(s=>attendanceStudentCard(s,date,day,time)).join(''):'<div class="empty compact"><strong>Nenhum aluno fixo</strong>Use “Editar alunos da turma” para montar este horário.</div>'}</div>
+      ${makeup?`<div class="makeup-title">Reposição nesta aula</div>${attendanceStudentCard(makeup,date,day,time,true)}`:''}
+      <div class="lesson-tools">
+        <button type="button" class="btn btn-secondary" id="editClassStudents">Editar alunos da turma</button>
+        <button type="button" class="btn btn-makeup" id="addMakeup">${makeup?'Trocar reposição':'+ Adicionar reposição'}</button>
+      </div>`);
+    const modal=$('.modal');
+    bindAttendanceButtons(modal,date,day,time);
+    $('#editClassStudents',modal)?.addEventListener('click',()=>openClassEditor(day,time));
+    $('#addMakeup',modal)?.addEventListener('click',()=>openMakeupPicker(day,time));
+    $('[data-remove-makeup]',modal)?.addEventListener('click',()=>{setMakeupStudent(date,day,time,'');closeModal();toast('Reposição removida.');renderSchedule()});
+  }
+
+  function openClassEditor(day,time){
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day),selected=new Set(slotStudents(day,time));
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`<div class="notice">Organize a turma e marque a presença desta semana. A presença registrada alimenta automaticamente o resumo mensal.</div>
-      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<div class="attendance-row"><label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></label><div class="attendance-actions ${selected.has(s.id)?'':'hidden'}" data-att-for="${s.id}"><button type="button" class="attendance-btn present ${attendanceStatus(date,day,time,s.id)==='present'?'active':''}" data-att="present" data-id="${s.id}">✓ Presença</button><button type="button" class="attendance-btn absent ${attendanceStatus(date,day,time,s.id)==='absent'?'active':''}" data-att="absent" data-id="${s.id}">✕ Falta</button></div></div>`).join('')}</div>
+    openModal(`Editar turma • ${dayLabel} • ${time}`,`<div class="notice">Selecione até 4 alunos fixos para este horário. A presença é marcada na tela anterior.</div>
+      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></label>`).join('')}</div>
       <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar turma</button></div></form>`);
     const form=$('#slotForm');
-    form.addEventListener('change',e=>{if(e.target.name==='student'){const checked=$$('input[name="student"]:checked',form);if(checked.length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos.');}const actions=$(`[data-att-for="${e.target.value}"]`,form);actions?.classList.toggle('hidden',!e.target.checked)}});
-    $$('.attendance-btn',form).forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.id,status=b.dataset.att;setAttendance(date,day,time,id,status);$$(`.attendance-btn[data-id="${id}"]`,form).forEach(x=>x.classList.toggle('active',x.dataset.att===status));toast(status==='present'?'Presença registrada.':'Falta registrada.')}));
-    form.addEventListener('submit',e=>{e.preventDefault();const ids=$$('input[name="student"]:checked',form).map(x=>x.value);state.schedule=state.schedule||{};state.schedule[slotKey(day,time)]=ids;saveState();closeModal();toast('Turma atualizada.');renderSchedule()});
+    form.addEventListener('change',e=>{if(e.target.name==='student' && $$('input[name="student"]:checked',form).length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos fixos.')}});
+    form.addEventListener('submit',e=>{e.preventDefault();const newIds=$$('input[name="student"]:checked',form).map(x=>x.value);state.schedule=state.schedule||{};state.schedule[slotKey(day,time)]=newIds;saveState();closeModal();toast('Turma atualizada.');renderSchedule()});
+  }
+
+  function openMakeupPicker(day,time){
+    const date=scheduleDateForDay(day),fixed=new Set(slotStudents(day,time));
+    const current=makeupStudentId(date,day,time);
+    const students=[...activeStudents()].filter(s=>!fixed.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    openModal(`Adicionar reposição • ${fmtDate(date)} • ${time}`,`<div class="notice makeup-notice">A reposição é uma vaga extra desta aula e não altera a turma fixa. Ao adicionar o aluno, ela já será contabilizada como presença no resumo mensal.</div>
+      <div class="makeup-picker">${students.map(s=>`<button type="button" class="makeup-option ${current===s.id?'selected':''}" data-makeup-id="${s.id}"><span class="makeup-square">R</span><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></button>`).join('')}</div>`);
+    const modal=$('.modal');
+    $$('.makeup-option',modal).forEach(b=>b.addEventListener('click',()=>{setMakeupStudent(date,day,time,b.dataset.makeupId);closeModal();toast('Reposição adicionada e presença contabilizada.');renderSchedule()}));
   }
 
   async function enableBirthdayNotifications(){
