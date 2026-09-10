@@ -7,6 +7,8 @@
     students: [],
     expenses: [],
     payments: [],
+    schedule: {},
+    birthdayNotifications: {},
     settings: {
       studioName: 'Studio Márcio Bueno',
       trainerName: 'Márcio Bueno',
@@ -21,6 +23,7 @@
     {id:'finance', label:'Financeiro', icon:'wallet', title:'Financeiro'},
     {id:'charges', label:'Cobranças', icon:'bell', title:'Cobranças'},
     {id:'consent', label:'Termos', icon:'file', title:'Termos de consentimento'},
+    {id:'schedule', label:'Agenda', icon:'calendar', title:'Agenda semanal'},
     {id:'settings', label:'Ajustes', icon:'settings', title:'Ajustes'}
   ];
 
@@ -52,6 +55,8 @@
         students: Array.isArray(parsed.students) ? parsed.students : [],
         expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
         payments: Array.isArray(parsed.payments) ? parsed.payments : [],
+        schedule: (parsed.schedule && typeof parsed.schedule === 'object') ? parsed.schedule : {},
+        birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
       };
     } catch (err) {
@@ -114,6 +119,43 @@
     return Math.max(0, age);
   }
 
+
+  function studioTime(value) {
+    const start=parseLocalDate(value); if(!start) return '—';
+    const now=todayNoon(); if(start>now) return 'Ainda não iniciou';
+    let years=now.getFullYear()-start.getFullYear();
+    let months=now.getMonth()-start.getMonth();
+    if(now.getDate()<start.getDate()) months--;
+    if(months<0){years--;months+=12;}
+    const parts=[];
+    if(years) parts.push(`${years} ano${years===1?'':'s'}`);
+    if(months) parts.push(`${months} ${months===1?'mês':'meses'}`);
+    return parts.length?parts.join(' e '):'Menos de 1 mês';
+  }
+
+  function birthdayInfo(s) {
+    const b=parseLocalDate(s.birthDate); if(!b) return null;
+    const now=todayNoon();
+    let next=new Date(now.getFullYear(),b.getMonth(),b.getDate(),12);
+    if(next<now) next=new Date(now.getFullYear()+1,b.getMonth(),b.getDate(),12);
+    return {days:Math.round((next-now)/86400000), next};
+  }
+
+  function birthdayStudents(maxDays=7){
+    return activeStudents().map(s=>({s,info:birthdayInfo(s)}))
+      .filter(x=>x.info && x.info.days<=maxDays).sort((a,b)=>a.info.days-b.info.days);
+  }
+
+  const SCHEDULE_DAYS=[
+    {id:'mon',label:'Segunda'},{id:'tue',label:'Terça'},{id:'wed',label:'Quarta'},
+    {id:'thu',label:'Quinta'},{id:'fri',label:'Sexta'}
+  ];
+  const WEEK_HOURS=['06:00','07:00','08:00','09:00','16:00','17:00','18:00','19:00'];
+  const FRIDAY_HOURS=['06:00','07:00','08:00','09:00','10:00'];
+  function scheduleHours(day){return day==='fri'?FRIDAY_HOURS:WEEK_HOURS}
+  function slotKey(day,time){return `${day}_${time}`}
+  function slotStudents(day,time){return Array.isArray(state.schedule?.[slotKey(day,time)])?state.schedule[slotKey(day,time)]:[]}
+
   function daysBetween(a,b) {
     const one = parseLocalDate(a);
     const two = b instanceof Date ? b : parseLocalDate(b);
@@ -154,7 +196,7 @@
     const desktop = $('#desktopNav');
     const mobile = $('#mobileNav');
     desktop.innerHTML = NAV.map(n=>navButton(n)).join('');
-    mobile.innerHTML = NAV.slice(0,5).map(n=>navButton(n)).join('');
+    mobile.innerHTML = NAV.map(n=>navButton(n)).join('');
     $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
   }
 
@@ -178,6 +220,7 @@
       finance: renderFinance,
       charges: renderCharges,
       consent: renderConsent,
+      schedule: renderSchedule,
       settings: renderSettings
     }[currentView] || renderDashboard;
     renderer();
@@ -217,6 +260,7 @@
         <article class="card highlight"><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados no mês</span></div><strong class="money-positive">${fmtMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas no mês</span></div><strong class="money-negative">${fmtMoney(m.expenses)}</strong></div><div class="list-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${fmtMoney(m.net)}</strong></div></article>
         <article class="card"><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Receita prevista</strong><span>Soma das mensalidades dos alunos ativos</span></div><strong>${fmtMoney(m.expected)}</strong></div></article>
       </section>
+      ${renderBirthdayPanel()}
       <div class="section-head"><div><h3>Próximos vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Aluno</button></div>
       <section class="cards">${upcoming.length ? upcoming.map(({s,info})=>chargeMiniRow(s,info)).join('') : emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>
     `;
@@ -259,7 +303,7 @@
       <div>
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
-        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
+        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
         <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''}</div>
       </div>
       <div class="student-actions">
@@ -437,6 +481,72 @@
 
   function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Texto copiado.');}
 
+
+  function renderBirthdayPanel(){
+    const items=birthdayStudents(7);
+    if(!items.length) return '';
+    return `<div class="section-head"><div><h3>🎂 Aniversários</h3><p>Hoje e próximos 7 dias</p></div></div>
+      <section class="cards">${items.map(({s,info})=>`<article class="card birthday-card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${info.days===0?'🎉 Aniversário hoje':`Em ${info.days} dia${info.days===1?'':'s'} • ${fmtDate(`${info.next.getFullYear()}-${String(info.next.getMonth()+1).padStart(2,'0')}-${String(info.next.getDate()).padStart(2,'0')}`)}`}</span></div><span class="status ${info.days===0?'warn':'neutral'}">${info.days===0?'HOJE':'EM BREVE'}</span></div></article>`).join('')}</section>`;
+  }
+
+  function renderSchedule(){
+    viewEl.innerHTML=`<div class="section-head"><div><h3>Agenda semanal</h3><p>4 vagas por turma • toque em uma aula para organizar os alunos</p></div></div>
+      <div class="schedule-days">${SCHEDULE_DAYS.map(d=>`<section class="schedule-day"><div class="schedule-day-title">${d.label}</div><div class="schedule-slots">${scheduleHours(d.id).map(t=>scheduleSlotHTML(d.id,t)).join('')}</div></section>`).join('')}</div>`;
+    $$('.schedule-slot',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.day,b.dataset.time)));
+  }
+
+  function scheduleSlotHTML(day,time){
+    const ids=slotStudents(day,time);
+    const names=ids.map(id=>state.students.find(s=>s.id===id)?.name).filter(Boolean);
+    return `<button type="button" class="schedule-slot ${ids.length>=4?'full':''}" data-day="${day}" data-time="${time}">
+      <div class="schedule-time">${time}</div><div class="schedule-count">${ids.length}/4</div>
+      <div class="schedule-names">${names.length?names.map(escapeHTML).join(' • '):'Vagas disponíveis'}</div>
+    </button>`;
+  }
+
+  function openScheduleSlot(day,time){
+    const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day;
+    const selected=new Set(slotStudents(day,time));
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    openModal(`${dayLabel} • ${time}`,`<div class="notice">Selecione até 4 alunos para esta turma.</div>
+      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span>${escapeHTML(s.name)}</span></label>`).join('')}</div>
+      <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar turma</button></div></form>`);
+    const form=$('#slotForm');
+    form.addEventListener('change',e=>{
+      if(e.target.name==='student'){
+        const checked=$$('input[name="student"]:checked',form);
+        if(checked.length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos.');}
+      }
+    });
+    form.addEventListener('submit',e=>{
+      e.preventDefault();
+      const ids=$$('input[name="student"]:checked',form).map(x=>x.value);
+      state.schedule=state.schedule||{}; state.schedule[slotKey(day,time)]=ids;
+      saveState();closeModal();toast('Turma atualizada.');renderSchedule();
+    });
+  }
+
+  async function enableBirthdayNotifications(){
+    if(!('Notification' in window)) return toast('Este navegador não oferece notificações.');
+    const p=await Notification.requestPermission();
+    state.birthdayNotifications=state.birthdayNotifications||{};
+    state.birthdayNotifications.enabled=p==='granted';saveState();
+    if(p==='granted'){toast('Notificações de aniversário ativadas.');checkBirthdayNotification(true);}
+    else toast('Permissão de notificações não concedida.');
+  }
+
+  function checkBirthdayNotification(force=false){
+    if(Notification?.permission!=='granted' || !state.birthdayNotifications?.enabled) return;
+    const today=isoToday();
+    if(!force && state.birthdayNotifications.lastCheck===today) return;
+    const todayBirthdays=birthdayStudents(0);
+    if(todayBirthdays.length){
+      const names=todayBirthdays.map(x=>x.s.name).join(', ');
+      try{new Notification('🎂 Aniversário no Studio',{body:`Hoje: ${names}`});}catch{}
+    }
+    state.birthdayNotifications.lastCheck=today;saveState();
+  }
+
   function renderSettings() {
     const m=metrics();
     viewEl.innerHTML=`
@@ -445,6 +555,7 @@
       <section class="card">
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
+        <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
         <div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
       </section>
       <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados</p></div></div>
@@ -457,6 +568,7 @@
     `;
     $('#installSettings').addEventListener('click',installApp);
     $('#changeDays').addEventListener('click',changeChargeDays);
+    $('#birthdayNotify')?.addEventListener('click',enableBirthdayNotifications);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
     $('#backupFile').addEventListener('change',importBackup);
@@ -466,7 +578,7 @@
 
   function exportBackup(){const payload={app:'MB Gestor Premium',exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup gerado.');}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
@@ -497,4 +609,5 @@
 
   renderNav();
   render();
+  setTimeout(()=>checkBirthdayNotification(false),1200);
 })();
