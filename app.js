@@ -210,13 +210,16 @@
     const monthPayments = state.payments.filter(p=>monthKey(p.date)===mk);
     const received = monthPayments.reduce((a,p)=>a+(Number(p.amount)||0),0);
 
-    // V6.1: pagamentos antigos podem não ter paymentMethod gravado.
-    // Nesses casos, usamos a forma de pagamento preferencial atual do aluno.
-    // Pagamentos novos continuam respeitando o método registrado no próprio pagamento.
+    // V6.2: a divisão PIX/Dinheiro segue SEMPRE a forma de pagamento
+    // preferencial atual definida na ficha do aluno. Assim, ao alterar a ficha,
+    // o Financeiro é recalculado automaticamente sem precisar editar pagamentos antigos.
     const paymentMethodFor = (p) => {
-      if (p.paymentMethod === 'pix' || p.paymentMethod === 'cash') return p.paymentMethod;
       const student = state.students.find(s=>s.id===p.studentId);
-      return student?.paymentMethod === 'cash' ? 'cash' : 'pix';
+      if (student?.paymentMethod === 'cash') return 'cash';
+      if (student?.paymentMethod === 'pix') return 'pix';
+      // Fallback apenas para pagamentos de alunos removidos ou registros legados sem aluno.
+      if (p.paymentMethod === 'cash' || p.paymentMethod === 'pix') return p.paymentMethod;
+      return 'pix';
     };
 
     const pix = monthPayments.filter(p=>paymentMethodFor(p)==='pix').reduce((a,p)=>a+(Number(p.amount)||0),0);
