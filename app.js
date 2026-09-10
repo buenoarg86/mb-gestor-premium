@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  // MB Gestor Premium V7.2 completa
 
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
@@ -9,6 +10,7 @@
     payments: [],
     schedule: {},
     attendance: {},
+    makeups: {},
     reminderDrafts: [],
     birthdayNotifications: {},
     settings: {
@@ -62,6 +64,7 @@
         payments: Array.isArray(parsed.payments) ? parsed.payments : [],
         schedule: (parsed.schedule && typeof parsed.schedule === 'object') ? parsed.schedule : {},
         attendance: (parsed.attendance && typeof parsed.attendance === 'object') ? parsed.attendance : {},
+        makeups: (parsed.makeups && typeof parsed.makeups === 'object') ? parsed.makeups : {},
         reminderDrafts: Array.isArray(parsed.reminderDrafts) ? parsed.reminderDrafts : [],
         birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
@@ -178,6 +181,35 @@
   function monthLabel(key){if(!/^\d{4}-\d{2}$/.test(key))return key;const [y,m]=key.split('-').map(Number);return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1,12))}
   function monthlyAttendanceCount(studentId,mk=monthKey()){let count=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(date.startsWith(mk)&&map&&map[studentId]==='present')count++});return count}
 
+  function monthlyAttendanceStats(studentId,mk=monthKey()){
+    let present=0, absent=0, makeups=0;
+    Object.entries(state.attendance||{}).forEach(([k,map])=>{
+      const date=k.slice(0,10); if(!date.startsWith(mk)||!map) return;
+      if(map[studentId]==='present') present++;
+      if(map[studentId]==='absent') absent++;
+      if(state.makeups?.[k]===studentId && map[studentId]==='present') makeups++;
+    });
+    return {present,absent,makeups};
+  }
+
+  function makeupSummary(){
+    const now=todayNoon(), end=addDays(now,7), mk=monthKey();
+    let scheduledNext7=0, completedMonth=0;
+    Object.entries(state.makeups||{}).forEach(([k,studentId])=>{
+      if(!studentId) return;
+      const dateStr=k.slice(0,10), d=parseLocalDate(dateStr);
+      if(d && d>=now && d<=end) scheduledNext7++;
+      if(dateStr.startsWith(mk) && state.attendance?.[k]?.[studentId]==='present') completedMonth++;
+    });
+    return {scheduledNext7,completedMonth};
+  }
+
+  function paymentsByMonth(){
+    const groups={};
+    state.payments.forEach(p=>{const mk=monthKey(p.date); if(!mk)return; (groups[mk] ||= []).push(p)});
+    return Object.entries(groups).sort((a,b)=>b[0].localeCompare(a[0]));
+  }
+
   function daysBetween(a,b) {
     const one = parseLocalDate(a);
     const two = b instanceof Date ? b : parseLocalDate(b);
@@ -239,9 +271,12 @@
     const remainingCash = Math.max(0, potentialCash-cash);
     const remainingTotal = Math.max(0, expected-received);
     const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
-    const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
+    const overdueStudents = students.filter(s=>dueInfo(s).key==='overdue');
+    const overdue = overdueStudents.length;
+    const overdueValue = overdueStudents.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
-    return {students:students.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, soon};
+    const makeups = makeupSummary();
+    return {students:students.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, overdueValue, soon, makeups};
   }
 
   function renderNav() {
@@ -307,6 +342,11 @@
         ${metricCard('wallet', privateMoney(m.expected), 'Receita mensal prevista')}
         ${metricCard('chart', privateMoney(m.received), 'Recebido neste mês', 'good')}
         ${metricCard('bell', m.overdue, 'Mensalidades vencidas', m.overdue?'danger':'good')}
+      </section>
+      <div class="section-head"><div><h3>Saúde do Studio</h3><p>O que merece atenção agora</p></div></div>
+      <section class="cards grid2">
+        <article class="card"><div class="list-row"><div class="list-main"><strong>A receber no mês</strong><span>Previsto menos recebido</span></div><strong>${privateMoney(m.remainingTotal)}</strong></div><div class="list-row"><div class="list-main"><strong>Valor vencido</strong><span>${m.overdue} mensalidade${m.overdue===1?'':'s'} vencida${m.overdue===1?'':'s'}</span></div><strong class="${m.overdue?'money-negative':''}">${privateMoney(m.overdueValue)}</strong></div></article>
+        <article class="card"><div class="list-row"><div class="list-main"><strong>Reposições próximas</strong><span>Agendadas nos próximos 7 dias</span></div><strong>${m.makeups.scheduledNext7}</strong></div><div class="list-row"><div class="list-main"><strong>Reposições realizadas</strong><span>Mês atual</span></div><strong>${m.makeups.completedMonth}</strong></div></article>
       </section>
       <div class="section-head"><div><h3>Resumo financeiro</h3><p>Mês atual</p></div><div class="privacy-actions"><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button><button class="btn btn-secondary btn-small" data-nav="finance">Ver financeiro</button></div></div>
       <section class="finance-grid">
@@ -459,18 +499,25 @@
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial via PIX</strong><span>Todos os alunos ativos cadastrados como PIX</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>PIX</span></div><strong>${privateMoney(m.remainingPix)}</strong></div></article>
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial em dinheiro</strong><span>Todos os alunos ativos cadastrados como Dinheiro</span></div><strong>${privateMoney(m.potentialCash)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>Dinheiro</span></div><strong>${privateMoney(m.remainingCash)}</strong></div></article>
         </section>
-        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>Alunos com mensalidade vencida</span></div><strong>${m.overdue}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
+        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>${m.overdue} aluno${m.overdue===1?'':'s'} • valor pendente</span></div><strong>${privateMoney(m.overdueValue)}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
           $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     } else if (financeTab==='payments') renderPayments(c);
     else renderExpenses(c);
   }
 
   function renderPayments(c) {
-    const payments = [...state.payments].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    const groups=paymentsByMonth();
+    const current=monthKey();
+    const students=activeStudents();
+    const currentPaidIds=new Set(state.payments.filter(p=>monthKey(p.date)===current).map(p=>String(p.studentId)));
+    const pending=students.filter(s=>!currentPaidIds.has(String(s.id)));
     c.innerHTML = `
-      <div class="section-head"><div><h3>Receitas</h3><p>Histórico de mensalidades recebidas</p></div><button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button></div>
-      <section class="cards">${payments.length?payments.map(p=>{const s=state.students.find(x=>x.id===p.studentId); return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')} • ${p.paymentMethod==='cash'?'Dinheiro':p.paymentMethod==='pix'?'PIX':'Não informado'}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`;}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}</section>`;
+      <div class="section-head"><div><h3>Receitas e histórico</h3><p>Pagamentos preservados mês a mês</p></div><button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button></div>
+      <section class="card"><div class="list-row"><div class="list-main"><strong>Situação do mês atual</strong><span>${students.length-currentPaidIds.size} aluno${students.length-currentPaidIds.size===1?'':'s'} sem pagamento registrado</span></div><strong>${privateMoney(pending.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0))}</strong></div></section>
+      ${groups.length?groups.map(([mk,payments])=>{const total=payments.reduce((a,p)=>a+(Number(p.amount)||0),0);return `<div class="section-head"><div><h3>${monthLabel(mk)}</h3><p>${payments.length} pagamento${payments.length===1?'':'s'} • ${fmtMoney(total)}</p></div></div><section class="cards">${payments.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p=>{const st=state.students.find(x=>String(x.id)===String(p.studentId)); const method=st?.paymentMethod==='cash'?'Dinheiro':'PIX'; return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(st?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')} • ${method}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`}).join('')}</section>`}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}
+      ${pending.length?`<div class="section-head"><div><h3>Ainda sem pagamento neste mês</h3><p>Baseado nos registros de receitas</p></div></div><section class="cards">${pending.map(st=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(st.name)}</strong><span>${st.paymentMethod==='cash'?'Dinheiro':'PIX'} • ${fmtMoney(st.monthlyFee)}</span></div><button class="btn btn-secondary btn-small js-register-pending" data-id="${st.id}">Registrar</button></div></article>`).join('')}</section>`:''}`;
     $('#addPayment').addEventListener('click',()=>openPaymentModal());
+    $$('.js-register-pending',c).forEach(b=>b.addEventListener('click',()=>openPaymentModal(b.dataset.id)));
   }
 
   function openPaymentModal(preselectedId='') {
@@ -547,10 +594,14 @@
     viewEl.innerHTML=`<div class="notice">Escreva uma mensagem, selecione um ou mais alunos e prepare os envios. O WhatsApp pedirá sua confirmação em cada conversa.</div>
       <div class="section-head"><div><h3>Lembrete rápido</h3><p>Envio individual ou em lote pelo WhatsApp</p></div></div>
       <section class="card"><div class="field"><label>Mensagem</label><textarea id="reminderMessage" placeholder="Ex.: Olá, [nome]! Passando para lembrar que..."></textarea><small>Use <strong>[nome]</strong> para personalizar automaticamente.</small></div>
-      <div class="reminder-toolbar"><button type="button" class="btn btn-secondary btn-small" id="selectAllReminder">Selecionar todos</button><button type="button" class="btn btn-secondary btn-small" id="clearReminder">Limpar seleção</button></div>
+      <div class="reminder-toolbar"><button type="button" class="btn btn-secondary btn-small" id="selectAllReminder">Todos</button><button type="button" class="btn btn-secondary btn-small" id="selectOverdueReminder">Vencidos</button><button type="button" class="btn btn-secondary btn-small" id="selectBirthdayReminder">Aniversários 7 dias</button><button type="button" class="btn btn-secondary btn-small" id="selectAbsentReminder">Com faltas no mês</button><button type="button" class="btn btn-secondary btn-small" id="clearReminder">Limpar</button></div>
       <div class="reminder-students">${students.map(s=>`<label class="reminder-student"><input type="checkbox" name="reminderStudent" value="${s.id}"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</small></span></label>`).join('')}</div>
       <div class="modal-actions"><button type="button" class="btn btn-primary" id="prepareReminder">${icon('message')} Preparar envios</button></div></section><section id="reminderQueue" class="cards" style="margin-top:12px"></section>`;
-    $('#selectAllReminder').addEventListener('click',()=>$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=true));
+    const setReminderSelection=(ids)=>{const set=new Set(ids.map(String));$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=set.has(String(x.value)))};
+    $('#selectAllReminder').addEventListener('click',()=>setReminderSelection(students.map(s=>s.id)));
+    $('#selectOverdueReminder').addEventListener('click',()=>setReminderSelection(students.filter(s=>dueInfo(s).key==='overdue').map(s=>s.id)));
+    $('#selectBirthdayReminder').addEventListener('click',()=>setReminderSelection(birthdayStudents(7).map(x=>x.s.id)));
+    $('#selectAbsentReminder').addEventListener('click',()=>setReminderSelection(students.filter(s=>monthlyAttendanceStats(s.id).absent>0).map(s=>s.id)));
     $('#clearReminder').addEventListener('click',()=>$$('input[name="reminderStudent"]',viewEl).forEach(x=>x.checked=false));
     $('#prepareReminder').addEventListener('click',()=>{
       const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva a mensagem primeiro.');
@@ -594,6 +645,8 @@
     viewEl.innerHTML=`<div class="section-head"><div><h3>Agenda semanal</h3><p>4 vagas por turma • registre presença ou falta em cada semana</p></div></div>
       <div class="week-nav"><button class="btn btn-secondary btn-small" id="prevWeek">‹ Semana anterior</button><div class="week-label"><strong>${fmtDate(isoDate(scheduleWeekStart))} a ${fmtDate(isoDate(weekEnd))}</strong><button class="link-btn" id="currentWeek">Ir para semana atual</button></div><button class="btn btn-secondary btn-small" id="nextWeek">Próxima semana ›</button></div>
       <div class="schedule-days">${SCHEDULE_DAYS.map(d=>`<section class="schedule-day"><div class="schedule-day-title">${d.label}<span>${fmtDate(scheduleDateForDay(d.id)).slice(0,5)}</span></div><div class="schedule-slots">${scheduleHours(d.id).map(t=>scheduleSlotHTML(d.id,t)).join('')}</div></section>`).join('')}</div>
+      <div class="section-head"><div><h3>Reposições</h3><p>Controle rápido</p></div></div>
+      <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Próximos 7 dias</strong><span>Reposições agendadas</span></div><strong>${makeupSummary().scheduledNext7}</strong></div></article><article class="card"><div class="list-row"><div class="list-main"><strong>Realizadas no mês</strong><span>Contabilizadas como presença</span></div><strong>${makeupSummary().completedMonth}</strong></div></article></section>
       <div class="section-head"><div><h3>Resumo mensal de treinos</h3><p>${monthLabel(mk)} • baseado nas presenças registradas</p></div></div>
       <section class="cards">${students.length?students.map(s=>monthlyReportRow(s,mk)).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar o resumo mensal.')}</section>`;
     $$('.schedule-slot',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.day,b.dataset.time)));
@@ -604,14 +657,14 @@
   }
 
   function monthlyReportRow(s,mk){
-    const count=monthlyAttendanceCount(s.id,mk);
-    return `<article class="card"><div class="list-row"><div class="student-profile"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${count} treino${count===1?'':'s'} realizado${count===1?'':'s'} em ${monthLabel(mk)}</span></div></div><button class="mini-icon js-month-whatsapp" data-id="${s.id}" title="Enviar resumo pelo WhatsApp">${icon('message')}</button></div></article>`;
+    const st=monthlyAttendanceStats(s.id,mk);
+    return `<article class="card"><div class="list-row"><div class="student-profile"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${st.present} presença${st.present===1?'':'s'} • ${st.absent} falta${st.absent===1?'':'s'} • ${st.makeups} reposição${st.makeups===1?'':'ões'} em ${monthLabel(mk)}</span></div></div><button class="mini-icon js-month-whatsapp" data-id="${s.id}" title="Enviar resumo pelo WhatsApp">${icon('message')}</button></div></article>`;
   }
 
   function sendMonthlyAttendanceWhatsApp(id,mk){
     const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');
-    const count=monthlyAttendanceCount(id,mk);const first=(s.name||'').split(' ')[0]||s.name;
-    const text=`Olá, ${first}! Seu resumo de treinos de ${monthLabel(mk)}: você realizou ${count} treino${count===1?'':'s'} no Studio Márcio Bueno. 💪`;
+    const st=monthlyAttendanceStats(id,mk);const first=(s.name||'').split(' ')[0]||s.name;
+    const text=`Olá, ${first}! Seu resumo de ${monthLabel(mk)} no Studio Márcio Bueno: ${st.present} presença${st.present===1?'':'s'}, ${st.absent} falta${st.absent===1?'':'s'} e ${st.makeups} reposição${st.makeups===1?'':'ões'}. 💪`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
   }
 
@@ -753,7 +806,7 @@
 
   function exportBackup(){const payload={app:'MB Gestor Premium',exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup gerado.');}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
