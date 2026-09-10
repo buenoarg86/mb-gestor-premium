@@ -610,13 +610,16 @@
 
   function openScheduleSlot(day,time){
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day);
-    const ids=slotStudents(day,time);
+    // A turma existe sempre que houver pelo menos 1 aluno fixo.
+    // O limite de 4 é somente a capacidade máxima e nunca bloqueia a frequência.
+    const ids=slotStudents(day,time).slice(0,4);
     const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
     const makeupId=makeupStudentId(date,day,time);
     const makeup=state.students.find(s=>s.id===makeupId);
     openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`
       <div class="notice">Marque Presente ou Falta somente para os alunos desta aula. As presenças alimentam automaticamente o resumo mensal.</div>
       <div class="daily-attendance-list">${enrolled.length?enrolled.map(s=>attendanceStudentCard(s,date,day,time)).join(''):'<div class="empty compact"><strong>Nenhum aluno fixo</strong>Use “Editar alunos da turma” para montar este horário.</div>'}</div>
+      ${enrolled.length?`<div class="notice compact">Turma ativa com ${enrolled.length}/4 aluno${enrolled.length===1?'':'s'}. A frequência pode ser registrada normalmente, mesmo sem a turma estar completa.</div>`:''}
       ${makeup?`<div class="makeup-title">Reposição nesta aula</div>${attendanceStudentCard(makeup,date,day,time,true)}`:''}
       <div class="lesson-tools">
         <button type="button" class="btn btn-secondary" id="editClassStudents">Editar alunos da turma</button>
