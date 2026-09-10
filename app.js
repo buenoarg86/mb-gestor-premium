@@ -207,10 +207,20 @@
     const students = activeStudents();
     const expected = students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
     const mk = monthKey();
-    const received = state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
     const monthPayments = state.payments.filter(p=>monthKey(p.date)===mk);
-    const pix = monthPayments.filter(p=>p.paymentMethod==='pix').reduce((a,p)=>a+(Number(p.amount)||0),0);
-    const cash = monthPayments.filter(p=>p.paymentMethod==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const received = monthPayments.reduce((a,p)=>a+(Number(p.amount)||0),0);
+
+    // V6.1: pagamentos antigos podem não ter paymentMethod gravado.
+    // Nesses casos, usamos a forma de pagamento preferencial atual do aluno.
+    // Pagamentos novos continuam respeitando o método registrado no próprio pagamento.
+    const paymentMethodFor = (p) => {
+      if (p.paymentMethod === 'pix' || p.paymentMethod === 'cash') return p.paymentMethod;
+      const student = state.students.find(s=>s.id===p.studentId);
+      return student?.paymentMethod === 'cash' ? 'cash' : 'pix';
+    };
+
+    const pix = monthPayments.filter(p=>paymentMethodFor(p)==='pix').reduce((a,p)=>a+(Number(p.amount)||0),0);
+    const cash = monthPayments.filter(p=>paymentMethodFor(p)==='cash').reduce((a,p)=>a+(Number(p.amount)||0),0);
     const expenses = state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
     const overdue = students.filter(s=>dueInfo(s).key==='overdue').length;
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
