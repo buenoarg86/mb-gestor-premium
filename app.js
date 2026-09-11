@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  // MB Gestor Premium V9.2 Refinado
+  // MB Gestor Premium V9.4 Executive Luxury
 
-  const APP_VERSION = '9.2.0';
+  const APP_VERSION = '9.4.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -14,6 +14,14 @@
     makeups: {},
     reminderDrafts: [],
     birthdayNotifications: {},
+    studioClosures: [],
+    plannedAbsences: [],
+    waitlist: [],
+    prospects: [],
+    trials: [],
+    monthClosures: [],
+    auditLog: [],
+    trash: [],
     settings: {
       studioName: 'Studio Márcio Bueno',
       trainerName: 'Márcio Bueno',
@@ -77,6 +85,14 @@
         makeups: (parsed.makeups && typeof parsed.makeups === 'object') ? parsed.makeups : {},
         reminderDrafts: Array.isArray(parsed.reminderDrafts) ? parsed.reminderDrafts : [],
         birthdayNotifications: (parsed.birthdayNotifications && typeof parsed.birthdayNotifications === 'object') ? parsed.birthdayNotifications : {},
+        studioClosures: Array.isArray(parsed.studioClosures) ? parsed.studioClosures : [],
+        plannedAbsences: Array.isArray(parsed.plannedAbsences) ? parsed.plannedAbsences : [],
+        waitlist: Array.isArray(parsed.waitlist) ? parsed.waitlist : [],
+        prospects: Array.isArray(parsed.prospects) ? parsed.prospects : [],
+        trials: Array.isArray(parsed.trials) ? parsed.trials : [],
+        monthClosures: Array.isArray(parsed.monthClosures) ? parsed.monthClosures : [],
+        auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
+        trash: Array.isArray(parsed.trash) ? parsed.trash : [],
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
       };
     } catch (err) {
@@ -143,6 +159,75 @@
   }
 
 
+
+
+// V9.4 • Gestão executiva: espera, interessados, experimental, fechamento e histórico.
+function addAudit(action, detail=''){
+  state.auditLog=state.auditLog||[];
+  state.auditLog.unshift({id:uid('log'),at:new Date().toISOString(),action:String(action||'Ação'),detail:String(detail||'')});
+  state.auditLog=state.auditLog.slice(0,300);
+}
+function waitlistFor(day,time){return (state.waitlist||[]).filter(w=>w.day===day&&w.time===time)}
+function trialsFor(date,day,time){return (state.trials||[]).filter(t=>t.date===date&&t.day===day&&t.time===time&&t.status!=='cancelled')}
+function prospectsOpen(){return (state.prospects||[]).filter(p=>!['matriculado','perdido'].includes(p.status||'novo'))}
+function snapshotMonth(mk=monthKey()){
+  const [y,m]=mk.split('-').map(Number), students=activeStudents();
+  const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
+  let present=0,absent=0,makeups=0;
+  Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;Object.entries(map||{}).forEach(([id,v])=>{if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});
+  const occ=occupancyStats();
+  return {mk,label:monthLabel(mk),closedAt:new Date().toISOString(),students:students.length,expected:students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0),received,expenses,net:received-expenses,present,absent,makeups,occupancy:occ.percent};
+}
+function closedMonth(mk){return (state.monthClosures||[]).find(x=>x.mk===mk)||null}
+function previousMonthKey(mk=monthKey()){const [y,m]=mk.split('-').map(Number),d=new Date(y,m-2,1,12);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function deltaText(current,previous,suffix=''){if(previous==null)return 'Sem comparação';const d=current-previous;if(d===0)return 'Sem alteração';return `${d>0?'+':''}${d}${suffix}`}
+function formatDateTimeBR(v){try{return new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return '—'}}
+
+function openOccupationMap(){
+  const o=occupancyStats();
+  const rows=SCHEDULE_DAYS.map(d=>`<div class="occupancy-day"><strong>${d.label}</strong><div class="occupancy-slots">${scheduleHours(d.id).map(time=>{const n=slotStudents(d.id,time).length,p=Math.round(n/4*100),cls=n>=4?'full':n>=3?'high':n>=2?'mid':n?'low':'empty';return `<button class="occupancy-chip ${cls}" data-occ-day="${d.id}" data-occ-time="${time}"><span>${time}</span><strong>${n}/4</strong><small>${p}%</small></button>`}).join('')}</div></div>`).join('');
+  openModal('Mapa de ocupação',`<div class="luxury-modal-hero"><span class="luxury-orb">◈</span><div><strong>Ocupação semanal</strong><small>${o.used}/${o.totalCapacity} vagas fixas • ${o.percent}% de ocupação</small></div></div><div class="occupancy-map">${rows}</div><div class="notice compact">Toque em um horário para abrir a Agenda exatamente naquela turma.</div>`);
+  $$('[data-occ-day]',modalRoot).forEach(b=>b.addEventListener('click',()=>{selectedScheduleDay=b.dataset.occDay;scheduleViewMode='day';closeModal();navigate('schedule');setTimeout(()=>document.querySelector(`[data-day="${b.dataset.occDay}"][data-time="${b.dataset.occTime}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}),120)}));
+}
+
+function openProspectsManager(){
+  const rows=[...(state.prospects||[])].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  openModal('Interessados e experimentais',`<form id="prospectForm" class="form-grid two"><div class="notice" style="grid-column:1/-1">Cadastre contatos interessados e transforme oportunidades em aula experimental sem misturar com alunos ativos.</div><div class="field"><label>Nome</label><input name="name" required /></div><div class="field"><label>WhatsApp</label><input name="whatsapp" inputmode="tel" /></div><div class="field"><label>Horário desejado</label><input name="desiredTime" placeholder="Ex.: 18:00" /></div><div class="field"><label>Status</label><select name="status"><option value="novo">Novo contato</option><option value="experimental">Aula experimental</option><option value="decidindo">Decidindo</option><option value="matriculado">Matriculado</option><option value="perdido">Não avançou</option></select></div><div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('plus')} Adicionar interessado</button></div></form><div class="section-head compact-head"><div><h3>Pipeline</h3><p>${rows.length} contato${rows.length===1?'':'s'}</p></div></div><div class="prospect-list">${rows.length?rows.map(p=>`<article class="prospect-card"><div><span class="prospect-status ${escapeHTML(p.status||'novo')}">${escapeHTML((p.status||'novo').replace('experimental','experimental'))}</span><strong>${escapeHTML(p.name)}</strong><small>${escapeHTML(p.whatsapp||'Sem WhatsApp')} ${p.desiredTime?`• deseja ${escapeHTML(p.desiredTime)}`:''}</small></div><div class="prospect-actions"><button class="mini-icon js-prospect-trial" data-id="${p.id}" title="Agendar aula experimental">${icon('calendar')}</button><button class="mini-icon js-prospect-whatsapp" data-id="${p.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon danger js-prospect-delete" data-id="${p.id}" title="Arquivar">${icon('trash')}</button></div></article>`).join(''):emptyState('Nenhum interessado','Cadastre o primeiro contato acima.')}</div>`);
+  $('#prospectForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),p={id:uid('lead'),name:String(fd.get('name')||'').trim(),whatsapp:String(fd.get('whatsapp')||'').trim(),desiredTime:String(fd.get('desiredTime')||'').trim(),status:String(fd.get('status')||'novo'),createdAt:new Date().toISOString()};state.prospects.push(p);addAudit('Interessado cadastrado',p.name);saveState();closeModal();openProspectsManager();toast('Interessado cadastrado.')});
+  $$('.js-prospect-whatsapp',modalRoot).forEach(b=>b.addEventListener('click',()=>{const p=state.prospects.find(x=>x.id===b.dataset.id),phone=cleanPhone(p?.whatsapp);if(!phone)return toast('WhatsApp não cadastrado.');window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${p.name.split(' ')[0]}! Aqui é do Studio Márcio Bueno. Estou entrando em contato sobre seu interesse em treinar conosco.`)}`,'_blank','noopener,noreferrer')}));
+  $$('.js-prospect-delete',modalRoot).forEach(b=>b.addEventListener('click',()=>{const p=state.prospects.find(x=>x.id===b.dataset.id);state.trash.unshift({id:uid('trash'),type:'prospect',deletedAt:new Date().toISOString(),data:p});state.prospects=state.prospects.filter(x=>x.id!==b.dataset.id);addAudit('Interessado arquivado',p?.name||'');saveState();closeModal();openProspectsManager()}));
+  $$('.js-prospect-trial',modalRoot).forEach(b=>b.addEventListener('click',()=>openTrialScheduler(b.dataset.id)));
+}
+
+function openTrialScheduler(prospectId){
+  const p=state.prospects.find(x=>x.id===prospectId);if(!p)return;
+  openModal(`Aula experimental • ${p.name}`,`<form id="trialForm" class="form-grid two"><div class="notice" style="grid-column:1/-1">A aula experimental aparece na Agenda com destaque próprio e não entra na frequência dos alunos matriculados.</div><div class="field"><label>Data</label><input name="date" type="date" min="${isoToday()}" required /></div><div class="field"><label>Horário</label><select name="time" required><option value="">Selecione</option>${[...new Set(SCHEDULE_DAYS.flatMap(d=>scheduleHours(d.id)))].sort().map(h=>`<option value="${h}" ${p.desiredTime===h?'selected':''}>${h}</option>`).join('')}</select></div><div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Agendar experimental</button></div></form>`);
+  $('#trialForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),d=parseLocalDate(date),day=dayIdFromDate(d);if(!day)return toast('Escolha um dia útil de segunda a sexta.');const trial={id:uid('trial'),prospectId:p.id,name:p.name,whatsapp:p.whatsapp,date,day,time:String(fd.get('time')),status:'scheduled',createdAt:new Date().toISOString()};state.trials.push(trial);p.status='experimental';addAudit('Aula experimental agendada',`${p.name} • ${fmtDate(date)} ${trial.time}`);saveState();closeModal();toast('Aula experimental agendada.');});
+}
+
+function openWaitlistManager(day,time){
+  const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,rows=waitlistFor(day,time),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  openModal(`Lista de espera • ${dayLabel} ${time}`,`<form id="waitlistForm" class="form-grid"><div class="notice">Cadastre alunos interessados neste horário. Quando surgir vaga, o nome ficará pronto para contato.</div><div class="field"><label>Aluno</label><select name="studentId" required><option value="">Selecione</option>${students.map(s=>`<option value="${s.id}">${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="field"><label>Observação</label><input name="note" placeholder="Ex.: prefere terça, aceita reposição" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Adicionar à espera</button></div></form><div class="history-list">${rows.length?rows.map(w=>{const s=state.students.find(x=>x.id===w.studentId);return `<div class="history-row"><div><strong>${escapeHTML(s?.name||'Aluno')}</strong><span>${escapeHTML(w.note||'Aguardando vaga')}</span></div><div class="inline-actions"><button class="mini-icon js-wait-whatsapp" data-id="${w.id}">${icon('message')}</button><button class="mini-icon js-wait-remove" data-id="${w.id}">${icon('x')}</button></div></div>`}).join(''):emptyState('Lista vazia','Nenhum aluno aguardando este horário.')}</div>`);
+  $('#waitlistForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),studentId=String(fd.get('studentId'));if(rows.some(x=>String(x.studentId)===studentId))return toast('Este aluno já está na lista.');state.waitlist.push({id:uid('wait'),studentId,day,time,note:String(fd.get('note')||'').trim(),createdAt:new Date().toISOString()});const s=state.students.find(x=>x.id===studentId);addAudit('Lista de espera',`${s?.name||'Aluno'} • ${dayLabel} ${time}`);saveState();closeModal();openWaitlistManager(day,time)});
+  $$('.js-wait-remove',modalRoot).forEach(b=>b.addEventListener('click',()=>{state.waitlist=state.waitlist.filter(x=>x.id!==b.dataset.id);saveState();closeModal();openWaitlistManager(day,time)}));
+  $$('.js-wait-whatsapp',modalRoot).forEach(b=>b.addEventListener('click',()=>{const w=state.waitlist.find(x=>x.id===b.dataset.id),s=state.students.find(x=>x.id===w?.studentId),phone=cleanPhone(s?.whatsapp);if(!phone)return toast('Aluno sem WhatsApp cadastrado.');window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${(s.name||'').split(' ')[0]}! Surgiu uma possibilidade de vaga no horário de ${time} no Studio Márcio Bueno. Tem interesse?`)}`,'_blank','noopener,noreferrer')}));
+}
+
+function openMonthlyClose(){
+  const mk=monthKey(),snap=closedMonth(mk),prev=closedMonth(previousMonthKey(mk)),live=snapshotMonth(mk),base=snap||live;
+  openModal('Fechamento mensal',`<div class="luxury-modal-hero"><span class="luxury-orb">◆</span><div><strong>${escapeHTML(monthLabel(mk))}</strong><small>${snap?'Mês fechado e preservado':'Prévia atual • ainda aberto'}</small></div></div><section class="metrics close-metrics">${metricCard('users',base.students,'Alunos')}${metricCard('wallet',privateMoney(base.received),'Recebido')}${metricCard('check',base.present,'Presenças')}${metricCard('users',`${base.occupancy}%`,'Ocupação')}</section>${prev?`<div class="compare-grid"><div><span>Receita</span><strong>${deltaText(base.received,prev.received,'')}</strong><small>vs. ${prev.label}</small></div><div><span>Alunos</span><strong>${deltaText(base.students,prev.students)}</strong><small>vs. ${prev.label}</small></div><div><span>Presenças</span><strong>${deltaText(base.present,prev.present)}</strong><small>vs. ${prev.label}</small></div><div><span>Ocupação</span><strong>${deltaText(base.occupancy,prev.occupancy,' p.p.')}</strong><small>vs. ${prev.label}</small></div></div>`:'<div class="notice compact">O comparativo aparecerá depois que houver pelo menos dois meses fechados.</div>'}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button>${snap?'':`<button class="btn btn-primary" id="confirmMonthClose">Fechar ${escapeHTML(monthLabel(mk))}</button>`}</div>`);
+  $('#confirmMonthClose')?.addEventListener('click',()=>{state.monthClosures.push(snapshotMonth(mk));addAudit('Fechamento mensal realizado',monthLabel(mk));saveState();closeModal();toast('Mês fechado e preservado.');});
+}
+
+function openHolidayQuick(){
+  openModal('Marcar feriado',`<form id="holidayQuickForm" class="form-grid"><div class="notice">O dia ficará destacado no calendário e as aulas serão canceladas sem gerar faltas.</div><div class="field"><label>Data</label><input name="date" type="date" required /></div><div class="field"><label>Nome do feriado</label><input name="label" placeholder="Ex.: Dia da Independência" required /></div><div class="modal-actions"><button class="btn btn-secondary" type="button" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Marcar feriado</button></div></form>`);
+  $('#holidayQuickForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),label=String(fd.get('label')||'Feriado').trim();state.studioClosures.push({id:uid('close'),startDate:date,endDate:date,type:'Feriado',label});addAudit('Feriado marcado',`${label} • ${fmtDate(date)}`);saveState();closeModal();toast('Feriado marcado no calendário.');if(currentView==='schedule')renderSchedule();});
+}
+
+function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,120);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
+function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||x.type||'Item')}</strong><span>${escapeHTML(x.type)} • removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado.');render()}))}
+
   function studioTime(value) {
     const start=parseLocalDate(value); if(!start) return '—';
     const now=todayNoon(); if(start>now) return 'Ainda não iniciou';
@@ -167,6 +252,29 @@
   function birthdayStudents(maxDays=7){
     return activeStudents().map(s=>({s,info:birthdayInfo(s)}))
       .filter(x=>x.info && x.info.days<=maxDays).sort((a,b)=>a.info.days-b.info.days);
+  }
+
+
+  // V9.3 • Ausências, pausas, feriados/recessos, inatividade e relatórios.
+  function dateBetweenISO(date,start,end){return Boolean(date&&start&&end&&String(date)>=String(start)&&String(date)<=String(end))}
+  function closureForDate(date){return (state.studioClosures||[]).find(c=>dateBetweenISO(date,c.startDate,c.endDate))||null}
+  function studentPauseAt(s,date=isoToday()){return s&&s.pauseStart&&s.pauseEnd&&dateBetweenISO(date,s.pauseStart,s.pauseEnd)?{startDate:s.pauseStart,endDate:s.pauseEnd,reason:s.pauseReason||'Pausa programada'}:null}
+  function plannedAbsenceFor(studentId,date){return (state.plannedAbsences||[]).find(a=>String(a.studentId)===String(studentId)&&a.date===date)||null}
+  function plannedAbsencesOn(date){return (state.plannedAbsences||[]).filter(a=>a.date===date)}
+  function lastPresenceDate(studentId){let last='';Object.entries(state.attendance||{}).forEach(([k,map])=>{if(map?.[studentId]==='present'){const d=k.slice(0,10);if(d>last)last=d}});return last}
+  function daysSinceISO(date){const d=parseLocalDate(date);if(!d)return null;return Math.max(0,Math.floor((todayNoon()-d)/86400000))}
+  function inactivityInfo(s){const last=lastPresenceDate(s.id)||s.startDate;const days=daysSinceISO(last);return {last,days,attention:Number.isFinite(days)&&days>=10}}
+  function inactiveAttentionStudents(){return activeStudents().map(s=>({s,info:inactivityInfo(s)})).filter(x=>x.info.attention&&!studentPauseAt(x.s)).sort((a,b)=>b.info.days-a.info.days)}
+  function studentStatusBadge(s,date=isoToday()){const pause=studentPauseAt(s,date);if(pause)return `<span class="status pause">Pausado até ${fmtDate(pause.endDate)}</span>`;const inactivity=inactivityInfo(s);if(inactivity.attention)return `<span class="status warn">Sem treino há ${inactivity.days} dias</span>`;return ''}
+  function effectiveFixedStudentIds(day,time,date){return slotStudents(day,time).filter(id=>{const s=state.students.find(x=>String(x.id)===String(id));return s&&!studentPauseAt(s,date)&&!plannedAbsenceFor(id,date)})}
+  function sendBirthdayWhatsApp(id){const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');const first=(s.name||'').split(' ')[0]||s.name;const text=`Parabéns, ${first}! 🎉 Que seu novo ciclo venha com muita saúde, energia e conquistas. Um grande abraço do Studio Márcio Bueno!`;window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer')}
+  function currentYear(){return todayNoon().getFullYear()}
+  function annualReportRows(year=currentYear()){
+    const out=[];for(let m=0;m<12;m++){const mk=`${year}-${String(m+1).padStart(2,'0')}`;const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);let present=0,absent=0,makeups=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;Object.entries(map||{}).forEach(([id,v])=>{if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(new Date(year,m,1,12)).replace('.',''),received,expenses,net:received-expenses,present,absent,makeups})}return out;
+  }
+  function annualReportHTML(year=currentYear()){
+    const rows=annualReportRows(year),sum=k=>rows.reduce((a,r)=>a+(Number(r[k])||0),0),max=Math.max(1,...rows.map(r=>r.received));
+    return `<section class="annual-report-hero"><div><span class="section-overline">RELATÓRIO ANUAL</span><h3>${year}</h3><p>Dados reais registrados no MB Gestor.</p></div><span class="annual-crown">✦</span></section><section class="metrics annual-metrics">${metricCard('wallet',privateMoney(sum('received')),'Recebido no ano','good')}${metricCard('chart',privateMoney(sum('net')),'Saldo anual',sum('net')>=0?'good':'danger')}${metricCard('check',sum('present'),'Presenças','good')}${metricCard('x',sum('absent'),'Faltas',sum('absent')?'danger':'')}${metricCard('users',sum('makeups'),'Reposições')}</section><div class="annual-bars">${rows.map(r=>`<div class="annual-bar-col"><div class="annual-bar-track"><span style="height:${Math.max(3,Math.round(r.received/max*100))}%"></span></div><strong>${escapeHTML(r.label)}</strong><small>${r.present} treinos</small></div>`).join('')}</div><div class="history-list annual-table">${rows.map(r=>`<div class="history-row"><div><strong>${monthLabel(r.mk)}</strong><span>${r.present} presenças • ${r.absent} faltas • ${r.makeups} reposições</span></div><strong class="money-positive">${privateMoney(r.received)}</strong></div>`).join('')}</div>`;
   }
 
   const SCHEDULE_DAYS=[
@@ -438,6 +546,7 @@
     const monthPresence=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(mk)).reduce((n,[,map])=>n+Object.values(map||{}).filter(v=>v==='present').length,0);
     const upcoming=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
     const firstName=(state.settings.trainerName||'Márcio').trim().split(/\s+/)[0];
+    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7);
     viewEl.innerHTML=`
       <section class="hero luxury-hero">
         <div class="luxury-glow"></div>
@@ -461,7 +570,7 @@
         <article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
       </section>
 
-      ${(today.attention||today.makeups||birthdayStudents(7).length)?`<section class="attention-hub"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Atenção</strong><small>O que merece uma ação rápida</small></div></div><div class="attention-hub-items">${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${birthdayStudents(7).length?`<button data-nav="students"><strong>${birthdayStudents(7).length}</strong><span>aniversário${birthdayStudents(7).length===1?'':'s'} em até 7 dias</span></button>`:''}</div></section>`:''}
+      ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${bday7.length?`<button data-nav="students"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-nav="students"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
 
       <section class="metrics luxury-metrics management-cockpit">
         ${metricCard('users',m.students,'Alunos ativos')}
@@ -471,6 +580,9 @@
         ${metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'')}
         ${metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good')}
       </section>
+      <section class="executive-actions"><button class="executive-card" id="openAnnualReport"><span class="executive-icon">✦</span><div><strong>Relatório anual</strong><small>Financeiro, frequência e evolução mês a mês</small></div><span class="executive-arrow">›</span></button>${bday7.length?`<div class="birthday-luxury-list">${bday7.slice(0,3).map(({s,info})=>`<button class="birthday-luxury-item js-birthday-whatsapp" data-id="${s.id}"><span>🎂</span><div><strong>${escapeHTML(s.name)}</strong><small>${info.days===0?'Aniversário hoje':`Em ${info.days} dia${info.days===1?'':'s'}`}</small></div><em>${icon('message')}</em></button>`).join('')}</div>`:''}</section>
+
+      <section class="v94-command-grid"><button class="v94-command-card" id="openOccupationMap"><span class="command-3d">▦</span><div><strong>Mapa de ocupação</strong><small>Veja horários cheios e oportunidades</small></div></button><button class="v94-command-card" id="openProspects"><span class="command-3d">✦</span><div><strong>Interessados</strong><small>${prospectsOpen().length} contato${prospectsOpen().length===1?'':'s'} em acompanhamento</small></div></button><button class="v94-command-card" id="openMonthlyClose"><span class="command-3d">◇</span><div><strong>Fechamento mensal</strong><small>Compare evolução mês a mês</small></div></button><button class="v94-command-card" id="openHolidayQuickDashboard"><span class="command-3d">★</span><div><strong>Marcar feriado</strong><small>Cancele o dia sem gerar faltas</small></div></button></section>
 
       <div class="section-head luxury-section-head"><div><span class="section-overline">PERFORMANCE</span><h3>Saúde do Studio</h3><p>Indicadores que merecem sua atenção</p></div></div>
       <section class="cards grid2 luxury-panels">
@@ -487,6 +599,12 @@
       <div class="section-head luxury-section-head"><div><span class="section-overline">PRÓXIMOS DIAS</span><h3>Vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Novo aluno</button></div>
       <section class="cards">${upcoming.length?upcoming.map(({s,info})=>chargeMiniRow(s,info)).join(''):emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>`;
     $('#quickAddStudent')?.addEventListener('click',()=>openStudentModal());
+    $('#openAnnualReport')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
+    $('#openOccupationMap')?.addEventListener('click',openOccupationMap);
+    $('#openProspects')?.addEventListener('click',openProspectsManager);
+    $('#openMonthlyClose')?.addEventListener('click',openMonthlyClose);
+    $('#openHolidayQuickDashboard')?.addEventListener('click',openHolidayQuick);
+    $$('.js-birthday-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendBirthdayWhatsApp(b.dataset.id)));
     $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     $$('[data-nav]',viewEl).forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
     $$('.js-charge-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
@@ -502,14 +620,14 @@
 
   function renderStudents() {
     const students=[...state.students].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    const activeCount=students.filter(s=>s.active!==false).length,inactiveCount=students.length-activeCount,monthBirthdays=birthdaysThisMonth();
+    const activeCount=students.filter(s=>s.active!==false).length,inactiveCount=students.length-activeCount,monthBirthdays=birthdaysThisMonth(),pausedCount=students.filter(s=>studentPauseAt(s)).length,attentionCount=inactiveAttentionStudents().length;
     viewEl.innerHTML=`
       <div class="section-head"><div><h3>Cadastro de alunos</h3><p>${activeCount} ativo${activeCount===1?'':'s'} • ${inactiveCount} inativo${inactiveCount===1?'':'s'}</p></div><button class="btn btn-primary" id="addStudent">${icon('plus')} Novo aluno</button></div>
-      <div class="student-toolbar"><div class="search-wrap">${icon('search')}<input id="studentSearch" type="search" placeholder="Buscar por nome, WhatsApp ou e-mail" autocomplete="off" /></div><div class="tabs student-filter-tabs"><button class="tab ${studentFilter==='all'?'active':''}" data-student-filter="all">Todos (${students.length})</button><button class="tab ${studentFilter==='active'?'active':''}" data-student-filter="active">Ativos (${activeCount})</button><button class="tab ${studentFilter==='inactive'?'active':''}" data-student-filter="inactive">Inativos (${inactiveCount})</button></div></div>
+      <div class="student-toolbar"><div class="search-wrap">${icon('search')}<input id="studentSearch" type="search" placeholder="Buscar por nome, WhatsApp ou e-mail" autocomplete="off" /></div><div class="tabs student-filter-tabs"><button class="tab ${studentFilter==='all'?'active':''}" data-student-filter="all">Todos (${students.length})</button><button class="tab ${studentFilter==='active'?'active':''}" data-student-filter="active">Ativos (${activeCount})</button><button class="tab ${studentFilter==='inactive'?'active':''}" data-student-filter="inactive">Inativos (${inactiveCount})</button><button class="tab ${studentFilter==='paused'?'active':''}" data-student-filter="paused">Pausados (${pausedCount})</button><button class="tab ${studentFilter==='attention'?'active':''}" data-student-filter="attention">Atenção (${attentionCount})</button></div></div>
       ${monthBirthdays.length?`<div class="birthday-month-strip"><strong>🎂 Aniversariantes do mês</strong><span>${monthBirthdays.map(s=>`${escapeHTML(s.name)} • ${String(parseLocalDate(s.birthDate).getDate()).padStart(2,'0')}/${String(parseLocalDate(s.birthDate).getMonth()+1).padStart(2,'0')}`).join(' &nbsp; • &nbsp; ')}</span></div>`:''}
       <section id="studentsList" class="cards"></section>`;
     const list=$('#studentsList');
-    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase();const filtered=students.filter(s=>{const text=[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(q));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false)||(studentFilter==='inactive'&&s.active===false);return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
+    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase();const filtered=students.filter(s=>{const text=[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(q));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false)||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&Boolean(studentPauseAt(s)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
     draw();$('#studentSearch').addEventListener('input',draw);$$('[data-student-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{studentFilter=b.dataset.studentFilter;$$('[data-student-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.studentFilter===studentFilter));draw();}));$('#addStudent').addEventListener('click',()=>openStudentModal());
   }
 
@@ -526,7 +644,7 @@
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
         <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
-        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span> <span class="status ${credits.available?'warn':'neutral'}">↻ Reposições disponíveis: ${credits.available}</span></div>
+        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} ${studentStatusBadge(s)} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span> <span class="status ${credits.available?'warn':'neutral'}">↻ Reposições disponíveis: ${credits.available}</span></div>
         </div>
       </div>
       <div class="student-actions">
@@ -556,16 +674,17 @@
     const rows=attendanceHistory(id),present=rows.filter(x=>x.status==='present').length,absent=rows.filter(x=>x.status==='absent').length,makeups=rows.filter(x=>x.isMakeup&&x.status==='present').length,credits=makeupCreditBalance(id),mk=monthKey(),monthStats=monthlyAttendanceStats(id,mk);
     const payments=state.payments.filter(p=>String(p.studentId)===String(id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
     const paidThisMonth=payments.some(p=>monthKey(p.date)===mk),trend=studentMonthTrend(id,6),maxTrend=Math.max(1,...trend.map(x=>x.present));
-    const phone=cleanPhone(s.whatsapp);
+    const phone=cleanPhone(s.whatsapp),pause=studentPauseAt(s),planned=(state.plannedAbsences||[]).filter(a=>String(a.studentId)===String(id)&&a.date>=isoToday()).sort((a,b)=>a.date.localeCompare(b.date));
     openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':'Aluno ativo'}</span></div></div></section>
       <section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section>
-      <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(s.whatsapp||'—')}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div></div>
-      <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
+      <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(s.whatsapp||'—')}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div></div>${pause?`<div class="student-pause-banner"><strong>⏸ Aluno em pausa</strong><span>${fmtDate(pause.startDate)} a ${fmtDate(pause.endDate)} • ${escapeHTML(pause.reason)}</span></div>`:''}${planned.length?`<div class="planned-absence-strip"><strong>Ausências programadas</strong><span>${planned.slice(0,3).map(a=>`${fmtDate(a.date)}${a.reason?` • ${escapeHTML(a.reason)}`:''}`).join(' &nbsp; | &nbsp; ')}</span></div>`:''}${s.privateNotes?`<div class="private-notes-card"><span class="section-overline">PRIVADO</span><strong>Observações internas</strong><p>${escapeHTML(s.privateNotes)}</p></div>`:''}
+      <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyAbsence">${icon('calendar')} Programar ausência</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
       <div class="section-head compact-head"><div><h3>Evolução • 6 meses</h3><p>Treinos realizados por mês</p></div></div><div class="student-trend">${trend.map(x=>`<div class="student-trend-col"><div class="student-trend-bar"><span style="height:${Math.max(5,Math.round(x.present/maxTrend*100))}%"></span></div><strong>${x.present}</strong><small>${escapeHTML(x.label)}</small></div>`).join('')}</div>
       <div class="section-head compact-head"><div><h3>Pagamentos</h3><p>Últimos registros deste aluno</p></div></div><div class="history-list payment-history-list">${payments.length?payments.map(p=>`<div class="history-row"><div><strong>${fmtDate(p.date)}</strong><span>${escapeHTML((p.method||s.paymentMethod||'pix').toUpperCase())}</span></div><strong class="money-positive">${privateMoney(p.amount)}</strong></div>`).join(''):emptyState('Sem pagamentos','Nenhum pagamento individual registrado para este aluno.')}</div>
       <div class="section-head compact-head"><div><h3>Histórico de frequência</h3><p>${present} presenças • ${absent} faltas</p></div></div><div class="history-list">${rows.length?rows.map(r=>`<div class="history-row"><div><strong>${fmtDate(r.date)}</strong><span>${r.isMakeup?'Reposição • ':''}${escapeHTML(r.time||'')}</span></div><span class="status ${r.status==='present'?'ok':'danger'}">${r.status==='present'?'Presente':'Falta'}</span></div>`).join(''):emptyState('Sem histórico','Ainda não há presenças ou faltas registradas para este aluno.')}</div>`);
     $('#historyWhatsapp')?.addEventListener('click',()=>window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${(s.name||'').split(' ')[0]}! Tudo bem?`)}`,'_blank','noopener,noreferrer'));
     $('#historyMonthly')?.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(id,mk));
+    $('#historyAbsence')?.addEventListener('click',()=>{closeModal();openPlannedAbsenceModal(id)});
     $('#historyEdit')?.addEventListener('click',()=>{closeModal();openStudentModal(id)});
   }
 
@@ -585,6 +704,10 @@
         <div class="field"><label>Valor da mensalidade *</label><input name="monthlyFee" type="number" min="0" step="0.01" required value="${escapeHTML(s?.monthlyFee ?? '')}" placeholder="0,00" /></div>
         <div class="field"><label>Forma de pagamento preferencial</label><select name="paymentMethod"><option value="pix" ${s?.paymentMethod!=='cash'?'selected':''}>PIX</option><option value="cash" ${s?.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div>
         <div class="field"><label>Situação</label><select name="active"><option value="true" ${s?.active!==false?'selected':''}>Ativo</option><option value="false" ${s?.active===false?'selected':''}>Inativo</option></select></div>
+        <div class="field"><label>Pausa / férias do aluno • início</label><input name="pauseStart" type="date" value="${escapeHTML(s?.pauseStart||'')}" /></div>
+        <div class="field"><label>Pausa / férias do aluno • fim</label><input name="pauseEnd" type="date" value="${escapeHTML(s?.pauseEnd||'')}" /></div>
+        <div class="field" style="grid-column:1/-1"><label>Motivo da pausa</label><input name="pauseReason" value="${escapeHTML(s?.pauseReason||'')}" placeholder="Ex.: férias, viagem, afastamento" /></div>
+        <div class="field" style="grid-column:1/-1"><label>Observações privadas</label><textarea name="privateNotes" rows="4" placeholder="Anotações administrativas visíveis somente neste app">${escapeHTML(s?.privateNotes||'')}</textarea><small>Use para combinações de horário, pagamento ou observações internas.</small></div>
         <div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${s?'Salvar alterações':'Criar aluno'}</button></div>
       </form>
     `);
@@ -611,19 +734,37 @@
         monthlyFee: Number(fd.get('monthlyFee')) || 0,
         paymentMethod: String(fd.get('paymentMethod')||'pix'),
         active: String(fd.get('active')) === 'true',
+        pauseStart: String(fd.get('pauseStart')||''),
+        pauseEnd: String(fd.get('pauseEnd')||''),
+        pauseReason: String(fd.get('pauseReason')||'').trim(),
+        privateNotes: String(fd.get('privateNotes')||'').trim(),
         photoData,
         consent: s?.consent || {sentAt:null,acceptedAt:null},
         createdAt: s?.createdAt || new Date().toISOString()
       };
       if (s) state.students = state.students.map(x=>x.id===s.id?record:x); else state.students.push(record);
-      saveState(); closeModal(); toast(s?'Aluno atualizado.':'Aluno criado com sucesso.'); render();
+      addAudit(s?'Aluno atualizado':'Aluno criado',record.name); saveState(); closeModal(); toast(s?'Aluno atualizado.':'Aluno criado com sucesso.'); render();
     });
+  }
+
+  function openPlannedAbsenceModal(id){
+    const st=state.students.find(x=>x.id===id);if(!st)return;
+    const future=(state.plannedAbsences||[]).filter(a=>String(a.studentId)===String(id)&&a.date>=isoToday()).sort((a,b)=>a.date.localeCompare(b.date));
+    openModal(`Ausência programada • ${st.name}`,`<form id="absencePlanForm" class="form-grid"><div class="notice">Essa ausência libera a vaga para reposição e <strong>não registra falta</strong> automaticamente.</div><div class="field"><label>Data</label><input name="date" type="date" min="${isoToday()}" required /></div><div class="field"><label>Motivo (opcional)</label><input name="reason" placeholder="Ex.: viagem, compromisso" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar ausência</button></div></form>${future.length?`<div class="section-head compact-head"><div><h3>Próximas ausências</h3></div></div><div class="history-list">${future.map(a=>`<div class="history-row"><div><strong>${fmtDate(a.date)}</strong><span>${escapeHTML(a.reason||'Ausência avisada')}</span></div><button class="mini-icon js-remove-planned" data-id="${a.id}">${icon('x')}</button></div>`).join('')}</div>`:''}`);
+    $('#absencePlanForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),reason=String(fd.get('reason')||'').trim();state.plannedAbsences=state.plannedAbsences||[];state.plannedAbsences.push({id:uid('abs'),studentId:id,date,reason,createdAt:new Date().toISOString()});const d=parseLocalDate(date),dayId=dayIdFromDate(d);if(dayId)scheduleHours(dayId).forEach(time=>{if(slotStudents(dayId,time).includes(id))setAttendance(date,dayId,time,id,'')});saveState();closeModal();toast('Ausência programada. A vaga ficará disponível.');render();});
+    $$('.js-remove-planned').forEach(b=>b.addEventListener('click',()=>{state.plannedAbsences=state.plannedAbsences.filter(a=>a.id!==b.dataset.id);saveState();closeModal();openPlannedAbsenceModal(id);toast('Ausência removida.')}));
+  }
+
+  function openClosuresManager(){
+    const rows=[...(state.studioClosures||[])].sort((a,b)=>String(a.startDate).localeCompare(String(b.startDate)));
+    openModal('Feriados e recesso do Studio',`<form id="closureForm" class="form-grid two"><div class="notice" style="grid-column:1/-1">Bloqueie um dia ou um período inteiro. As aulas ficam marcadas como canceladas e <strong>ninguém recebe falta</strong>.</div><div class="field"><label>Início</label><input name="startDate" type="date" required /></div><div class="field"><label>Fim</label><input name="endDate" type="date" required /></div><div class="field"><label>Tipo</label><select name="type"><option>Feriado</option><option>Recesso</option><option>Studio fechado</option><option>Outro</option></select></div><div class="field"><label>Descrição</label><input name="label" placeholder="Ex.: Independência do Brasil" /></div><div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Bloquear período</button></div></form><div class="section-head compact-head"><div><h3>Períodos cadastrados</h3><p>${rows.length} registro${rows.length===1?'':'s'}</p></div></div><div class="history-list">${rows.length?rows.map(c=>`<div class="history-row"><div><strong>${escapeHTML(c.label||c.type)}</strong><span>${fmtDate(c.startDate)}${c.endDate!==c.startDate?` a ${fmtDate(c.endDate)}`:''} • ${escapeHTML(c.type)}</span></div><button class="mini-icon js-remove-closure" data-id="${c.id}">${icon('x')}</button></div>`).join(''):emptyState('Nenhum bloqueio','Cadastre feriados, recessos ou dias de Studio fechado.')}</div>`);
+    const form=$('#closureForm');form.startDate.addEventListener('change',()=>{if(!form.endDate.value||form.endDate.value<form.startDate.value)form.endDate.value=form.startDate.value});form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),startDate=String(fd.get('startDate')),endDate=String(fd.get('endDate'));if(endDate<startDate)return toast('A data final deve ser igual ou posterior à inicial.');state.studioClosures=state.studioClosures||[];state.studioClosures.push({id:uid('close'),startDate,endDate,type:String(fd.get('type')),label:String(fd.get('label')||fd.get('type')).trim()});addAudit('Calendário bloqueado',`${String(fd.get('type'))} • ${fmtDate(startDate)}${endDate!==startDate?' a '+fmtDate(endDate):''}`);saveState();closeModal();toast('Período bloqueado na agenda.');renderSchedule();});$$('.js-remove-closure').forEach(b=>b.addEventListener('click',()=>{state.studioClosures=state.studioClosures.filter(c=>c.id!==b.dataset.id);saveState();closeModal();openClosuresManager();toast('Bloqueio removido.')}));
   }
 
   function confirmDeleteStudent(id) {
     const s = state.students.find(x=>x.id===id); if (!s) return;
-    openModal('Excluir aluno', `<div class="notice">Você está prestes a excluir <strong>${escapeHTML(s.name)}</strong>. Os pagamentos já registrados serão mantidos no histórico financeiro.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDelete">${icon('trash')} Excluir</button></div>`);
-    $('#confirmDelete').addEventListener('click',()=>{state.students=state.students.filter(x=>x.id!==id); saveState(); closeModal(); toast('Aluno excluído.'); render();});
+    openModal('Excluir aluno', `<div class="notice"><strong>${escapeHTML(s.name)}</strong> será removido da lista de alunos e enviado para a <strong>Lixeira</strong>, de onde poderá ser restaurado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDelete">${icon('trash')} Mover para lixeira</button></div>`);
+    $('#confirmDelete').addEventListener('click',()=>{state.trash=state.trash||[];state.trash.unshift({id:uid('trash'),type:'student',deletedAt:new Date().toISOString(),data:structuredClone(s)});state.students=state.students.filter(x=>x.id!==id);addAudit('Aluno enviado à lixeira',s.name);saveState(); closeModal(); toast('Aluno movido para a lixeira.'); render();});
   }
 
   function financeTrend(months=6){
@@ -929,7 +1070,7 @@
     const items=birthdayStudents(7);
     if(!items.length) return '';
     return `<div class="section-head"><div><h3>🎂 Aniversários</h3><p>Hoje e próximos 7 dias</p></div></div>
-      <section class="cards">${items.map(({s,info})=>`<article class="card birthday-card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${info.days===0?'🎉 Aniversário hoje':`Em ${info.days} dia${info.days===1?'':'s'} • ${fmtDate(`${info.next.getFullYear()}-${String(info.next.getMonth()+1).padStart(2,'0')}-${String(info.next.getDate()).padStart(2,'0')}`)}`}</span></div><span class="status ${info.days===0?'warn':'neutral'}">${info.days===0?'HOJE':'EM BREVE'}</span></div></article>`).join('')}</section>`;
+      <section class="cards">${items.map(({s,info})=>`<article class="card birthday-card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${info.days===0?'🎉 Aniversário hoje':`Em ${info.days} dia${info.days===1?'':'s'} • ${fmtDate(`${info.next.getFullYear()}-${String(info.next.getMonth()+1).padStart(2,'0')}-${String(info.next.getDate()).padStart(2,'0')}`)}`}</span></div><div class="birthday-actions"><span class="status ${info.days===0?'warn':'neutral'}">${info.days===0?'HOJE':'EM BREVE'}</span><button class="mini-icon js-birthday-whatsapp" data-id="${s.id}" title="Enviar parabéns pelo WhatsApp">${icon('message')}</button></div></div></article>`).join('')}</section>`;
   }
 
   function dayIdFromDate(d){return {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[d.getDay()]||''}
@@ -939,7 +1080,7 @@
   function monthlyScheduleOverviewHTML(){
     const anchor=new Date(scheduleWeekStart.getFullYear(),scheduleWeekStart.getMonth(),1,12),y=anchor.getFullYear(),m=anchor.getMonth(),last=new Date(y,m+1,0).getDate(),firstDow=(new Date(y,m,1,12).getDay()+6)%7;
     const cells=[];for(let i=0;i<firstDow;i++)cells.push('<div class="month-day blank"></div>');
-    for(let n=1;n<=last;n++){const d=new Date(y,m,n,12),dayId=dayIdFromDate(d),date=isoDate(d);if(!dayId){cells.push(`<div class="month-day weekend"><strong>${n}</strong></div>`);continue;}const slots=scheduleHours(dayId),classes=slots.filter(t=>slotStudents(dayId,t).length||makeupStudentIds(date,dayId,t).length).length,reps=slots.reduce((a,t)=>a+makeupStudentIds(date,dayId,t).length,0),mapCount=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(date+'__')).reduce((a,[,map])=>a+Object.values(map||{}).filter(v=>v==='present').length,0);cells.push(`<button type="button" class="month-day ${date===isoToday()?'today':''}" data-month-date="${date}"><strong>${n}</strong><span>${classes} aula${classes===1?'':'s'}</span>${reps?`<em>${reps}R</em>`:''}${mapCount?`<small>✓ ${mapCount}</small>`:''}</button>`)}
+    for(let n=1;n<=last;n++){const d=new Date(y,m,n,12),dayId=dayIdFromDate(d),date=isoDate(d),closure=closureForDate(date);if(!dayId){cells.push(`<div class="month-day weekend"><strong>${n}</strong></div>`);continue;}const slots=scheduleHours(dayId),classes=slots.filter(t=>slotStudents(dayId,t).length||makeupStudentIds(date,dayId,t).length).length,reps=slots.reduce((a,t)=>a+makeupStudentIds(date,dayId,t).length,0),planned=plannedAbsencesOn(date).length,vacancies=slots.filter(t=>slotStudents(dayId,t).length||makeupStudentIds(date,dayId,t).length).reduce((a,t)=>{const fixed=effectiveFixedStudentIds(dayId,t,date).length;return a+Math.max(0,4-fixed)},0),mapCount=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(date+'__')).reduce((a,[,map])=>a+Object.values(map||{}).filter(v=>v==='present').length,0);cells.push(`<button type="button" class="month-day ${date===isoToday()?'today':''} ${closure?'is-closed':''}" data-month-date="${date}"><strong>${n}</strong>${closure?`<span class="month-closed">${escapeHTML(closure.type)}</span>`:`<span>${classes} aula${classes===1?'':'s'}</span>${reps?`<em>${reps}R</em>`:''}${planned?`<em class="month-absence">${planned}A</em>`:''}${vacancies?`<small>${vacancies} vaga${vacancies===1?'':'s'}</small>`:''}${mapCount?`<small>✓ ${mapCount}</small>`:''}`}</button>`)}
     return `<section class="month-overview"><div class="month-weekdays"><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span><span>DOM</span></div><div class="month-grid">${cells.join('')}</div></section>`;
   }
 
@@ -947,7 +1088,7 @@
     const weekEnd=addDays(scheduleWeekStart,4),mk=monthKey(),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),occ=occupancyStats();
     const day=SCHEDULE_DAYS.find(d=>d.id===selectedScheduleDay)||SCHEDULE_DAYS[0];
     const date=scheduleDateForDay(day.id);
-    const slots=scheduleHours(day.id);
+    const slots=scheduleHours(day.id),dayClosure=closureForDate(date),dayPlanned=plannedAbsencesOn(date).length;
     const dayStats=slots.reduce((acc,time)=>{
       const ids=slotStudents(day.id,time),makeupIds=makeupStudentIds(date,day.id,time),map=attendanceMap(date,day.id,time);
       if(ids.length||makeupIds.length)acc.classes++;
@@ -960,7 +1101,7 @@
     viewEl.innerHTML=`
       <section class="schedule-pro-head">
         <div><span class="section-overline">AGENDA PREMIUM</span><h3>Agenda semanal</h3><p>Personal • até 4 alunos fixos • múltiplas reposições por horário</p></div>
-        <span class="schedule-pro-badge">${icon('calendar')} ${escapeHTML(monthLabel(mk))}</span>
+        <div class="schedule-head-actions"><button class="btn btn-primary btn-small holiday-3d-btn" id="quickHoliday">★ Marcar feriado</button><button class="btn btn-secondary btn-small" id="manageClosures">Feriados / recesso</button><span class="schedule-pro-badge">${icon('calendar')} ${escapeHTML(monthLabel(mk))}</span></div>
       </section>
 
       <div class="week-nav schedule-week-nav"><button class="mini-icon" id="prevWeek" title="Semana anterior">‹</button><div class="week-label"><strong>${fmtDate(isoDate(scheduleWeekStart))} — ${fmtDate(isoDate(weekEnd))}</strong><button class="link-btn" id="currentWeek">Semana atual</button></div><button class="mini-icon" id="nextWeek" title="Próxima semana">›</button></div>
@@ -975,11 +1116,11 @@
       }).join('')}</div>
 
       <section class="schedule-day-summary">
-        <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} ${dayStats.makeups===1?'reposição':'reposições'}</p></div>
+        <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayClosure?`<strong>${escapeHTML(dayClosure.type)} • ${escapeHTML(dayClosure.label||'Studio fechado')}</strong>`:`${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} ${dayStats.makeups===1?'reposição':'reposições'}${dayPlanned?` • ${dayPlanned} ausência${dayPlanned===1?'':'s'} programada${dayPlanned===1?'':'s'}`:''}`}</p></div>
         <div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>
       </section>
 
-      ${scheduleViewMode==='day'?`<div class="schedule-pro-list">${slots.map(t=>scheduleSlotHTML(day.id,t)).join('')}</div>`:scheduleViewMode==='week'?weeklyScheduleOverviewHTML():monthlyScheduleOverviewHTML()}
+      ${scheduleViewMode==='day'?(dayClosure?`<section class="closed-day-card"><span>✦</span><div><strong>${escapeHTML(dayClosure.type)} — aulas canceladas</strong><p>${escapeHTML(dayClosure.label||'Studio fechado')} • Nenhum aluno recebe falta neste dia.</p></div></section>`:`<div class="schedule-pro-list">${slots.map(t=>scheduleSlotHTML(day.id,t)).join('')}</div>`):scheduleViewMode==='week'?weeklyScheduleOverviewHTML():monthlyScheduleOverviewHTML()}
 
       <section class="schedule-insights">
         <article class="card"><div class="premium-card-title"><span>Ocupação geral</span>${icon('chart')}</div><div class="schedule-kpi">${occ.percent}%</div><small>${occ.used}/${occ.totalCapacity} vagas fixas ocupadas</small></article>
@@ -990,6 +1131,8 @@
       <section class="cards">${students.length?students.map(s=>monthlyReportRow(s,mk)).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar o resumo mensal.')}</section>`;
 
     $$('.schedule-slot',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.day,b.dataset.time)));
+    $('#manageClosures')?.addEventListener('click',openClosuresManager);
+    $('#quickHoliday')?.addEventListener('click',openHolidayQuick);
     $$('[data-schedule-view]',viewEl).forEach(b=>b.addEventListener('click',()=>{scheduleViewMode=b.dataset.scheduleView;renderSchedule()}));
     $$('[data-week-day]',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.weekDay,b.dataset.weekTime)));
     $$('[data-month-date]',viewEl).forEach(b=>b.addEventListener('click',()=>{const d=parseLocalDate(b.dataset.monthDate),dayId=dayIdFromDate(d);if(!dayId)return;scheduleWeekStart=mondayOf(d);selectedScheduleDay=dayId;scheduleViewMode='day';renderSchedule()}));
@@ -1021,15 +1164,15 @@
     const makeupIds=makeupStudentIds(date,day,time), makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
     const allIds=[...new Set([...ids,...makeupIds])];
     const present=allIds.filter(id=>map[id]==='present').length, absent=allIds.filter(id=>map[id]==='absent').length;
-    const vacancies=Math.max(0,4-ids.length);
+    const effectiveIds=effectiveFixedStudentIds(day,time,date),plannedIds=ids.filter(id=>plannedAbsenceFor(id,date)),pausedIds=ids.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return Boolean(studentPauseAt(st,date))}),vacancies=Math.max(0,4-effectiveIds.length),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
     const countClass=ids.length>=4?'full':ids.length>=3?'busy':ids.length?'active':'empty';
     return `<button type="button" class="schedule-slot schedule-slot-pro ${countClass} ${makeups.length?'has-makeup':''}" data-day="${day}" data-time="${time}">
       <span class="schedule-time-rail"><strong>${time}</strong><small>PERSONAL</small></span>
       <span class="schedule-slot-body">
         <span class="schedule-slot-top"><strong>Personal</strong><span class="schedule-pills"><span class="schedule-capacity">${ids.length}/4${makeups.length?` + ${makeups.length}R`:''}</span><span class="schedule-vacancy">${vacancies} vaga${vacancies===1?'':'s'}</span></span></span>
-        <span class="schedule-people">${enrolled.length?enrolled.map(s=>{const st=attendanceStatus(date,day,time,s.id);return `<span class="schedule-person"><span class="schedule-initial ${st==='present'?'is-present':st==='absent'?'is-absent':''}" style="${st==='present'?'background:#2e9b63;border-color:#49bd7d;color:#fff;box-shadow:0 0 0 1px rgba(73,189,125,.18),0 4px 14px rgba(46,155,99,.22);':st==='absent'?'background:#c94b55;border-color:#e46a73;color:#fff;box-shadow:0 0 0 1px rgba(228,106,115,.16),0 4px 14px rgba(201,75,85,.20);':''}">${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span><span>${escapeHTML(s.name)}</span></span>`}).join(''):`<span class="schedule-empty-line">${icon('users')} Vagas disponíveis</span>`}</span>
-        ${makeups.length?`<span class="schedule-makeup-group">${makeups.map(m=>`<span class="schedule-makeup-line"><span class="makeup-square">R</span><strong>${escapeHTML(m.name)}</strong><em>Reposição</em></span>`).join('')}</span>`:''}
-        ${(present||absent)?`<span class="attendance-mini"><span>✓ ${present} presença${present===1?'':'s'}</span><span>✕ ${absent} falta${absent===1?'':'s'}</span></span>`:''}
+        <span class="schedule-people">${enrolled.length?enrolled.map(s=>{const st=attendanceStatus(date,day,time,s.id);const planned=plannedAbsenceFor(s.id,date),paused=studentPauseAt(s,date);return `<span class="schedule-person ${planned?'is-planned-absence':''} ${paused?'is-paused-student':''}"><span class="schedule-initial ${st==='present'?'is-present':st==='absent'?'is-absent':''}" style="${st==='present'?'background:#2e9b63;border-color:#49bd7d;color:#fff;box-shadow:0 0 0 1px rgba(73,189,125,.18),0 4px 14px rgba(46,155,99,.22);':st==='absent'?'background:#c94b55;border-color:#e46a73;color:#fff;box-shadow:0 0 0 1px rgba(228,106,115,.16),0 4px 14px rgba(201,75,85,.20);':''}">${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span><span>${escapeHTML(s.name)}${planned?'<small>Ausência avisada</small>':paused?'<small>Pausado</small>':''}</span></span>`}).join(''):`<span class="schedule-empty-line">${icon('users')} Vagas disponíveis</span>`}</span>
+        ${(plannedIds.length||pausedIds.length)?`<span class="schedule-availability-note">${plannedIds.length?`${plannedIds.length} ausência${plannedIds.length===1?'':'s'} avisada${plannedIds.length===1?'':'s'}`:''}${plannedIds.length&&pausedIds.length?' • ':''}${pausedIds.length?`${pausedIds.length} em pausa`:''} • vaga liberada</span>`:''}${makeups.length?`<span class="schedule-makeup-group">${makeups.map(m=>`<span class="schedule-makeup-line"><span class="makeup-square">R</span><strong>${escapeHTML(m.name)}</strong><em>Reposição</em></span>`).join('')}</span>`:''}
+        ${trials.length?`<span class="trial-lines">${trials.map(t=>`<span class="trial-line"><span class="trial-cube">E</span><strong>${escapeHTML(t.name)}</strong><em>Experimental</em></span>`).join('')}</span>`:''}${waiters.length?`<span class="waitlist-badge">${waiters.length} na lista de espera</span>`:''}${(present||absent)?`<span class="attendance-mini"><span>✓ ${present} presença${present===1?'':'s'}</span><span>✕ ${absent} falta${absent===1?'':'s'}</span></span>`:''}
       </span>
       <span class="schedule-chevron">›</span>
     </button>`;
@@ -1050,13 +1193,13 @@
 
   function attendanceStudentCard(s,date,day,time,isMakeup=false){
     const st=attendanceStatus(date,day,time,s.id);
-    return `<div class="daily-attendance-card ${isMakeup?'makeup-card':''}">
+    const planned=plannedAbsenceFor(s.id,date),paused=studentPauseAt(s,date);return `<div class="daily-attendance-card ${isMakeup?'makeup-card':''} ${planned?'planned-absence-card':''} ${paused?'paused-card':''}">
       <div class="daily-student"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
-      <div><strong>${escapeHTML(s.name)}</strong>${isMakeup?'<small>REPOSIÇÃO</small>':''}</div></div>
-      <div class="attendance-actions">
+      <div><strong>${escapeHTML(s.name)}</strong>${isMakeup?'<small>REPOSIÇÃO</small>':planned?'<small>AUSÊNCIA PROGRAMADA • VAGA LIBERADA</small>':paused?'<small>ALUNO EM PAUSA</small>':''}</div></div>
+      ${(planned||paused)?`<div class="attendance-hold-note">${planned?'Ausência avisada — não gera falta':'Pausa ativa — frequência suspensa'}</div>`:`<div class="attendance-actions">
         <button type="button" class="attendance-btn present ${st==='present'?'active':''}" data-att="present" data-id="${s.id}">✓ Presente</button>
         <button type="button" class="attendance-btn absent ${st==='absent'?'active':''}" data-att="absent" data-id="${s.id}">✕ Falta</button>
-      </div>
+      </div>`}
       ${isMakeup?`<button type="button" class="remove-makeup" data-remove-makeup="${s.id}">Remover reposição</button>`:''}
     </div>`;
   }
@@ -1064,7 +1207,7 @@
   function bindAttendanceButtons(root,date,day,time){
     $$('.attendance-btn',root).forEach(b=>b.addEventListener('click',()=>{
       const id=b.dataset.id,status=b.dataset.att;
-      setAttendance(date,day,time,id,status);
+      setAttendance(date,day,time,id,status); const stAudit=state.students.find(s=>s.id===id); addAudit(status==='present'?'Presença registrada':'Falta registrada',`${stAudit?.name||'Aluno'} • ${fmtDate(date)} ${time}`); saveState();
 
       // Atualiza imediatamente os controles do modal.
       $$(`.attendance-btn[data-id="${id}"]`,root).forEach(x=>x.classList.toggle('active',x.dataset.att===status));
@@ -1079,23 +1222,27 @@
   }
 
   function openScheduleSlot(day,time){
+    const dateCheck=scheduleDateForDay(day),closure=closureForDate(dateCheck);if(closure){toast(`${closure.type}: aulas canceladas neste dia.`);return;}
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day);
     const ids=slotStudents(day,time).slice(0,4);
     const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
-    const makeupIds=makeupStudentIds(date,day,time),makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
+    const makeupIds=makeupStudentIds(date,day,time),makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
     openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`
       <div class="notice">Marque Presente ou Falta para os alunos desta aula. Agora este horário aceita <strong>mais de uma reposição</strong>.</div>
       <div class="daily-attendance-list">${enrolled.length?enrolled.map(s=>attendanceStudentCard(s,date,day,time)).join(''):'<div class="empty compact"><strong>Nenhum aluno fixo</strong>Use “Editar alunos da turma” para montar este horário.</div>'}</div>
       ${enrolled.length?`<div class="notice compact">Turma ativa com ${enrolled.length}/4 aluno${enrolled.length===1?'':'s'} fixo${enrolled.length===1?'':'s'}. A frequência funciona mesmo com turma incompleta.</div>`:''}
       ${makeups.length?`<div class="makeup-title">Reposições nesta aula <span>${makeups.length}</span></div><div class="daily-attendance-list">${makeups.map(m=>attendanceStudentCard(m,date,day,time,true)).join('')}</div>`:''}
-      <div class="lesson-tools">
+      ${trials.length?`<div class="trial-modal-list">${trials.map(t=>`<div class="trial-modal-row"><span class="trial-cube">E</span><div><strong>${escapeHTML(t.name)}</strong><small>Aula experimental</small></div></div>`).join('')}</div>`:''}
+      <div class="lesson-tools modal-actions-wrap">
         <button type="button" class="btn btn-secondary" id="editClassStudents">Editar alunos da turma</button>
         <button type="button" class="btn btn-makeup" id="addMakeup">${makeups.length?'Gerenciar reposições':'+ Adicionar reposição'}</button>
+        <button type="button" class="btn btn-secondary" id="manageWaitlist">Lista de espera${waiters.length?` (${waiters.length})`:''}</button>
       </div>`);
     const modal=$('.modal');
     bindAttendanceButtons(modal,date,day,time);
     $('#editClassStudents',modal)?.addEventListener('click',()=>openClassEditor(day,time));
     $('#addMakeup',modal)?.addEventListener('click',()=>openMakeupPicker(day,time));
+    $('#manageWaitlist',modal)?.addEventListener('click',()=>openWaitlistManager(day,time));
     $$('[data-remove-makeup]',modal).forEach(b=>b.addEventListener('click',()=>{removeMakeupStudent(date,day,time,b.dataset.removeMakeup);openScheduleSlot(day,time);toast('Reposição removida.');renderSchedule()}));
   }
 
@@ -1221,7 +1368,7 @@
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
-        <div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
+        <div class="settings-row"><div><strong>Feriados e recesso</strong><span>${(state.studioClosures||[]).length} período${(state.studioClosures||[]).length===1?'':'s'} cadastrado${(state.studioClosures||[]).length===1?'':'s'}</span></div><button class="btn btn-secondary btn-small" id="manageClosuresSettings">Gerenciar</button></div><div class="settings-row"><div><strong>Relatório anual</strong><span>Financeiro, presenças, faltas e reposições por mês.</span></div><button class="btn btn-secondary btn-small" id="annualReportSettings">Abrir</button></div><div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
       </section>
       <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para dados financeiros</p></div></div>
       <section class="card">
@@ -1234,17 +1381,24 @@
         <div class="settings-row"><div><strong>Exportar backup completo</strong><span>Salva alunos, agenda, presenças, reposições, financeiro e preferências em um único arquivo.</span></div><button class="btn btn-primary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
         <div class="settings-row"><div><strong>Importar / restaurar</strong><span>Valida o arquivo antes de substituir os dados atuais.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
       </section>
+      <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
+      <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',fmtMoney(m.expected),'Receita prevista')}${metricCard('chart',fmtMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',fmtMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
     $('#installSettings').addEventListener('click',installApp);
     $('#changeDays').addEventListener('click',changeChargeDays);
     $('#birthdayNotify')?.addEventListener('click',enableBirthdayNotifications);
+    $('#manageClosuresSettings')?.addEventListener('click',openClosuresManager);
+    $('#annualReportSettings')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
     $('#configureFinancePin')?.addEventListener('click',configureFinancePin);
     $('#lockFinanceNow')?.addEventListener('click',()=>{financeUnlockedThisSession=false;toast('Financeiro bloqueado.');renderSettings();});
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
+    $('#openTrash')?.addEventListener('click',openTrash);
+    $('#openAudit')?.addEventListener('click',openAuditHistory);
+    $('#settingsMonthClose')?.addEventListener('click',openMonthlyClose);
     $('#backupFile').addEventListener('change',importBackup);
   }
 
@@ -1260,9 +1414,9 @@
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_2_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.2 gerado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_4_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.4 gerado.');renderSettings();}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
