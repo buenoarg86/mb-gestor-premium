@@ -1,25 +1,26 @@
-MB GESTOR PREMIUM — STUDIO MÁRCIO BUENO
+MB GESTOR PREMIUM — V8.2.0 LUXURY
+=================================
 
-O aplicativo foi criado como PWA (Progressive Web App), pronto para ser instalado com ícone na tela inicial.
+CONTEÚDO DA PASTA
+- index.html
+- app.js
+- styles.css
+- sw.js
+- manifest.webmanifest
+- assets/ (logo e ícones)
 
-IMPORTANTE:
-Para o Android oferecer “Instalar app” com funcionamento completo e offline, os arquivos precisam estar publicados em um endereço HTTPS. Abrir index.html diretamente da pasta Downloads serve apenas para visualizar e não é a forma recomendada de instalação.
+PUBLICAÇÃO / INSTALAÇÃO
+1. Publique TODOS os arquivos e a pasta assets juntos no mesmo diretório do seu site HTTPS.
+2. Abra a URL publicada no Chrome do Android.
+3. No menu do Chrome, use “Instalar app” ou “Adicionar à tela inicial”.
+4. Após uma atualização, feche e abra novamente o app para o novo Service Worker assumir o cache.
 
-INSTALAÇÃO NO CELULAR (depois de publicar em HTTPS):
-1. Abra o endereço do aplicativo no Google Chrome.
-2. O próprio app pode mostrar o botão “Instalar”.
-3. Se não mostrar, toque em ⋮ no Chrome.
-4. Escolha “Instalar app” ou “Adicionar à tela inicial”.
-5. Confirme. O ícone Márcio Bueno aparecerá na tela inicial.
+DADOS E BACKUP
+- Os dados do MB Gestor ficam salvos localmente no navegador/dispositivo via localStorage.
+- Não limpe os dados do navegador/site sem antes exportar um backup.
+- Use Ajustes > Exportar backup regularmente.
+- A restauração de backup substitui os dados atuais somente após confirmação.
 
-DADOS:
-- Os alunos, receitas, gastos e termos ficam salvos no navegador do próprio aparelho.
-- O app não envia esses dados para um servidor.
-- Faça backup regularmente em Ajustes > Exportar backup.
-- Se limpar os dados do navegador ou desinstalar sem backup, os registros podem ser perdidos.
-
-ARQUIVOS PRINCIPAIS:
-- index.html: aplicativo
-- manifest.webmanifest: instalação PWA
-- sw.js: funcionamento offline
-- assets/: logos e ícones
+VERSÃO
+MB Gestor Premium V8.2.0 Luxury
+Pacote final completo preparado em 10/09/2026.

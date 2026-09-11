@@ -1,7 +1,8 @@
 (() => {
   'use strict';
-  // MB Gestor Premium V8.1 Luxury
+  // MB Gestor Premium V8.2 Luxury
 
+  const APP_VERSION = '8.2.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -17,7 +18,8 @@
       studioName: 'Studio Márcio Bueno',
       trainerName: 'Márcio Bueno',
       chargeDaysBefore: 3,
-      currency: 'BRL'
+      currency: 'BRL',
+      financialValuesVisible: false
     }
   };
 
@@ -39,8 +41,8 @@
   let chargeTab = 'all';
   let studentFilter = 'all';
   let scheduleCompact = false;
-  // Privacidade: os valores financeiros começam ocultos a cada abertura do app.
-  let financialValuesVisible = false;
+  // Privacidade persistente: o app lembra se os valores ficaram ocultos ou visíveis.
+  let financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -122,7 +124,7 @@
   }
 
   function privateMoney(value) { return financialValuesVisible ? fmtMoney(value) : 'R$ •••••'; }
-  function toggleFinancialVisibility() { financialValuesVisible=!financialValuesVisible; render(); }
+  function toggleFinancialVisibility() { financialValuesVisible=!financialValuesVisible; state.settings.financialValuesVisible=financialValuesVisible; saveState(); render(); }
 
   function ageFromBirth(value) {
     const birth = parseLocalDate(value);
@@ -302,16 +304,27 @@
     return {students:students.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, overdueValue, soon, makeups};
   }
 
+  const MOBILE_NAV_IDS=['dashboard','schedule','students','finance'];
+  const MORE_NAV_IDS=['charges','reminders','consent','settings'];
+
   function renderNav() {
     const desktop = $('#desktopNav');
     const mobile = $('#mobileNav');
     desktop.innerHTML = NAV.map(n=>navButton(n)).join('');
-    mobile.innerHTML = NAV.map(n=>navButton(n)).join('');
+    const primary=MOBILE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
+    mobile.innerHTML = primary.map(n=>navButton(n)).join('') + `<button class="nav-btn ${MORE_NAV_IDS.includes(currentView)?'active':''}" id="mobileMore" type="button">${icon('more')}<span>Mais</span></button>`;
     $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
+    $('#mobileMore')?.addEventListener('click',openMoreMenu);
   }
 
   function navButton(n) {
     return `<button class="nav-btn ${currentView===n.id?'active':''}" data-nav="${n.id}" type="button">${icon(n.icon)}<span>${n.label}</span></button>`;
+  }
+
+  function openMoreMenu(){
+    const items=MORE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
+    openModal('Mais opções',`<div class="more-menu-grid">${items.map(n=>`<button type="button" class="more-menu-item" data-more-nav="${n.id}"><span class="more-menu-icon">${icon(n.icon)}</span><span><strong>${n.label}</strong><small>${n.title}</small></span></button>`).join('')}</div>`);
+    $$('[data-more-nav]',modalRoot).forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.moreNav;closeModal();navigate(id)}));
   }
 
   function navigate(id) {
@@ -389,11 +402,13 @@
 
       <div class="section-head luxury-section-head"><div><span class="section-overline">HOJE</span><h3>Resumo do dia</h3><p>${today.dayId?'Agenda, alunos e pendências em um único olhar':'Hoje não há grade fixa de aulas.'}</p></div><span class="live-dot">Atual</span></div>
       <section class="today-grid">
-        <article class="today-card"><div class="today-icon">${icon('calendar')}</div><div><strong>${today.classes}</strong><span>Aulas hoje</span><small>${today.fixedStudents} aluno${today.fixedStudents===1?'':'s'} previsto${today.fixedStudents===1?'':'s'}</small></div></article>
-        <article class="today-card"><div class="today-icon">${icon('check')}</div><div><strong>${today.present}</strong><span>Presenças</span><small>${today.absent} falta${today.absent===1?'':'s'} registrada${today.absent===1?'':'s'}</small></div></article>
-        <article class="today-card"><div class="today-icon">${icon('users')}</div><div><strong>${today.makeups}</strong><span>Reposições</span><small>Agendadas para hoje</small></div></article>
-        <article class="today-card ${today.attention?'attention':''}"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
+        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('calendar')}</div><div><strong>${today.classes}</strong><span>Aulas hoje</span><small>${today.fixedStudents} aluno${today.fixedStudents===1?'':'s'} previsto${today.fixedStudents===1?'':'s'}</small></div></article>
+        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('check')}</div><div><strong>${today.present}</strong><span>Presenças</span><small>${today.absent} falta${today.absent===1?'':'s'} registrada${today.absent===1?'':'s'}</small></div></article>
+        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('users')}</div><div><strong>${today.makeups}</strong><span>Reposições</span><small>Agendadas para hoje</small></div></article>
+        <article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
       </section>
+
+      ${(today.attention||today.makeups||birthdayStudents(7).length)?`<section class="attention-hub"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Atenção</strong><small>O que merece uma ação rápida</small></div></div><div class="attention-hub-items">${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${birthdayStudents(7).length?`<button data-nav="students"><strong>${birthdayStudents(7).length}</strong><span>aniversário${birthdayStudents(7).length===1?'':'s'} em até 7 dias</span></button>`:''}</div></section>`:''}
 
       <section class="metrics luxury-metrics">
         ${metricCard('users',m.students,'Alunos ativos')}
@@ -897,7 +912,7 @@
   }
 
   function checkBirthdayNotification(force=false){
-    if(Notification?.permission!=='granted' || !state.birthdayNotifications?.enabled) return;
+    if(!('Notification' in window) || Notification.permission!=='granted' || !state.birthdayNotifications?.enabled) return;
     const today=isoToday();
     if(!force && state.birthdayNotifications.lastCheck===today) return;
     const todayBirthdays=birthdayStudents(0);
@@ -914,6 +929,7 @@
       <section class="logo-feature"><img src="assets/logo-interna.jpg" alt="Márcio Bueno Personal Trainer" /></section>
       <div class="section-head"><div><h3>Aplicativo</h3><p>Uso privado no seu dispositivo</p></div></div>
       <section class="card">
+        <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury • versão ${APP_VERSION}</span></div><span class="pill">Estável</span></div>
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
@@ -937,7 +953,7 @@
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:'8.0',exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V8_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup V8 gerado e registrado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V8_2_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup V8.2 gerado e registrado.');renderSettings();}
 
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 

@@ -56,3 +56,19 @@ linear-gradient(180deg,#09090a 0%,#070708 45%,#09090b 100%);letter-spacing:-.005
 @media(min-width:700px){.today-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.luxury-hero{padding:32px}.luxury-hero h2{font-size:43px}.today-card{min-height:120px}}
 @media(min-width:1050px){.sidebar{background:linear-gradient(180deg,#0c0c0e,#09090a);border-right-color:rgba(255,255,255,.07)}.desktop-nav .nav-btn.active{background:linear-gradient(90deg,rgba(233,198,110,.12),rgba(185,137,50,.025));box-shadow:inset 2px 0 0 #c9a653}.hero{min-height:260px}.luxury-hero h2{font-size:48px}}
 @media(prefers-reduced-motion:reduce){.view{animation:none}.card,.metric,.today-card,.btn{transition:none}}
+
+
+/* V8.2 LUXURY — navegação refinada, atenção inteligente e privacidade persistente */
+.today-card.actionable{cursor:pointer}.today-card.actionable:after{content:"›";margin-left:auto;color:rgba(233,198,110,.35);font-size:22px;font-weight:300}
+.attention-hub{margin:13px 0 2px;padding:14px;border:1px solid rgba(233,198,110,.18);border-radius:21px;background:linear-gradient(145deg,rgba(233,198,110,.065),rgba(16,17,20,.96));box-shadow:0 14px 38px rgba(0,0,0,.14)}
+.attention-hub-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}.attention-hub-head>span{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;color:var(--gold2);background:rgba(233,198,110,.08);border:1px solid rgba(233,198,110,.12)}.attention-hub-head svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8}.attention-hub-head strong,.attention-hub-head small{display:block}.attention-hub-head small{color:var(--muted);font-size:10px;margin-top:2px}.attention-hub-items{display:grid;gap:7px}.attention-hub-items button{width:100%;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.025);color:var(--text);border-radius:13px;padding:10px 12px;display:flex;align-items:center;gap:9px;text-align:left}.attention-hub-items button strong{color:var(--gold2);font-size:17px}.attention-hub-items button span{font-size:11px;color:#bbb9b2}
+.more-menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.more-menu-item{border:1px solid rgba(255,255,255,.08);background:linear-gradient(145deg,#18191d,#101114);color:var(--text);border-radius:18px;padding:15px;text-align:left;display:flex;gap:11px;align-items:center}.more-menu-icon{width:39px;height:39px;flex:0 0 39px;border-radius:12px;display:grid;place-items:center;color:var(--gold2);background:rgba(233,198,110,.07);border:1px solid rgba(233,198,110,.10)}.more-menu-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8}.more-menu-item strong,.more-menu-item small{display:block}.more-menu-item small{font-size:9px;color:var(--muted);margin-top:3px;line-height:1.25}
+@media(max-width:420px){.more-menu-grid{grid-template-columns:1fr}.luxury-hero{min-height:220px;padding:21px 18px}.luxury-hero h2{font-size:31px}.hero-grid{grid-template-columns:1fr 92px}.hero-logo{width:92px;height:92px}.today-card{min-height:104px;padding:13px}.today-card strong{font-size:22px}}
+
+
+/* V8.2.0 — acabamento final de produção */
+:focus-visible{outline:2px solid var(--gold2);outline-offset:3px}
+button{touch-action:manipulation}
+.mobile-nav .nav-btn{min-width:0}
+.mobile-nav .nav-btn span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:360px){.mobile-nav{padding-left:4px;padding-right:4px}.nav-btn{font-size:8px}.nav-btn svg{width:19px;height:19px}.view{padding-left:12px;padding-right:12px}}
