@@ -2,7 +2,7 @@
   'use strict';
   // MB Gestor Premium V8.2 Luxury
 
-  const APP_VERSION = '8.2.2';
+  const APP_VERSION = '8.2.3';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -925,7 +925,7 @@
       <span class="schedule-time-rail"><strong>${time}</strong><small>PERSONAL</small></span>
       <span class="schedule-slot-body">
         <span class="schedule-slot-top"><strong>Personal</strong><span class="schedule-pills"><span class="schedule-capacity">${ids.length}/4${makeup?' + R':''}</span><span class="schedule-vacancy">${vacancies} vaga${vacancies===1?'':'s'}</span></span></span>
-        <span class="schedule-people">${enrolled.length?enrolled.map(s=>`<span class="schedule-person"><span class="schedule-initial">${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span><span>${escapeHTML(s.name)}</span></span>`).join(''):`<span class="schedule-empty-line">${icon('users')} Vagas disponíveis</span>`}</span>
+        <span class="schedule-people">${enrolled.length?enrolled.map(s=>{const st=attendanceStatus(date,day,time,s.id);return `<span class="schedule-person"><span class="schedule-initial ${st==='present'?'is-present':st==='absent'?'is-absent':''}">${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span><span>${escapeHTML(s.name)}</span></span>`}).join(''):`<span class="schedule-empty-line">${icon('users')} Vagas disponíveis</span>`}</span>
         ${makeup?`<span class="schedule-makeup-line"><span class="makeup-square">R</span><strong>${escapeHTML(makeup.name)}</strong><em>Reposição</em></span>`:''}
         ${(present||absent)?`<span class="attendance-mini"><span>✓ ${present} presença${present===1?'':'s'}</span><span>✕ ${absent} falta${absent===1?'':'s'}</span></span>`:''}
       </span>
@@ -1040,10 +1040,45 @@
     const date=scheduleDateForDay(day),fixed=new Set(slotStudents(day,time));
     const current=makeupStudentId(date,day,time);
     const students=[...activeStudents()].filter(s=>!fixed.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    openModal(`Adicionar reposição • ${fmtDate(date)} • ${time}`,`<div class="notice makeup-notice">A reposição é uma vaga extra desta aula e não altera a turma fixa. Ao adicionar o aluno, ela já será contabilizada como presença no resumo mensal.</div>
-      <div class="makeup-picker">${students.map(s=>`<button type="button" class="makeup-option ${current===s.id?'selected':''}" data-makeup-id="${s.id}"><span class="makeup-square">R</span><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></button>`).join('')}</div>`);
-    const modal=$('.modal');
-    $$('.makeup-option',modal).forEach(b=>b.addEventListener('click',()=>{setMakeupStudent(date,day,time,b.dataset.makeupId);closeModal();toast('Reposição adicionada e presença contabilizada.');renderSchedule()}));
+    const studentRow=s=>`<label class="class-picker-student makeup-picker-student ${current===s.id?'selected':''}" data-student-name="${escapeHTML((s.name||'').toLowerCase())}">
+      <span class="student-photo tiny-photo class-picker-avatar">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
+      <span class="class-picker-name">${escapeHTML(s.name)}</span>
+      <input class="class-picker-checkbox" type="radio" name="makeupStudent" value="${s.id}" ${current===s.id?'checked':''} aria-label="Selecionar ${escapeHTML(s.name)} para reposição">
+      <span class="class-picker-check" aria-hidden="true">${icon('check')}</span>
+    </label>`;
+    openModal(`Adicionar reposição • ${fmtDate(date)} • ${time}`,`
+      <form id="makeupPickerForm" class="class-picker-form">
+        <div class="notice makeup-notice">A reposição é uma vaga extra desta aula e não altera a turma fixa. Ao confirmar, o aluno será contabilizado como presença no resumo mensal.</div>
+        <div class="search-wrap class-picker-search">${icon('search')}<input id="makeupPickerSearch" type="search" placeholder="Buscar aluno pelo nome" autocomplete="off" /></div>
+        <div class="class-picker-tabs" role="tablist">
+          <button type="button" class="class-picker-tab active" data-makeup-filter="all">Todos <span>${students.length}</span></button>
+          <button type="button" class="class-picker-tab" data-makeup-filter="selected">Selecionado <span id="makeupPickerSelectedBadge">${current?'1':'0'}</span></button>
+        </div>
+        <div id="makeupPickerList" class="class-picker-list">${students.length?students.map(studentRow).join(''):''}</div>
+        <div id="makeupPickerEmpty" class="empty compact ${students.length?'hidden':''}"><strong>Nenhum aluno encontrado</strong>Tente outro nome ou altere o filtro.</div>
+        <div class="class-picker-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="confirmMakeup" ${current?'':'disabled'}>${icon('check')} Confirmar reposição</button></div>
+      </form>`);
+    const form=$('#makeupPickerForm'),search=$('#makeupPickerSearch'),list=$('#makeupPickerList'),empty=$('#makeupPickerEmpty'),confirm=$('#confirmMakeup');
+    let filter='all';
+    const update=()=>{
+      const checked=$('input[name="makeupStudent"]:checked',form),q=(search.value||'').trim().toLowerCase();
+      $('#makeupPickerSelectedBadge').textContent=checked?'1':'0';
+      confirm.disabled=!checked;
+      $$('.makeup-picker-student',list).forEach(row=>{
+        const input=$('input[name="makeupStudent"]',row),isSelected=input.checked;
+        row.classList.toggle('selected',isSelected);
+        const matchesName=(row.dataset.studentName||'').includes(q);
+        const matchesFilter=filter==='all'||isSelected;
+        row.classList.toggle('hidden',!(matchesName&&matchesFilter));
+      });
+      empty.classList.toggle('hidden',$$('.makeup-picker-student:not(.hidden)',list).length>0);
+    };
+    search.addEventListener('input',update);
+    $$('.class-picker-tab',form).forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.makeupFilter;$$('.class-picker-tab',form).forEach(x=>x.classList.toggle('active',x===b));update()}));
+    form.addEventListener('change',e=>{if(e.target.name==='makeupStudent')update()});
+    form.addEventListener('submit',e=>{e.preventDefault();const selected=$('input[name="makeupStudent"]:checked',form);if(!selected)return;setMakeupStudent(date,day,time,selected.value);closeModal();toast('Reposição adicionada e presença contabilizada.');renderSchedule()});
+    update();
+    setTimeout(()=>search.focus({preventScroll:true}),50);
   }
 
   async function enableBirthdayNotifications(){
