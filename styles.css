@@ -283,6 +283,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 
 
 /* V9.6.7 — Reminder Review Hotfix */
+/* V9.6.8 — Reminder Review Reliability Hotfix */
 .sticky-reminder-footer{z-index:64;pointer-events:auto;touch-action:manipulation}
 .sticky-reminder-footer #prepareReminder{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}
 .reminder-review-modal{display:grid;gap:12px}
@@ -294,3 +295,8 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .reminder-review-notice strong,.reminder-review-notice span{display:block}
 .reminder-review-actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(16,17,21,0),rgba(16,17,21,.98) 28%);padding-top:18px}
 @media(max-width:620px){.reminder-review-modal{gap:10px}.reminder-review-card{padding:16px}.reminder-review-actions .btn{width:100%}}
+
+/* V9.6.8 — Android/mobile tap reliability for reminder review action */
+.sticky-reminder-footer{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:#0f1014!important;transform:translateZ(0);-webkit-transform:translateZ(0)}
+.sticky-reminder-footer #prepareReminder{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.sticky-reminder-footer #prepareReminder:disabled{opacity:.72}
