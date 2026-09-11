@@ -228,3 +228,51 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .existing-booking-pill{margin-right:2px}
 @media(max-width:620px){.luxury-booking-flow{padding-bottom:104px}.makeup-picker-actions{width:calc(100vw - 20px);bottom:max(8px,var(--safe-bottom));grid-template-columns:.9fr 1.35fr;padding:9px 10px;border-radius:16px}.makeup-picker-actions .btn{min-height:48px;font-size:11px}}
 @media(max-width:360px){.makeup-picker-actions{grid-template-columns:1fr 1.35fr;gap:7px}.makeup-picker-actions .btn{padding-left:8px;padding-right:8px;font-size:10px}}
+
+/* V9.6.5 — Final polish: reminders, lesson cards and consent */
+.reminder-student{grid-template-columns:auto minmax(0,1fr) auto;gap:11px;padding:11px 12px;min-height:74px}
+.recipient-native-control{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;margin:0!important}
+.reminder-student-info>strong{font-size:.96rem;line-height:1.22}
+.recipient-check{width:32px;height:32px;border-radius:10px;flex:0 0 32px}
+.recipient-card.selected .recipient-check{box-shadow:0 6px 16px rgba(185,137,50,.18)}
+.reminder-selection-summary{display:grid;gap:2px;min-width:0}
+.reminder-selection-summary strong{font-size:.92rem}
+.selection-safety-note{display:block;color:#8e9198;font-size:8px;line-height:1.25}
+.token-help{color:#8b8e95;font-weight:700}
+.reminder-card{padding-bottom:18px}
+
+/* Compact, breathable lesson roster */
+.lesson-roster-section{margin:12px 0}
+.luxury-attendance-list{gap:7px}
+.luxury-attendance-card{padding:9px 10px;border-radius:16px;gap:7px}
+.attendance-student-copy strong{line-height:1.18}
+.luxury-attendance-actions{gap:7px}
+.luxury-attendance-actions .attendance-btn{min-height:36px}
+.luxury-remove-makeup{min-height:28px}
+.attendance-kind-badge{max-width:96px;overflow:hidden;text-overflow:ellipsis}
+
+/* Consent modal hierarchy */
+.consent-meta-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;padding:10px 12px;border:1px solid rgba(235,201,113,.12);border-radius:13px;background:linear-gradient(145deg,rgba(233,198,110,.07),rgba(255,255,255,.015))}
+.consent-meta-strip span{color:#8f9299;font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}
+.consent-meta-strip strong{color:#e8c66f;font-size:10px}
+.consent-box{font-size:12.5px;line-height:1.62;padding:18px;border-radius:17px}
+.consent-how{margin-top:10px}
+
+@media(max-width:620px){
+  .reminder-card{padding-bottom:118px}
+  .sticky-reminder-footer{position:fixed;left:10px;right:10px;bottom:calc(78px + var(--safe-bottom));width:auto;max-width:none;margin:0;z-index:38;display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,1.25fr);align-items:center;gap:10px;padding:10px 11px;border-radius:17px;background:rgba(15,16,20,.975);box-shadow:0 -12px 34px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.035)}
+  .sticky-reminder-footer .btn{width:100%;min-height:46px;justify-content:center}
+  .reminder-selection-summary{align-self:center}
+  .reminder-student{min-height:68px;padding:10px 11px}
+  .reminder-tags{margin-top:3px}
+  .reminder-tags .status{padding:3px 6px;font-size:.64rem}
+  .consent-box{font-size:12px;line-height:1.58;padding:15px}
+}
+@media(max-width:390px){
+  .sticky-reminder-footer{grid-template-columns:1fr 1.35fr;gap:7px}
+  .sticky-reminder-footer .btn{padding-left:9px;padding-right:9px;font-size:10px}
+  .selection-safety-note{display:none}
+}
+.review-mode-hidden{display:none!important}
+.reminder-review-head{align-items:flex-start}
+@media(max-width:620px){.reminder-review-head{display:grid;grid-template-columns:1fr}.reminder-review-head .btn{width:100%}}
