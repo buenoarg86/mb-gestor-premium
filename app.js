@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  // MB Gestor Premium V9.1 Consolidado Final
+  // MB Gestor Premium V9.2 Refinado
 
-  const APP_VERSION = '9.1.0';
+  const APP_VERSION = '9.2.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -19,7 +19,10 @@
       trainerName: 'Márcio Bueno',
       chargeDaysBefore: 3,
       currency: 'BRL',
-      financialValuesVisible: false
+      financialValuesVisible: false,
+      financePinHash: '',
+      financePinEnabled: false,
+      lastBackupAt: null
     }
   };
 
@@ -45,6 +48,7 @@
   let selectedScheduleDay = ({1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[new Date().getDay()] || 'mon');
   // Privacidade persistente: o app lembra se os valores ficaram ocultos ou visíveis.
   let financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
+  let financeUnlockedThisSession = false;
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -354,8 +358,29 @@
     $$('[data-more-nav]',modalRoot).forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.moreNav;closeModal();navigate(id)}));
   }
 
+  async function hashPin(value){
+    const text=String(value||'');
+    if(window.crypto?.subtle){
+      const data=new TextEncoder().encode(text);
+      const buf=await crypto.subtle.digest('SHA-256',data);
+      return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    return btoa(unescape(encodeURIComponent(text)));
+  }
+
+  function financeLockEnabled(){return Boolean(state.settings?.financePinEnabled && state.settings?.financePinHash)}
+
+  function requestFinanceUnlock(targetView){
+    openModal('Área financeira protegida',`<div class="finance-lock-panel"><div class="finance-lock-icon">${icon('lock')}</div><strong>Digite seu PIN</strong><span>Proteção local para Financeiro e Cobranças.</span></div><form id="financeUnlockForm" class="form-grid"><div class="field"><label>PIN</label><input id="financeUnlockPin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="••••" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Desbloquear</button></div></form>`);
+    const form=$('#financeUnlockForm');
+    setTimeout(()=>$('#financeUnlockPin')?.focus(),80);
+    form.addEventListener('submit',async e=>{e.preventDefault();const pin=String(new FormData(form).get('pin')||'');const hash=await hashPin(pin);if(hash!==state.settings.financePinHash){toast('PIN incorreto.');$('#financeUnlockPin').value='';return;}financeUnlockedThisSession=true;closeModal();navigate(targetView);});
+  }
+
   function navigate(id) {
-    currentView = NAV.some(n=>n.id===id) ? id : 'dashboard';
+    const next = NAV.some(n=>n.id===id) ? id : 'dashboard';
+    if(['finance','charges'].includes(next) && financeLockEnabled() && !financeUnlockedThisSession){requestFinanceUnlock(next);return;}
+    currentView = next;
     const item = NAV.find(n=>n.id===currentView);
     pageTitle.textContent = item?.title || 'MB Gestor';
     renderNav();
@@ -409,7 +434,8 @@
   }
 
   function renderDashboard() {
-    const m=metrics(), today=todayStudioSummary();
+    const m=metrics(), today=todayStudioSummary(), occ=occupancyStats(), mk=monthKey();
+    const monthPresence=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(mk)).reduce((n,[,map])=>n+Object.values(map||{}).filter(v=>v==='present').length,0);
     const upcoming=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
     const firstName=(state.settings.trainerName||'Márcio').trim().split(/\s+/)[0];
     viewEl.innerHTML=`
@@ -437,10 +463,12 @@
 
       ${(today.attention||today.makeups||birthdayStudents(7).length)?`<section class="attention-hub"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Atenção</strong><small>O que merece uma ação rápida</small></div></div><div class="attention-hub-items">${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${birthdayStudents(7).length?`<button data-nav="students"><strong>${birthdayStudents(7).length}</strong><span>aniversário${birthdayStudents(7).length===1?'':'s'} em até 7 dias</span></button>`:''}</div></section>`:''}
 
-      <section class="metrics luxury-metrics">
+      <section class="metrics luxury-metrics management-cockpit">
         ${metricCard('users',m.students,'Alunos ativos')}
         ${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}
         ${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}
+        ${metricCard('calendar',monthPresence,'Presenças no mês','good')}
+        ${metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'')}
         ${metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good')}
       </section>
 
@@ -517,11 +545,28 @@
     $$('.js-delete-student',viewEl).forEach(b=>b.addEventListener('click',()=>confirmDeleteStudent(b.dataset.id)));
   }
 
+  function studentMonthTrend(studentId,months=6){
+    const now=todayNoon(),out=[];
+    for(let i=months-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1,12),mk=monthKey(isoDate(d)),st=monthlyAttendanceStats(studentId,mk);out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(d).replace('.',''),...st});}
+    return out;
+  }
+
   function openStudentHistory(id){
     const s=state.students.find(x=>x.id===id);if(!s)return;
     const rows=attendanceHistory(id),present=rows.filter(x=>x.status==='present').length,absent=rows.filter(x=>x.status==='absent').length,makeups=rows.filter(x=>x.isMakeup&&x.status==='present').length,credits=makeupCreditBalance(id),mk=monthKey(),monthStats=monthlyAttendanceStats(id,mk);
-    const paidThisMonth=state.payments.some(p=>String(p.studentId)===String(id)&&monthKey(p.date)===mk);
-    openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span></div></div></section><section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section><div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(s.whatsapp||'—')}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div></div><div class="section-head compact-head"><div><h3>Histórico de frequência</h3><p>${present} presenças • ${absent} faltas</p></div></div><div class="history-list">${rows.length?rows.map(r=>`<div class="history-row"><div><strong>${fmtDate(r.date)}</strong><span>${r.isMakeup?'Reposição • ':''}${escapeHTML(r.time||'')}</span></div><span class="status ${r.status==='present'?'ok':'danger'}">${r.status==='present'?'Presente':'Falta'}</span></div>`).join(''):emptyState('Sem histórico','Ainda não há presenças ou faltas registradas para este aluno.')}</div>`);
+    const payments=state.payments.filter(p=>String(p.studentId)===String(id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
+    const paidThisMonth=payments.some(p=>monthKey(p.date)===mk),trend=studentMonthTrend(id,6),maxTrend=Math.max(1,...trend.map(x=>x.present));
+    const phone=cleanPhone(s.whatsapp);
+    openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':'Aluno ativo'}</span></div></div></section>
+      <section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section>
+      <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(s.whatsapp||'—')}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div></div>
+      <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
+      <div class="section-head compact-head"><div><h3>Evolução • 6 meses</h3><p>Treinos realizados por mês</p></div></div><div class="student-trend">${trend.map(x=>`<div class="student-trend-col"><div class="student-trend-bar"><span style="height:${Math.max(5,Math.round(x.present/maxTrend*100))}%"></span></div><strong>${x.present}</strong><small>${escapeHTML(x.label)}</small></div>`).join('')}</div>
+      <div class="section-head compact-head"><div><h3>Pagamentos</h3><p>Últimos registros deste aluno</p></div></div><div class="history-list payment-history-list">${payments.length?payments.map(p=>`<div class="history-row"><div><strong>${fmtDate(p.date)}</strong><span>${escapeHTML((p.method||s.paymentMethod||'pix').toUpperCase())}</span></div><strong class="money-positive">${privateMoney(p.amount)}</strong></div>`).join(''):emptyState('Sem pagamentos','Nenhum pagamento individual registrado para este aluno.')}</div>
+      <div class="section-head compact-head"><div><h3>Histórico de frequência</h3><p>${present} presenças • ${absent} faltas</p></div></div><div class="history-list">${rows.length?rows.map(r=>`<div class="history-row"><div><strong>${fmtDate(r.date)}</strong><span>${r.isMakeup?'Reposição • ':''}${escapeHTML(r.time||'')}</span></div><span class="status ${r.status==='present'?'ok':'danger'}">${r.status==='present'?'Presente':'Falta'}</span></div>`).join(''):emptyState('Sem histórico','Ainda não há presenças ou faltas registradas para este aluno.')}</div>`);
+    $('#historyWhatsapp')?.addEventListener('click',()=>window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${(s.name||'').split(' ')[0]}! Tudo bem?`)}`,'_blank','noopener,noreferrer'));
+    $('#historyMonthly')?.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(id,mk));
+    $('#historyEdit')?.addEventListener('click',()=>{closeModal();openStudentModal(id)});
   }
 
   function openStudentModal(id=null) {
@@ -715,6 +760,8 @@
       charge:'Olá, [nome]! Tudo bem? Passando para lembrar sobre sua mensalidade do Studio Márcio Bueno. Quando puder, me confirme o pagamento. Obrigado!',
       birthday:'Olá, [nome]! 🎉 Passando para desejar um feliz aniversário! Que seu novo ciclo seja cheio de saúde, conquistas e bons momentos. Um abraço do Studio Márcio Bueno!',
       absence:'Olá, [nome]! Tudo bem? Sentimos sua falta nos últimos treinos. Quando puder, me avise para organizarmos sua rotina e mantermos a frequência. 💪',
+      confirmation:'Olá, [nome]! Tudo bem? Passando para confirmar seu horário de treino no Studio Márcio Bueno. Se precisar ajustar, me avise por aqui. 👍',
+      makeup:'Olá, [nome]! Tudo bem? Surgiu uma possibilidade de reposição no Studio Márcio Bueno. Se tiver interesse, me responda por aqui para combinarmos o melhor horário.',
       general:'Olá, [nome]! Tudo bem? Passando para deixar um lembrete do Studio Márcio Bueno.'
     };
     return templates[type]||templates.general;
@@ -770,6 +817,8 @@
           <button type="button" class="btn btn-secondary btn-small js-template" data-template="charge">${icon('bell')} Cobrança</button>
           <button type="button" class="btn btn-secondary btn-small js-template" data-template="birthday">${icon('calendar')} Aniversário</button>
           <button type="button" class="btn btn-secondary btn-small js-template" data-template="absence">${icon('users')} Retorno</button>
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="confirmation">${icon('check')} Confirmar horário</button>
+          <button type="button" class="btn btn-secondary btn-small js-template" data-template="makeup">${icon('calendar')} Reposição disponível</button>
           <button type="button" class="btn btn-secondary btn-small js-template" data-template="general">${icon('message')} Geral</button>
         </div>
 
@@ -1174,10 +1223,16 @@
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
         <div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
       </section>
-      <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados • ${state.settings.lastBackupAt?`último backup em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(state.settings.lastBackupAt))}`:'nenhum backup registrado neste aparelho'}</p></div></div>
+      <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para dados financeiros</p></div></div>
       <section class="card">
-        <div class="settings-row"><div><strong>Exportar backup</strong><span>Baixa um arquivo JSON com todos os dados do aplicativo.</span></div><button class="btn btn-secondary btn-small" id="exportBackup">${icon('download')} Exportar</button></div>
-        <div class="settings-row"><div><strong>Importar backup</strong><span>Restaura um backup exportado por este aplicativo.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Importar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
+        <div class="settings-row"><div><strong>PIN do Financeiro</strong><span>${financeLockEnabled()?'Ativado • solicitado ao abrir Financeiro e Cobranças':'Desativado • configure um PIN de 4 a 6 números'}</span></div><button class="btn ${financeLockEnabled()?'btn-secondary':'btn-primary'} btn-small" id="configureFinancePin">${financeLockEnabled()?'Alterar':'Ativar'}</button></div>
+        ${financeLockEnabled()?`<div class="settings-row"><div><strong>Bloquear agora</strong><span>Encerra o acesso financeiro liberado nesta sessão.</span></div><button class="btn btn-secondary btn-small" id="lockFinanceNow">${icon('lock')} Bloquear</button></div><div class="settings-row"><div><strong>Remover PIN</strong><span>O Financeiro volta a abrir sem senha.</span></div><button class="btn btn-danger btn-small" id="removeFinancePin">Desativar</button></div>`:''}
+      </section>
+      <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados • ${state.settings.lastBackupAt?`último backup em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(state.settings.lastBackupAt))}`:'nenhum backup registrado neste aparelho'}</p></div></div>
+      <section class="card backup-premium">
+        <div class="backup-health"><span class="backup-health-icon">${icon('download')}</span><div><strong>${state.settings.lastBackupAt?'Backup registrado':'Faça seu primeiro backup'}</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${Object.keys(state.attendance||{}).length} registros de aula</span></div></div>
+        <div class="settings-row"><div><strong>Exportar backup completo</strong><span>Salva alunos, agenda, presenças, reposições, financeiro e preferências em um único arquivo.</span></div><button class="btn btn-primary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
+        <div class="settings-row"><div><strong>Importar / restaurar</strong><span>Valida o arquivo antes de substituir os dados atuais.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
       </section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',fmtMoney(m.expected),'Receita prevista')}${metricCard('chart',fmtMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',fmtMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
@@ -1185,14 +1240,27 @@
     $('#installSettings').addEventListener('click',installApp);
     $('#changeDays').addEventListener('click',changeChargeDays);
     $('#birthdayNotify')?.addEventListener('click',enableBirthdayNotifications);
+    $('#configureFinancePin')?.addEventListener('click',configureFinancePin);
+    $('#lockFinanceNow')?.addEventListener('click',()=>{financeUnlockedThisSession=false;toast('Financeiro bloqueado.');renderSettings();});
+    $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
     $('#backupFile').addEventListener('change',importBackup);
   }
 
+  function configureFinancePin(){
+    openModal(financeLockEnabled()?'Alterar PIN':'Ativar PIN',`<form id="pinForm" class="form-grid"><div class="notice">Use de 4 a 6 números. Este PIN fica salvo somente neste aparelho e protege as telas Financeiro e Cobranças.</div><div class="field"><label>Novo PIN</label><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="4 a 6 números" required /></div><div class="field"><label>Confirmar PIN</label><input name="confirm" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" placeholder="Repita o PIN" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar PIN</button></div></form>`);
+    $('#pinForm').addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),pin=String(fd.get('pin')||''),confirm=String(fd.get('confirm')||'');if(!/^\d{4,6}$/.test(pin))return toast('Use um PIN de 4 a 6 números.');if(pin!==confirm)return toast('Os PINs não conferem.');state.settings.financePinHash=await hashPin(pin);state.settings.financePinEnabled=true;financeUnlockedThisSession=false;saveState();closeModal();toast('PIN financeiro ativado.');renderSettings();});
+  }
+
+  function removeFinancePin(){
+    openModal('Desativar PIN',`<div class="notice">A área financeira voltará a abrir sem pedir PIN neste aparelho.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmRemovePin">Desativar PIN</button></div>`);
+    $('#confirmRemovePin').addEventListener('click',()=>{state.settings.financePinHash='';state.settings.financePinEnabled=false;financeUnlockedThisSession=false;saveState();closeModal();toast('PIN desativado.');renderSettings();});
+  }
+
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup V9 gerado e registrado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_2_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.2 gerado.');renderSettings();}
 
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
