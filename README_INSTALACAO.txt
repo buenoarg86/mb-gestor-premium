@@ -1,21 +1,25 @@
-MB GESTOR PREMIUM V8.2.2 LUXURY PRO
+MB GESTOR PREMIUM — V9.1 CONSOLIDADO FINAL
 
-Atualização profissional do Studio Márcio Bueno.
+Versão completa para publicação no GitHub Pages.
 
-PRINCIPAIS MELHORIAS
-- Agenda semanal redesenhada em uma coluna no celular, com cartões 3D e espaçamento seguro para nomes.
-- Navegação da agenda por dia da semana, sem misturar horários de dias diferentes.
-- Modalidade única: Personal.
-- Turmas de até 4 alunos fixos, funcionando normalmente mesmo com 1, 2 ou 3 alunos.
-- Reposição destacada separadamente e contabilizada como presença.
-- Lembretes com envio Individual ou Grupo de alunos.
-- Seleção manual e filtros automáticos de frequência: 0, 1–4, 5–8 e 9+ treinos no mês.
-- Modelo pronto de Frequência do mês com personalização automática de nome, treinos, faltas, reposições e mês.
-- Financeiro, alunos, cobranças, termos, backup e demais dados preservados pela mesma chave de armazenamento local.
+INCLUI:
+- Agenda premium dia / semana / mês
+- Presença com inicial VERDE e falta com inicial VERMELHA
+- Atualização imediata da marcação de frequência
+- Múltiplas reposições por aula
+- Reposição contabilizada como presença quando marcada
+- Resumo mensal de treinos e envio por WhatsApp
+- Cadastro de aluno com foto
+- Lembretes e WhatsApp
+- Financeiro com PIX / dinheiro
+- Saldo financeiro ocultável
+- Mensalidades e cobranças
+- Layout Luxury Pro
 
-ATUALIZAÇÃO NO GITHUB PAGES
-Substitua na raiz: app.js, styles.css e sw.js. index.html e manifest.webmanifest permanecem compatíveis e podem ser reenviados sem problema.
-Após o commit, aguarde a publicação do GitHub Pages e reabra o app. O cache V8.2.2 força a renovação dos arquivos principais.
+PARA GITHUB:
+1. Extraia este ZIP.
+2. Envie TODOS os arquivos e a pasta assets para a raiz do repositório.
+3. Substitua os arquivos antigos pelos novos.
+4. Abra/recarregue o GitHub Pages.
 
-SEGURANÇA DOS DADOS
-Antes de mudanças importantes, use Ajustes > Exportar backup. Os dados do aplicativo ficam no armazenamento local do navegador/PWA e não dentro dos arquivos do GitHub.
+IMPORTANTE: o cache do aplicativo foi atualizado nesta versão para reduzir o risco de o celular continuar mostrando arquivos antigos.
