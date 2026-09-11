@@ -280,3 +280,17 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 /* V9.6.6 — Reminder State Hotfix */
 .sticky-reminder-footer:not(.review-mode-hidden){visibility:visible;opacity:1;pointer-events:auto}
 .sticky-reminder-footer.review-mode-hidden{visibility:hidden;opacity:0;pointer-events:none}
+
+
+/* V9.6.7 — Reminder Review Hotfix */
+.sticky-reminder-footer{z-index:64;pointer-events:auto;touch-action:manipulation}
+.sticky-reminder-footer #prepareReminder{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}
+.reminder-review-modal{display:grid;gap:12px}
+.reminder-review-card{display:grid;gap:12px;border-color:rgba(232,181,70,.18)}
+.reminder-review-card .list-main{display:grid;gap:5px;min-width:0}
+.reminder-review-card .list-main small{white-space:normal;line-height:1.45;color:#a5a8ae}
+.reminder-review-card>.btn{width:100%;justify-content:center}
+.reminder-review-notice{display:grid;gap:4px;margin-bottom:14px}
+.reminder-review-notice strong,.reminder-review-notice span{display:block}
+.reminder-review-actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(16,17,21,0),rgba(16,17,21,.98) 28%);padding-top:18px}
+@media(max-width:620px){.reminder-review-modal{gap:10px}.reminder-review-card{padding:16px}.reminder-review-actions .btn{width:100%}}
