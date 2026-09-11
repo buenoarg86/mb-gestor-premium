@@ -2,7 +2,7 @@
   'use strict';
   // MB Gestor Premium V8.2 Luxury
 
-  const APP_VERSION = '8.2.3';
+  const APP_VERSION = '8.2.4';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -956,8 +956,17 @@
 
   function bindAttendanceButtons(root,date,day,time){
     $$('.attendance-btn',root).forEach(b=>b.addEventListener('click',()=>{
-      const id=b.dataset.id,status=b.dataset.att;setAttendance(date,day,time,id,status);
+      const id=b.dataset.id,status=b.dataset.att;
+      setAttendance(date,day,time,id,status);
+
+      // Atualiza imediatamente os controles do modal.
       $$(`.attendance-btn[data-id="${id}"]`,root).forEach(x=>x.classList.toggle('active',x.dataset.att===status));
+
+      // Atualiza imediatamente a Agenda que está atrás do modal, incluindo
+      // a cor da inicial, os totais de presença/falta e os indicadores do dia.
+      // Assim não é necessário sair e entrar novamente na Agenda.
+      if(currentView==='schedule') renderSchedule();
+
       toast(status==='present'?'Presença registrada.':'Falta registrada.');
     }));
   }
