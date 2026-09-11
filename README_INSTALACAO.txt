@@ -1,26 +1,21 @@
-MB GESTOR PREMIUM — V8.2.0 LUXURY
-=================================
+MB GESTOR PREMIUM V8.2.1 LUXURY PRO
 
-CONTEÚDO DA PASTA
-- index.html
-- app.js
-- styles.css
-- sw.js
-- manifest.webmanifest
-- assets/ (logo e ícones)
+Atualização profissional do Studio Márcio Bueno.
 
-PUBLICAÇÃO / INSTALAÇÃO
-1. Publique TODOS os arquivos e a pasta assets juntos no mesmo diretório do seu site HTTPS.
-2. Abra a URL publicada no Chrome do Android.
-3. No menu do Chrome, use “Instalar app” ou “Adicionar à tela inicial”.
-4. Após uma atualização, feche e abra novamente o app para o novo Service Worker assumir o cache.
+PRINCIPAIS MELHORIAS
+- Agenda semanal redesenhada em uma coluna no celular, com cartões 3D e espaçamento seguro para nomes.
+- Navegação da agenda por dia da semana, sem misturar horários de dias diferentes.
+- Modalidade única: Personal.
+- Turmas de até 4 alunos fixos, funcionando normalmente mesmo com 1, 2 ou 3 alunos.
+- Reposição destacada separadamente e contabilizada como presença.
+- Lembretes com envio Individual ou Grupo de alunos.
+- Seleção manual e filtros automáticos de frequência: 0, 1–4, 5–8 e 9+ treinos no mês.
+- Modelo pronto de Frequência do mês com personalização automática de nome, treinos, faltas, reposições e mês.
+- Financeiro, alunos, cobranças, termos, backup e demais dados preservados pela mesma chave de armazenamento local.
 
-DADOS E BACKUP
-- Os dados do MB Gestor ficam salvos localmente no navegador/dispositivo via localStorage.
-- Não limpe os dados do navegador/site sem antes exportar um backup.
-- Use Ajustes > Exportar backup regularmente.
-- A restauração de backup substitui os dados atuais somente após confirmação.
+ATUALIZAÇÃO NO GITHUB PAGES
+Substitua na raiz: app.js, styles.css e sw.js. index.html e manifest.webmanifest permanecem compatíveis e podem ser reenviados sem problema.
+Após o commit, aguarde a publicação do GitHub Pages e reabra o app. O cache V8.2.1 força a renovação dos arquivos principais.
 
-VERSÃO
-MB Gestor Premium V8.2.0 Luxury
-Pacote final completo preparado em 10/09/2026.
+SEGURANÇA DOS DADOS
+Antes de mudanças importantes, use Ajustes > Exportar backup. Os dados do aplicativo ficam no armazenamento local do navegador/PWA e não dentro dos arquivos do GitHub.
