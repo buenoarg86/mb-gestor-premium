@@ -276,3 +276,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .review-mode-hidden{display:none!important}
 .reminder-review-head{align-items:flex-start}
 @media(max-width:620px){.reminder-review-head{display:grid;grid-template-columns:1fr}.reminder-review-head .btn{width:100%}}
+
+/* V9.6.6 — Reminder State Hotfix */
+.sticky-reminder-footer:not(.review-mode-hidden){visibility:visible;opacity:1;pointer-events:auto}
+.sticky-reminder-footer.review-mode-hidden{visibility:hidden;opacity:0;pointer-events:none}
