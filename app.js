@@ -2,10 +2,11 @@
   'use strict';
   // MB Gestor Premium V9.4 Executive Luxury
 
-  const APP_VERSION = '9.4.0';
+  const APP_VERSION = '9.5.0';
+  const DATA_SCHEMA_VERSION = 2;
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
-    version: 1,
+    version: DATA_SCHEMA_VERSION,
     students: [],
     expenses: [],
     payments: [],
@@ -69,11 +70,25 @@
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
   }
 
+  function migrateState(input) {
+    const raw = (input && typeof input === 'object') ? structuredClone(input) : {};
+    let version = Number(raw.version || 1);
+    // V9.5 / schema 2: migration is intentionally additive. No student,
+    // finance, schedule or attendance record is rewritten or discarded.
+    if (version < 2) {
+      raw.settings = {...(raw.settings || {})};
+      raw.settings.dataMigratedAt = raw.settings.dataMigratedAt || new Date().toISOString();
+      version = 2;
+    }
+    raw.version = DATA_SCHEMA_VERSION;
+    return raw;
+  }
+
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return structuredClone(DEFAULT_STATE);
-      const parsed = JSON.parse(raw);
+      const parsed = migrateState(JSON.parse(raw));
       return {
         ...structuredClone(DEFAULT_STATE),
         ...parsed,
@@ -541,12 +556,38 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {dayId,classes,fixedStudents,makeups,present,absent,attention};
   }
 
+  function v95SmartCenter(today, m){
+    const date=isoToday(), now=todayNoon(), next7=addDays(now,7);
+    const overdue=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.key==='overdue').sort((a,b)=>a.info.days-b.info.days);
+    const inactive=inactiveAttentionStudents();
+    const birthdays=birthdayStudents(7);
+    const makeups=[];
+    Object.entries(state.makeups||{}).forEach(([k,raw])=>{
+      const d=parseLocalDate(k.slice(0,10)); if(!d||d<now||d>next7)return;
+      const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);
+      ids.forEach(id=>{const student=state.students.find(s=>String(s.id)===String(id));if(student)makeups.push({student,date:k.slice(0,10)});});
+    });
+    const priorities=[];
+    if(overdue.length) priorities.push({level:'danger',icon:'bell',value:overdue.length,title:'Cobranças prioritárias',text:`${privateMoney(overdue.reduce((a,x)=>a+(Number(x.s.monthlyFee)||0),0))} em mensalidades vencidas`,nav:'charges'});
+    if(inactive.length) priorities.push({level:'warn',icon:'users',value:inactive.length,title:'Atenção à frequência',text:`Aluno${inactive.length===1?'':'s'} sem presença há 10 dias ou mais`,nav:'students'});
+    if(makeups.length) priorities.push({level:'gold',icon:'calendar',value:makeups.length,title:'Reposições próximas',text:'Agendadas para os próximos 7 dias',nav:'schedule'});
+    if(birthdays.length) priorities.push({level:'good',icon:'message',value:birthdays.length,title:'Relacionamento',text:`Aniversário${birthdays.length===1?'':'s'} nos próximos 7 dias`,nav:'students'});
+    const prospects=prospectsOpen().length;
+    if(prospects) priorities.push({level:'gold',icon:'users',value:prospects,title:'Oportunidades comerciais',text:'Interessados aguardando acompanhamento',action:'prospects'});
+    const score=Math.max(0,Math.min(100,100-(m.overdue*5)-(inactive.length*3)));
+    return {priorities:priorities.slice(0,5),score};
+  }
+
+  function smartPriorityCard(p){
+    return `<button class="v95-priority ${p.level||''}" ${p.nav?`data-nav="${p.nav}"`:''} ${p.action?`data-v95-action="${p.action}"`:''}><span class="v95-priority-icon">${icon(p.icon||'bell')}</span><span class="v95-priority-copy"><strong>${escapeHTML(p.title)}</strong><small>${escapeHTML(p.text)}</small></span><span class="v95-priority-value">${escapeHTML(String(p.value))}</span></button>`;
+  }
+
   function renderDashboard() {
     const m=metrics(), today=todayStudioSummary(), occ=occupancyStats(), mk=monthKey();
     const monthPresence=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(mk)).reduce((n,[,map])=>n+Object.values(map||{}).filter(v=>v==='present').length,0);
     const upcoming=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
     const firstName=(state.settings.trainerName||'Márcio').trim().split(/\s+/)[0];
-    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7);
+    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7),smart=v95SmartCenter(today,m);
     viewEl.innerHTML=`
       <section class="hero luxury-hero">
         <div class="luxury-glow"></div>
@@ -571,6 +612,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
 
       ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${bday7.length?`<button data-nav="students"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-nav="students"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
+
+      <div class="section-head luxury-section-head v95-head"><div><span class="section-overline">V9.5 • CENTRAL INTELIGENTE</span><h3>Prioridades do Studio</h3><p>O que merece sua atenção agora, sem precisar procurar em outras telas.</p></div><span class="v95-health ${smart.score>=90?'excellent':smart.score>=75?'good':'attention'}"><strong>${smart.score}</strong><small>saúde</small></span></div>
+      <section class="v95-smart-center">
+        ${smart.priorities.length?smart.priorities.map(smartPriorityCard).join(''):`<article class="v95-all-clear"><span>✓</span><div><strong>Studio em ordem</strong><small>Nenhuma prioridade crítica identificada agora.</small></div></article>`}
+      </section>
 
       <section class="metrics luxury-metrics management-cockpit">
         ${metricCard('users',m.students,'Alunos ativos')}
@@ -602,6 +648,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#openAnnualReport')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
     $('#openOccupationMap')?.addEventListener('click',openOccupationMap);
     $('#openProspects')?.addEventListener('click',openProspectsManager);
+    $$('[data-v95-action="prospects"]',viewEl).forEach(b=>b.addEventListener('click',openProspectsManager));
     $('#openMonthlyClose')?.addEventListener('click',openMonthlyClose);
     $('#openHolidayQuickDashboard')?.addEventListener('click',openHolidayQuick);
     $$('.js-birthday-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendBirthdayWhatsApp(b.dataset.id)));
@@ -1414,9 +1461,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_4_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.4 gerado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_5_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.5 gerado.');renderSettings();}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=migrateState(data.state||data);if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
