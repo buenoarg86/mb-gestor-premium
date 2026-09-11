@@ -175,3 +175,44 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .makeup-selection-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;align-items:center;padding:11px 12px;border:1px solid rgba(233,198,110,.14);border-radius:15px;background:rgba(233,198,110,.045)}.makeup-selection-summary span,.makeup-selection-summary strong{display:block}.makeup-selection-summary span{color:#8a8e95;font-size:8px;text-transform:uppercase;font-weight:900}.makeup-selection-summary strong{margin-top:2px;color:#e9c76e;font-size:12px}.makeup-selection-summary small{color:#8b8e95;font-size:8px;line-height:1.35}
 @media(max-width:520px){.lesson-luxury-hero{grid-template-columns:1fr;padding:14px}.lesson-luxury-stats{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.lesson-luxury-time span{font-size:27px}.attendance-card-top{align-items:flex-start}.attendance-kind-badge{margin-top:2px}.makeup-selection-summary{grid-template-columns:1fr}.modern-picker-list{max-height:43vh}.class-picker-actions{grid-template-columns:.9fr 1.35fr}.booking-flow-strip span{font-size:7px;padding:0 4px}}
 @media(max-width:360px){.lesson-luxury-stats{gap:4px}.lesson-luxury-stats>div{padding:8px 3px}.attendance-kind-badge{font-size:6px;padding:5px 6px}.luxury-attendance-actions{gap:6px}.luxury-attendance-actions .attendance-btn{font-size:9px}.lesson-tool-card{padding:9px 10px}.booking-flow-strip{gap:5px}.booking-flow-strip span{gap:4px}}
+
+/* V9.6.3 — Agenda Luxury Flow Refinement */
+/* Cards de presença mais compactos e resistentes a nomes longos */
+.luxury-attendance-card{gap:8px;padding:10px 11px}
+.attendance-card-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px}
+.attendance-student-main{min-width:0}
+.attendance-avatar{width:36px!important;height:36px!important;flex:0 0 36px!important}
+.attendance-student-copy{min-width:0;padding-top:1px}
+.attendance-student-copy strong{font-size:11px;line-height:1.22;overflow-wrap:anywhere;word-break:normal}
+.attendance-kind-badge{align-self:start;white-space:nowrap;margin-top:0}
+.luxury-attendance-actions .attendance-btn{min-height:38px}
+.luxury-remove-makeup{min-height:30px}
+
+/* Seletores: estado inicial limpo, com busca e navegação opcional */
+.picker-guidance-actions{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.picker-guidance-actions>div{min-width:0}
+.picker-browse-btn{flex:0 0 auto;min-height:32px;padding:7px 10px;border:1px solid rgba(233,198,110,.18);border-radius:11px;background:rgba(233,198,110,.055);color:#d8ba68;font-size:8px;font-weight:900;white-space:nowrap}
+.picker-browse-btn:active{transform:translateY(1px);background:rgba(233,198,110,.10)}
+.class-picker-student.no-credit-option{opacity:.56;filter:saturate(.78)}
+.class-picker-student.no-credit-option:hover,.class-picker-student.no-credit-option:focus-within{opacity:.76}
+.class-picker-student.existing-booking{border-color:rgba(233,198,110,.30);background:linear-gradient(145deg,rgba(233,198,110,.095),rgba(17,18,21,.98))}
+.existing-booking-pill{display:inline-grid!important;place-items:center;height:18px;margin-right:4px;padding:0 6px;border-radius:999px;border:1px solid rgba(233,198,110,.24);background:rgba(233,198,110,.08);color:#e5c56e!important;font-size:7px!important;font-weight:950!important;letter-spacing:.025em;vertical-align:middle}
+.class-picker-actions .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
+/* Resumo seguro de alterações de reposição */
+.makeup-selection-summary.makeup-selection-deltas{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.makeup-selection-deltas>div{padding:7px 8px;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:rgba(10,11,14,.28)}
+.makeup-selection-deltas>div strong{font-size:15px}
+.makeup-selection-deltas>small{grid-column:1/-1;padding-top:2px}
+
+@media(max-width:520px){
+  .picker-guidance-actions{grid-template-columns:1fr auto}
+  .picker-browse-btn{padding:7px 9px}
+  .makeup-selection-summary.makeup-selection-deltas{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:390px){
+  .attendance-card-top{grid-template-columns:minmax(0,1fr) auto;gap:7px}
+  .attendance-kind-badge{font-size:6px;padding:5px 6px}
+  .picker-guidance-actions{grid-template-columns:1fr}
+  .picker-browse-btn{width:max-content}
+}
