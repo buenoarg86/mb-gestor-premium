@@ -1,4 +1,4 @@
-MB GESTOR PREMIUM V8.2.1 LUXURY PRO
+MB GESTOR PREMIUM V8.2.2 LUXURY PRO
 
 Atualização profissional do Studio Márcio Bueno.
 
@@ -15,7 +15,7 @@ PRINCIPAIS MELHORIAS
 
 ATUALIZAÇÃO NO GITHUB PAGES
 Substitua na raiz: app.js, styles.css e sw.js. index.html e manifest.webmanifest permanecem compatíveis e podem ser reenviados sem problema.
-Após o commit, aguarde a publicação do GitHub Pages e reabra o app. O cache V8.2.1 força a renovação dos arquivos principais.
+Após o commit, aguarde a publicação do GitHub Pages e reabra o app. O cache V8.2.2 força a renovação dos arquivos principais.
 
 SEGURANÇA DOS DADOS
 Antes de mudanças importantes, use Ajustes > Exportar backup. Os dados do aplicativo ficam no armazenamento local do navegador/PWA e não dentro dos arquivos do GitHub.

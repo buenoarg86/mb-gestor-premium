@@ -2,7 +2,7 @@
   'use strict';
   // MB Gestor Premium V8.2 Luxury
 
-  const APP_VERSION = '8.2.1';
+  const APP_VERSION = '8.2.2';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -877,7 +877,7 @@
       }).join('')}</div>
 
       <section class="schedule-day-summary">
-        <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} reposição${dayStats.makeups===1?'':'ões'}</p></div>
+        <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} ${dayStats.makeups===1?'reposição':'reposições'}</p></div>
         <div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>
       </section>
 
@@ -989,12 +989,51 @@
   function openClassEditor(day,time){
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day),selected=new Set(slotStudents(day,time));
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    openModal(`Editar turma • ${dayLabel} • ${time}`,`<div class="notice">Selecione até 4 alunos fixos para este horário. A presença é marcada na tela anterior.</div>
-      <form id="slotForm"><div class="slot-picker">${students.map(s=>`<label class="slot-student"><input type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span>${escapeHTML(s.name)}</span></label>`).join('')}</div>
-      <div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar turma</button></div></form>`);
-    const form=$('#slotForm');
-    form.addEventListener('change',e=>{if(e.target.name==='student' && $$('input[name="student"]:checked',form).length>4){e.target.checked=false;toast('Esta turma já atingiu o limite de 4 alunos fixos.')}});
+    const studentRow=s=>`<label class="class-picker-student ${selected.has(s.id)?'selected':''}" data-student-name="${escapeHTML((s.name||'').toLowerCase())}" data-student-selected="${selected.has(s.id)?'1':'0'}">
+      <span class="student-photo tiny-photo class-picker-avatar">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
+      <span class="class-picker-name">${escapeHTML(s.name)}</span>
+      <input class="class-picker-checkbox" type="checkbox" name="student" value="${s.id}" ${selected.has(s.id)?'checked':''} aria-label="Selecionar ${escapeHTML(s.name)}">
+      <span class="class-picker-check" aria-hidden="true">${icon('check')}</span>
+    </label>`;
+    openModal(`Editar turma • ${dayLabel} • ${time}`,`
+      <form id="slotForm" class="class-picker-form">
+        <div class="class-picker-head">
+          <div><strong id="classPickerCount">${selected.size} de 4 alunos selecionados</strong><span>Escolha os alunos fixos deste horário.</span></div>
+          <span class="class-picker-capacity">Máx. 4</span>
+        </div>
+        <div class="search-wrap class-picker-search">${icon('search')}<input id="classPickerSearch" type="search" placeholder="Buscar aluno pelo nome" autocomplete="off" /></div>
+        <div class="class-picker-tabs" role="tablist">
+          <button type="button" class="class-picker-tab active" data-class-filter="all">Todos <span>${students.length}</span></button>
+          <button type="button" class="class-picker-tab" data-class-filter="selected">Selecionados <span id="classPickerSelectedBadge">${selected.size}</span></button>
+        </div>
+        <div id="classPickerList" class="class-picker-list">${students.map(studentRow).join('')}</div>
+        <div id="classPickerEmpty" class="empty compact hidden"><strong>Nenhum aluno encontrado</strong>Tente outro nome ou altere o filtro.</div>
+        <div class="class-picker-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar turma</button></div>
+      </form>`);
+    const form=$('#slotForm'),search=$('#classPickerSearch'),list=$('#classPickerList'),empty=$('#classPickerEmpty');
+    let filter='all';
+    const update=()=>{
+      const checked=$$('input[name="student"]:checked',form),count=checked.length,q=(search.value||'').trim().toLowerCase();
+      $('#classPickerCount').textContent=`${count} de 4 alunos selecionados`;
+      $('#classPickerSelectedBadge').textContent=String(count);
+      $$('.class-picker-student',list).forEach(row=>{
+        const input=$('input[name="student"]',row),isSelected=input.checked;
+        row.classList.toggle('selected',isSelected);
+        row.dataset.studentSelected=isSelected?'1':'0';
+        input.disabled=!isSelected && count>=4;
+        row.classList.toggle('disabled',input.disabled);
+        const matchesName=(row.dataset.studentName||'').includes(q);
+        const matchesFilter=filter==='all'||isSelected;
+        row.classList.toggle('hidden',!(matchesName&&matchesFilter));
+      });
+      empty.classList.toggle('hidden',$$('.class-picker-student:not(.hidden)',list).length>0);
+    };
+    search.addEventListener('input',update);
+    $$('.class-picker-tab',form).forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.classFilter;$$('.class-picker-tab',form).forEach(x=>x.classList.toggle('active',x===b));update()}));
+    form.addEventListener('change',e=>{if(e.target.name==='student')update()});
     form.addEventListener('submit',e=>{e.preventDefault();const newIds=$$('input[name="student"]:checked',form).map(x=>x.value);state.schedule=state.schedule||{};state.schedule[slotKey(day,time)]=newIds;saveState();closeModal();toast('Turma atualizada.');renderSchedule()});
+    update();
+    setTimeout(()=>search.focus({preventScroll:true}),50);
   }
 
   function openMakeupPicker(day,time){
@@ -1058,7 +1097,7 @@
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V8_2_1_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup V8.2.1 gerado e registrado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V8_2_2_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup V8.2.2 gerado e registrado.');renderSettings();}
 
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
