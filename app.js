@@ -1,12 +1,11 @@
 (() => {
   'use strict';
-  // MB Gestor Premium V9.4 Executive Luxury
+  // MB Gestor Luxury Pro V9.6 Gold Refinement
 
-  const APP_VERSION = '9.5.0';
-  const DATA_SCHEMA_VERSION = 2;
+  const APP_VERSION = '9.6.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
-    version: DATA_SCHEMA_VERSION,
+    version: 1,
     students: [],
     expenses: [],
     payments: [],
@@ -39,11 +38,11 @@
     {id:'dashboard', label:'Início', icon:'home', title:'Visão geral'},
     {id:'students', label:'Alunos', icon:'users', title:'Alunos'},
     {id:'finance', label:'Financeiro', icon:'wallet', title:'Financeiro'},
-    {id:'charges', label:'Cobranças', icon:'bell', title:'Cobranças'},
+    {id:'charges', label:'Cobranças', icon:'bell', title:'Mensalidades e pendências'},
     {id:'reminders', label:'Lembretes', icon:'message', title:'Lembretes e WhatsApp'},
     {id:'consent', label:'Termos', icon:'file', title:'Termos de consentimento'},
     {id:'schedule', label:'Agenda', icon:'calendar', title:'Agenda semanal'},
-    {id:'settings', label:'Ajustes', icon:'settings', title:'Ajustes'}
+    {id:'settings', label:'Ajustes', icon:'settings', title:'Sistema, dados e preferências'}
   ];
 
   let state = loadState();
@@ -70,25 +69,11 @@
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
   }
 
-  function migrateState(input) {
-    const raw = (input && typeof input === 'object') ? structuredClone(input) : {};
-    let version = Number(raw.version || 1);
-    // V9.5 / schema 2: migration is intentionally additive. No student,
-    // finance, schedule or attendance record is rewritten or discarded.
-    if (version < 2) {
-      raw.settings = {...(raw.settings || {})};
-      raw.settings.dataMigratedAt = raw.settings.dataMigratedAt || new Date().toISOString();
-      version = 2;
-    }
-    raw.version = DATA_SCHEMA_VERSION;
-    return raw;
-  }
-
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return structuredClone(DEFAULT_STATE);
-      const parsed = migrateState(JSON.parse(raw));
+      const parsed = JSON.parse(raw);
       return {
         ...structuredClone(DEFAULT_STATE),
         ...parsed,
@@ -556,38 +541,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {dayId,classes,fixedStudents,makeups,present,absent,attention};
   }
 
-  function v95SmartCenter(today, m){
-    const date=isoToday(), now=todayNoon(), next7=addDays(now,7);
-    const overdue=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.key==='overdue').sort((a,b)=>a.info.days-b.info.days);
-    const inactive=inactiveAttentionStudents();
-    const birthdays=birthdayStudents(7);
-    const makeups=[];
-    Object.entries(state.makeups||{}).forEach(([k,raw])=>{
-      const d=parseLocalDate(k.slice(0,10)); if(!d||d<now||d>next7)return;
-      const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);
-      ids.forEach(id=>{const student=state.students.find(s=>String(s.id)===String(id));if(student)makeups.push({student,date:k.slice(0,10)});});
-    });
-    const priorities=[];
-    if(overdue.length) priorities.push({level:'danger',icon:'bell',value:overdue.length,title:'Cobranças prioritárias',text:`${privateMoney(overdue.reduce((a,x)=>a+(Number(x.s.monthlyFee)||0),0))} em mensalidades vencidas`,nav:'charges'});
-    if(inactive.length) priorities.push({level:'warn',icon:'users',value:inactive.length,title:'Atenção à frequência',text:`Aluno${inactive.length===1?'':'s'} sem presença há 10 dias ou mais`,nav:'students'});
-    if(makeups.length) priorities.push({level:'gold',icon:'calendar',value:makeups.length,title:'Reposições próximas',text:'Agendadas para os próximos 7 dias',nav:'schedule'});
-    if(birthdays.length) priorities.push({level:'good',icon:'message',value:birthdays.length,title:'Relacionamento',text:`Aniversário${birthdays.length===1?'':'s'} nos próximos 7 dias`,nav:'students'});
-    const prospects=prospectsOpen().length;
-    if(prospects) priorities.push({level:'gold',icon:'users',value:prospects,title:'Oportunidades comerciais',text:'Interessados aguardando acompanhamento',action:'prospects'});
-    const score=Math.max(0,Math.min(100,100-(m.overdue*5)-(inactive.length*3)));
-    return {priorities:priorities.slice(0,5),score};
-  }
-
-  function smartPriorityCard(p){
-    return `<button class="v95-priority ${p.level||''}" ${p.nav?`data-nav="${p.nav}"`:''} ${p.action?`data-v95-action="${p.action}"`:''}><span class="v95-priority-icon">${icon(p.icon||'bell')}</span><span class="v95-priority-copy"><strong>${escapeHTML(p.title)}</strong><small>${escapeHTML(p.text)}</small></span><span class="v95-priority-value">${escapeHTML(String(p.value))}</span></button>`;
-  }
-
   function renderDashboard() {
     const m=metrics(), today=todayStudioSummary(), occ=occupancyStats(), mk=monthKey();
     const monthPresence=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(mk)).reduce((n,[,map])=>n+Object.values(map||{}).filter(v=>v==='present').length,0);
     const upcoming=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
     const firstName=(state.settings.trainerName||'Márcio').trim().split(/\s+/)[0];
-    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7),smart=v95SmartCenter(today,m);
+    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7);
     viewEl.innerHTML=`
       <section class="hero luxury-hero">
         <div class="luxury-glow"></div>
@@ -611,12 +570,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
       </section>
 
-      ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${bday7.length?`<button data-nav="students"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-nav="students"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
-
-      <div class="section-head luxury-section-head v95-head"><div><span class="section-overline">V9.5 • CENTRAL INTELIGENTE</span><h3>Prioridades do Studio</h3><p>O que merece sua atenção agora, sem precisar procurar em outras telas.</p></div><span class="v95-health ${smart.score>=90?'excellent':smart.score>=75?'good':'attention'}"><strong>${smart.score}</strong><small>saúde</small></span></div>
-      <section class="v95-smart-center">
-        ${smart.priorities.length?smart.priorities.map(smartPriorityCard).join(''):`<article class="v95-all-clear"><span>✓</span><div><strong>Studio em ordem</strong><small>Nenhuma prioridade crítica identificada agora.</small></div></article>`}
-      </section>
+      ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>reposição${today.makeups===1?'':'ões'} hoje</span></button>`:''}${bday7.length?`<button data-nav="students"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-student-attention="1"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
 
       <section class="metrics luxury-metrics management-cockpit">
         ${metricCard('users',m.students,'Alunos ativos')}
@@ -642,18 +596,18 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <article class="card"><div class="premium-card-title"><span>Recebimentos</span>${icon('chart')}</div><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Potencial PIX</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial dinheiro</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialCash)}</strong></div></article>
       </section>
       ${renderBirthdayPanel()}
-      <div class="section-head luxury-section-head"><div><span class="section-overline">PRÓXIMOS DIAS</span><h3>Vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" id="quickAddStudent">${icon('plus')} Novo aluno</button></div>
+      <div class="section-head luxury-section-head"><div><span class="section-overline">PRÓXIMOS DIAS</span><h3>Vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" data-nav="charges">${icon('bell')} Ver cobranças</button></div>
       <section class="cards">${upcoming.length?upcoming.map(({s,info})=>chargeMiniRow(s,info)).join(''):emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>`;
-    $('#quickAddStudent')?.addEventListener('click',()=>openStudentModal());
+    
     $('#openAnnualReport')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
     $('#openOccupationMap')?.addEventListener('click',openOccupationMap);
     $('#openProspects')?.addEventListener('click',openProspectsManager);
-    $$('[data-v95-action="prospects"]',viewEl).forEach(b=>b.addEventListener('click',openProspectsManager));
     $('#openMonthlyClose')?.addEventListener('click',openMonthlyClose);
     $('#openHolidayQuickDashboard')?.addEventListener('click',openHolidayQuick);
     $$('.js-birthday-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendBirthdayWhatsApp(b.dataset.id)));
     $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     $$('[data-nav]',viewEl).forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
+    $('[data-student-attention]',viewEl)?.addEventListener('click',()=>{studentFilter='attention';navigate('students');});
     $$('.js-charge-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
   }
 
@@ -822,13 +776,17 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function renderFinance() {
     const m = metrics();
-    const tabs = [
-      ['summary','Resumo'],['payments','Receitas'],['expenses','Gastos']
-    ];
+    const tabs = [['summary','Resumo'],['payments','Receitas'],['expenses','Gastos']];
     viewEl.innerHTML = `
+      <section class="finance-privacy-hero">
+        <div class="finance-privacy-icon">${icon(financialValuesVisible?'eye-off':'eye')}</div>
+        <div class="finance-privacy-copy"><strong>${financialValuesVisible?'Ocultar valores':'Mostrar valores'}</strong><span>Controle de privacidade financeira</span></div>
+        <button type="button" class="finance-privacy-switch ${financialValuesVisible?'on':''}" id="financePrivacyTop" aria-label="${financialValuesVisible?'Ocultar':'Mostrar'} valores"><span></span></button>
+      </section>
       <div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${financeTab===id?'active':''}" data-fin-tab="${id}">${l}</button>`).join('')}</div>
       <div id="financeContent"></div>`;
     $$('[data-fin-tab]').forEach(b=>b.addEventListener('click',()=>{financeTab=b.dataset.finTab;renderFinance();}));
+    $('#financePrivacyTop')?.addEventListener('click',toggleFinancialVisibility);
     const c = $('#financeContent');
     if (financeTab==='summary') {
       c.innerHTML = `
@@ -839,30 +797,109 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           ${metricCard('wallet',privateMoney(m.net),'Saldo do mês',m.net>=0?'good':'danger')}
         </section>
         ${financeTrendHTML()}
-        <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente • mensalidades pendentes são geradas pela base ativa</p></div><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button></div>
+        <div class="section-head"><div><h3>Visão do mês</h3><p>Valores calculados automaticamente • mensalidades pendentes são geradas pela base ativa</p></div></div>
         <section class="cards grid2 payment-breakdown">
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial via PIX</strong><span>Todos os alunos ativos cadastrados como PIX</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>PIX</span></div><strong>${privateMoney(m.remainingPix)}</strong></div></article>
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial em dinheiro</strong><span>Todos os alunos ativos cadastrados como Dinheiro</span></div><strong>${privateMoney(m.potentialCash)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>Dinheiro</span></div><strong>${privateMoney(m.remainingCash)}</strong></div></article>
         </section>
         <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>${m.overdue} aluno${m.overdue===1?'':'s'} • valor pendente</span></div><strong>${privateMoney(m.overdueValue)}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
-          $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     } else if (financeTab==='payments') renderPayments(c);
     else renderExpenses(c);
   }
 
   function renderPayments(c) {
-    const groups=paymentsByMonth();
-    const current=monthKey();
-    const students=activeStudents();
-    const currentPaidIds=new Set(state.payments.filter(p=>monthKey(p.date)===current).map(p=>String(p.studentId)));
-    const pending=students.filter(s=>!currentPaidIds.has(String(s.id)));
+    const groups = paymentsByMonth();
+    const current = monthKey();
+    const students = activeStudents();
+    const currentPaidIds = new Set(
+      state.payments.filter(p => monthKey(p.date) === current).map(p => String(p.studentId))
+    );
+    const pending = students.filter(s => !currentPaidIds.has(String(s.id)));
+
     c.innerHTML = `
-      <div class="section-head"><div><h3>Receitas e histórico</h3><p>Pagamentos preservados mês a mês</p></div><button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button></div>
-      <section class="card"><div class="list-row"><div class="list-main"><strong>Situação do mês atual</strong><span>${students.length-currentPaidIds.size} aluno${students.length-currentPaidIds.size===1?'':'s'} sem pagamento registrado</span></div><strong>${privateMoney(pending.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0))}</strong></div></section>
-      ${groups.length?groups.map(([mk,payments])=>{const total=payments.reduce((a,p)=>a+(Number(p.amount)||0),0);return `<div class="section-head"><div><h3>${monthLabel(mk)}</h3><p>${payments.length} pagamento${payments.length===1?'':'s'} • ${fmtMoney(total)}</p></div></div><section class="cards">${payments.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(p=>{const st=state.students.find(x=>String(x.id)===String(p.studentId)); const method=st?.paymentMethod==='cash'?'Dinheiro':'PIX'; return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(st?.name||p.studentName||'Aluno removido')}</strong><span>${fmtDate(p.date)} • ${escapeHTML(p.reference||'Mensalidade')} • ${method}</span></div><strong class="money-positive">${fmtMoney(p.amount)}</strong></div></article>`}).join('')}</section>`}).join(''):emptyState('Nenhuma receita registrada','Registre pagamentos para acompanhar o caixa real do studio.')}
-      ${pending.length?`<div class="section-head"><div><h3>Ainda sem pagamento neste mês</h3><p>Baseado nos registros de receitas</p></div></div><section class="cards">${pending.map(st=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(st.name)}</strong><span>${st.paymentMethod==='cash'?'Dinheiro':'PIX'} • ${fmtMoney(st.monthlyFee)}</span></div><button class="btn btn-secondary btn-small js-register-pending" data-id="${st.id}">Registrar</button></div></article>`).join('')}</section>`:''}`;
-    $('#addPayment').addEventListener('click',()=>openPaymentModal());
-    $$('.js-register-pending',c).forEach(b=>b.addEventListener('click',()=>openPaymentModal(b.dataset.id)));
+      <div class="section-head">
+        <div><h3>Receitas e histórico</h3><p>Pagamentos preservados mês a mês</p></div>
+        <button class="btn btn-primary" id="addPayment">${icon('plus')} Registrar receita</button>
+      </div>
+      <section class="card">
+        <div class="list-row">
+          <div class="list-main"><strong>Situação do mês atual</strong><span>${students.length-currentPaidIds.size} aluno${students.length-currentPaidIds.size===1?'':'s'} sem pagamento registrado</span></div>
+          <strong>${privateMoney(pending.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0))}</strong>
+        </div>
+      </section>
+      <div class="finance-history-tools">
+        <div class="search-wrap">${icon('search')}<input id="paymentSearch" type="search" placeholder="Buscar aluno ou descrição" /></div>
+        <select id="paymentMethodFilter" aria-label="Forma de pagamento">
+          <option value="all">Todas as formas</option>
+          <option value="pix">PIX</option>
+          <option value="cash">Dinheiro</option>
+        </select>
+      </div>
+      <div id="paymentHistoryRoot"></div>`;
+
+    const draw = () => {
+      const q = ($('#paymentSearch').value || '').trim().toLowerCase();
+      const method = $('#paymentMethodFilter').value;
+      const filteredGroups = groups
+        .map(([mk,payments]) => {
+          const filtered = payments.filter(p => {
+            const st = state.students.find(x => String(x.id) === String(p.studentId));
+            const pm = p.paymentMethod || st?.paymentMethod || 'pix';
+            const matchesText = !q || [st?.name,p.description,p.type].some(v => String(v||'').toLowerCase().includes(q));
+            const matchesMethod = method === 'all' || pm === method;
+            return matchesText && matchesMethod;
+          });
+          return [mk, filtered];
+        })
+        .filter(([,payments]) => payments.length);
+
+      const root = $('#paymentHistoryRoot');
+      if (!filteredGroups.length) {
+        root.innerHTML = emptyState('Nenhuma receita encontrada','Ajuste a busca ou os filtros.');
+      } else {
+        root.innerHTML = filteredGroups.map(([mk,payments]) => {
+          const total = payments.reduce((a,p)=>a+(Number(p.amount)||0),0);
+          const cards = [...payments]
+            .sort((a,b)=>String(b.date).localeCompare(String(a.date)))
+            .map(p => {
+              const st = state.students.find(x => String(x.id) === String(p.studentId));
+              const pm = p.paymentMethod || st?.paymentMethod || 'pix';
+              return `<article class="card">
+                <div class="list-row">
+                  <div class="list-main">
+                    <strong>${escapeHTML(st?.name||p.description||'Receita')}</strong>
+                    <span>${fmtDate(p.date)} • ${escapeHTML(p.type||'Mensalidade')} • ${pm==='cash'?'Dinheiro':'PIX'}</span>
+                  </div>
+                  <div class="finance-row-actions">
+                    <strong class="money-positive">${privateMoney(p.amount)}</strong>
+                    <button class="mini-icon js-edit-payment" data-id="${p.id}" title="Editar">${icon('edit')}</button>
+                    <button class="mini-icon danger js-del-payment" data-id="${p.id}" title="Excluir">${icon('trash')}</button>
+                  </div>
+                </div>
+              </article>`;
+            }).join('');
+          return `<div class="section-head compact-head"><div><h3>${monthLabel(mk)}</h3><p>${payments.length} pagamento${payments.length===1?'':'s'} • ${privateMoney(total)}</p></div></div><section class="cards">${cards}</section>`;
+        }).join('');
+      }
+
+      $$('.js-del-payment', c).forEach(b => b.addEventListener('click', () => {
+        const payment = state.payments.find(x => x.id === b.dataset.id);
+        openModal('Excluir receita',`
+          <div class="notice">Confirma a exclusão desta receita${payment?` de <strong>${privateMoney(payment.amount)}</strong>`:''}? Esta ação altera os totais financeiros.</div>
+          <div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeletePayment">Excluir</button></div>
+        `);
+        $('#confirmDeletePayment').addEventListener('click', () => {
+          state.payments = state.payments.filter(x => x.id !== b.dataset.id);
+          saveState(); closeModal(); renderFinance(); toast('Receita excluída.');
+        });
+      }));
+      $$('.js-edit-payment', c).forEach(b => b.addEventListener('click', () => openPaymentEditModal(b.dataset.id)));
+    };
+
+    $('#paymentSearch').addEventListener('input', draw);
+    $('#paymentMethodFilter').addEventListener('change', draw);
+    $('#addPayment').addEventListener('click', openPaymentModal);
+    draw();
   }
 
   function openPaymentModal(preselectedId='') {
@@ -886,15 +923,24 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
   }
 
-  function renderExpenses(c) {
-    const expenses=[...state.expenses].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-    c.innerHTML=`<div class="section-head"><div><h3>Gastos</h3><p>Despesas do studio</p></div><button class="btn btn-primary" id="addExpense">${icon('plus')} Novo gasto</button></div><section class="cards">${expenses.length?expenses.map(e=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(e.description)}</strong><span>${fmtDate(e.date)} • ${escapeHTML(e.category||'Outros')}</span></div><div style="display:flex;align-items:center;gap:8px"><strong class="money-negative">${fmtMoney(e.amount)}</strong><button class="mini-icon danger js-del-expense" data-id="${e.id}">${icon('trash')}</button></div></div></article>`).join(''):emptyState('Nenhum gasto cadastrado','Cadastre aluguel, energia, equipamentos e outras despesas.')}</section>`;
-    $('#addExpense').addEventListener('click',openExpenseModal); $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{state.expenses=state.expenses.filter(e=>e.id!==b.dataset.id);saveState();render();}));
+  function openPaymentEditModal(id){
+    const p=state.payments.find(x=>x.id===id);if(!p)return;
+    openModal('Editar receita',`<form id="editPaymentForm" class="form-grid"><div class="field"><label>Data</label><input name="date" type="date" required value="${escapeHTML(p.date||isoToday())}" /></div><div class="field"><label>Valor</label><input name="amount" type="number" min="0" step="0.01" required value="${Number(p.amount)||0}" /></div><div class="field"><label>Forma de pagamento</label><select name="paymentMethod"><option value="pix" ${(p.paymentMethod||'pix')==='pix'?'selected':''}>PIX</option><option value="cash" ${p.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);
+    $('#editPaymentForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget);p.date=String(fd.get('date'));p.amount=Number(fd.get('amount'))||0;p.paymentMethod=String(fd.get('paymentMethod')||'pix');saveState();closeModal();renderFinance();toast('Receita atualizada.');});
   }
 
-  function openExpenseModal() {
-    openModal('Novo gasto',`<form id="expenseForm" class="form-grid"><div class="field"><label>Descrição *</label><input name="description" required placeholder="Ex.: Energia elétrica" /></div><div class="form-grid two"><div class="field"><label>Categoria</label><select name="category"><option>Estrutura</option><option>Energia</option><option>Água</option><option>Equipamentos</option><option>Manutenção</option><option>Marketing</option><option>Impostos</option><option>Outros</option></select></div><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div></div><div class="field"><label>Valor *</label><input type="number" name="amount" min="0" step="0.01" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar gasto</button></div></form>`);
-    $('#expenseForm').addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(e.currentTarget); state.expenses.push({id:uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,createdAt:new Date().toISOString()}); saveState(); closeModal(); toast('Gasto registrado.'); render();});
+  function renderExpenses(c) {
+    const expenses=[...state.expenses].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    c.innerHTML=`<div class="section-head"><div><h3>Gastos</h3><p>Despesas do studio</p></div><button class="btn btn-primary" id="addExpense">${icon('plus')} Novo gasto</button></div><section class="cards">${expenses.length?expenses.map(e=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(e.description)}</strong><span>${fmtDate(e.date)} • ${escapeHTML(e.category||'Outros')}${e.recurring?' • Recorrente':''}</span></div><div class="finance-row-actions"><strong class="money-negative">${privateMoney(e.amount)}</strong><button class="mini-icon js-edit-expense" data-id="${e.id}" title="Editar">${icon('edit')}</button><button class="mini-icon danger js-del-expense" data-id="${e.id}" title="Excluir">${icon('trash')}</button></div></div></article>`).join(''):emptyState('Nenhum gasto cadastrado','Cadastre equipamentos, manutenção, impostos, serviços e outras despesas.')}</section>`;
+    $('#addExpense').addEventListener('click',()=>openExpenseModal());
+    $$('.js-edit-expense',c).forEach(b=>b.addEventListener('click',()=>openExpenseModal(b.dataset.id)));
+    $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{const e=state.expenses.find(x=>x.id===b.dataset.id);openModal('Excluir gasto',`<div class="notice">Confirma excluir <strong>${escapeHTML(e?.description||'este gasto')}</strong>? O saldo do mês será recalculado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeleteExpense">Excluir</button></div>`);$('#confirmDeleteExpense').addEventListener('click',()=>{state.expenses=state.expenses.filter(x=>x.id!==b.dataset.id);saveState();closeModal();renderFinance();toast('Gasto excluído.');});}));
+  }
+
+  function openExpenseModal(id=null) {
+    const existing=id?state.expenses.find(x=>x.id===id):null;
+    openModal(existing?'Editar gasto':'Novo gasto',`<form id="expenseForm" class="form-grid"><div class="field"><label>Descrição *</label><input name="description" required value="${escapeHTML(existing?.description||'')}" placeholder="Ex.: Manutenção de equipamento" /></div><div class="form-grid two"><div class="field"><label>Categoria</label><select name="category">${['Equipamentos','Manutenção','Impostos','Serviços','Materiais','Estrutura','Energia','Água','Marketing','Outros'].map(x=>`<option ${existing?.category===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>Data *</label><input type="date" name="date" required value="${escapeHTML(existing?.date||isoToday())}" /></div></div><div class="field"><label>Valor *</label><input type="number" name="amount" min="0" step="0.01" required value="${existing?.amount??''}" /></div><label class="toggle-row"><input type="checkbox" name="recurring" ${existing?.recurring?'checked':''}><span>Gasto recorrente mensal</span></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar gasto'}</button></div></form>`);
+    $('#expenseForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),record={id:existing?.id||uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')||'Outros'),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,recurring:fd.get('recurring')==='on',createdAt:existing?.createdAt||new Date().toISOString()};if(existing)state.expenses=state.expenses.map(x=>x.id===existing.id?record:x);else state.expenses.push(record);saveState();closeModal();renderFinance();toast(existing?'Gasto atualizado.':'Gasto registrado.');});
   }
 
   function renderCharges() {
@@ -967,147 +1013,78 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function renderReminders(){
-    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    const mk=monthKey();
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),mk=monthKey();
     const overdueIds=new Set(students.filter(s=>dueInfo(s).key==='overdue').map(s=>String(s.id)));
     const birthdayIds=new Set(birthdayStudents(7).map(x=>String(x.s.id)));
     const absentIds=new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).absent>0).map(s=>String(s.id)));
-    const zeroIds=new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present===0).map(s=>String(s.id)));
-    const lowIds=new Set(students.filter(s=>{const n=monthlyAttendanceStats(s.id,mk).present;return n>=1&&n<=4}).map(s=>String(s.id)));
-    const midIds=new Set(students.filter(s=>{const n=monthlyAttendanceStats(s.id,mk).present;return n>=5&&n<=8}).map(s=>String(s.id)));
-    const highIds=new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present>=9).map(s=>String(s.id)));
-    let activeFilter='all';
-    let sendMode='group';
+    const frequencySets={
+      zero:new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present===0).map(s=>String(s.id))),
+      low:new Set(students.filter(s=>{const n=monthlyAttendanceStats(s.id,mk).present;return n>=1&&n<=4}).map(s=>String(s.id))),
+      mid:new Set(students.filter(s=>{const n=monthlyAttendanceStats(s.id,mk).present;return n>=5&&n<=8}).map(s=>String(s.id))),
+      high:new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present>=9).map(s=>String(s.id)))
+    };
+    let activeFilter='none',frequencyFilter='all',sendMode='group',searchQuery='';
     const selectedIds=new Set();
-
-    const filterMeta={
-      all:{label:'Todos',icon:'users',ids:new Set(students.map(s=>String(s.id)))},
-      zero:{label:'0 treinos',icon:'calendar',ids:zeroIds},
-      low:{label:'1–4 treinos',icon:'chart',ids:lowIds},
-      mid:{label:'5–8 treinos',icon:'chart',ids:midIds},
-      high:{label:'9+ treinos',icon:'chart',ids:highIds},
-      overdue:{label:'Vencidos',icon:'bell',ids:overdueIds},
-      birthday:{label:'Aniversários 7 dias',icon:'calendar',ids:birthdayIds},
-      absent:{label:'Com faltas',icon:'users',ids:absentIds}
+    const filterIds=()=>{
+      let base=activeFilter==='overdue'?overdueIds:activeFilter==='birthday'?birthdayIds:activeFilter==='absent'?absentIds:new Set(students.map(s=>String(s.id)));
+      if(frequencyFilter!=='all')base=new Set([...base].filter(id=>frequencySets[frequencyFilter].has(id)));
+      return base;
     };
-
-    viewEl.innerHTML=`<div class="notice reminder-intro">${icon('message')}<div><strong>Central de comunicação</strong><span>Envie mensagens individuais ou prepare um grupo de alunos. Cada conversa abre separadamente no WhatsApp para sua confirmação.</span></div></div>
-      <div class="section-head"><div><h3>Lembretes e WhatsApp</h3><p>Seleção manual, filtros rápidos e frequência mensal automática</p></div></div>
+    const visibleStudents=()=>activeFilter==='none'&&!searchQuery?[]:students.filter(s=>filterIds().has(String(s.id))&&(!searchQuery||[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(searchQuery))));
+    viewEl.innerHTML=`<div class="notice reminder-intro">${icon('message')}<div><strong>Central de comunicação</strong><span>Fluxo simples: escolha a mensagem, selecione os destinatários e revise antes de abrir o WhatsApp.</span></div></div>
+      <section class="reminder-steps"><span class="active">1 <b>Mensagem</b></span><span>2 <b>Destinatários</b></span><span>3 <b>Revisar</b></span></section>
       <section class="card reminder-card">
-        <div class="reminder-mode-switch" role="tablist" aria-label="Modo de envio">
-          <button type="button" class="reminder-mode" data-mode="individual">${icon('users')} Individual</button>
-          <button type="button" class="reminder-mode active" data-mode="group">${icon('message')} Grupo de alunos</button>
+        <div class="reminder-mode-switch"><button type="button" class="reminder-mode" data-mode="individual">${icon('users')} Individual</button><button type="button" class="reminder-mode active" data-mode="group">${icon('message')} Grupo de alunos</button></div>
+        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" class="auto-message" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> e <strong>[mes]</strong>.</small></div>
+        <div class="reminder-template-head"><strong>Mensagens prontas</strong><span>Personalizadas automaticamente</span></div>
+        <div class="reminder-templates">${[['frequency','calendar','Frequência do mês'],['charge','bell','Cobrança'],['birthday','calendar','Aniversário'],['absence','users','Retorno'],['confirmation','check','Confirmar horário'],['makeup','calendar','Reposição disponível'],['general','message','Geral']].map(([k,i,l],idx)=>`<button type="button" class="btn ${idx===0?'btn-primary':'btn-secondary'} btn-small js-template" data-template="${k}">${icon(i)} ${l}</button>`).join('')}</div>
+        <div class="reminder-stage-title"><span class="stage-number">2</span><div><strong>Selecionar destinatários</strong><small>Use busca ou filtro; a lista só aparece quando necessária.</small></div></div>
+        <div class="search-wrap">${icon('search')}<input id="reminderSearch" type="search" placeholder="Buscar aluno pelo nome, WhatsApp ou e-mail" /></div>
+        <div class="recipient-filters">
+          <button class="recipient-filter" data-filter="all">Todos <b>${students.length}</b></button>
+          <button class="recipient-filter" data-filter="overdue">Vencidos <b>${overdueIds.size}</b></button>
+          <button class="recipient-filter" data-filter="birthday">Aniversários <b>${birthdayIds.size}</b></button>
+          <button class="recipient-filter" data-filter="absent">Com faltas <b>${absentIds.size}</b></button>
+          <select id="frequencyFilter"><option value="all">Frequência: todas</option><option value="zero">0 treinos (${frequencySets.zero.size})</option><option value="low">1–4 treinos (${frequencySets.low.size})</option><option value="mid">5–8 treinos (${frequencySets.mid.size})</option><option value="high">9+ treinos (${frequencySets.high.size})</option></select>
         </div>
-        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> e <strong>[mes]</strong>.</small></div>
-        <div class="reminder-template-head"><strong>Mensagens prontas</strong><span>Personalizadas automaticamente para cada aluno</span></div>
-        <div class="reminder-templates">
-          <button type="button" class="btn btn-primary btn-small js-template" data-template="frequency">${icon('calendar')} Frequência do mês</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="charge">${icon('bell')} Cobrança</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="birthday">${icon('calendar')} Aniversário</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="absence">${icon('users')} Retorno</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="confirmation">${icon('check')} Confirmar horário</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="makeup">${icon('calendar')} Reposição disponível</button>
-          <button type="button" class="btn btn-secondary btn-small js-template" data-template="general">${icon('message')} Geral</button>
-        </div>
-
-        <div class="reminder-filter-head"><div><strong>Selecionar alunos</strong><span id="reminderFilterCaption">Seleção manual • exibindo todos os alunos ativos</span></div><span class="status neutral" id="reminderSelectedCount">0 selecionados</span></div>
-        <div class="reminder-filter-groups">
-          <div><small class="reminder-group-label">Frequência em ${escapeHTML(monthLabel(mk))}</small><div class="reminder-toolbar">${['zero','low','mid','high'].map(key=>{const m=filterMeta[key];return `<button type="button" class="btn btn-secondary btn-small reminder-filter" data-filter="${key}">${m.label} <span class="filter-count">${m.ids.size}</span></button>`}).join('')}</div></div>
-          <div><small class="reminder-group-label">Outros filtros</small><div class="reminder-toolbar" id="reminderFilters">
-            ${['all','overdue','birthday','absent'].map(key=>{const m=filterMeta[key];return `<button type="button" class="btn btn-secondary btn-small reminder-filter ${key==='all'?'active':''}" data-filter="${key}">${icon(m.icon)} ${m.label} <span class="filter-count">${m.ids.size}</span></button>`}).join('')}
-            <button type="button" class="btn btn-secondary btn-small" id="selectVisible">${icon('check')} Selecionar visíveis</button>
-            <button type="button" class="btn btn-secondary btn-small" id="clearReminder">${icon('x')} Limpar</button>
-          </div></div>
-        </div>
-
-        <div id="reminderStudents" class="reminder-students"></div>
-        <div class="reminder-footer"><div class="reminder-selection-summary" id="reminderSelectionSummary">Nenhum aluno selecionado</div><button type="button" class="btn btn-primary" id="prepareReminder">${icon('message')} Preparar WhatsApp</button></div>
-      </section><section id="reminderQueue" class="cards" style="margin-top:12px"></section>`;
-
-    const visibleStudents=()=>{
-      const ids=filterMeta[activeFilter].ids;
-      return students.filter(s=>ids.has(String(s.id)));
-    };
-    const updateSummary=()=>{
-      const n=selectedIds.size;
-      $('#reminderSelectedCount').textContent=`${n} selecionado${n===1?'':'s'}`;
-      $('#reminderSelectionSummary').textContent=n?`${n} aluno${n===1?'':'s'} selecionado${n===1?'':'s'} • modo ${sendMode==='individual'?'individual':'grupo'}`:'Nenhum aluno selecionado';
-    };
-    const drawStudents=()=>{
-      const list=visibleStudents();
-      const root=$('#reminderStudents');
-      $('#reminderFilterCaption').textContent=`Seleção ${sendMode==='individual'?'individual':'em grupo'} • ${list.length} de ${students.length} alunos`;
-      root.innerHTML=list.length?list.map(s=>{
-        const sid=String(s.id), checked=selectedIds.has(sid), info=dueInfo(s), st=monthlyAttendanceStats(s.id,mk);
-        const tags=[`<span class="status neutral">${st.present} treino${st.present===1?'':'s'}</span>`];
-        if(info.key==='overdue') tags.push('<span class="status danger">Vencido</span>');
-        if(birthdayIds.has(sid)) tags.push('<span class="status warn">Aniversário</span>');
-        if(st.absent>0) tags.push(`<span class="status neutral">${st.absent} falta${st.absent===1?'':'s'}</span>`);
-        const inputType=sendMode==='individual'?'radio':'checkbox';
-        return `<label class="reminder-student ${checked?'selected':''}"><input type="${inputType}" name="reminderStudent" value="${escapeHTML(sid)}" ${checked?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span class="reminder-student-info"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(formatPhoneBR(s.whatsapp))}</small><span class="reminder-tags">${tags.join('')}</span></span></label>`;
-      }).join(''):`<div class="empty compact"><strong>Nenhum aluno neste filtro</strong>Não há alunos que atendam a este critério no momento.</div>`;
-      $$('input[name="reminderStudent"]',root).forEach(x=>x.addEventListener('change',()=>{
-        if(sendMode==='individual'){selectedIds.clear(); if(x.checked) selectedIds.add(String(x.value)); drawStudents(); return;}
-        if(x.checked)selectedIds.add(String(x.value));else selectedIds.delete(String(x.value));
-        x.closest('.reminder-student')?.classList.toggle('selected',x.checked);updateSummary();
-      }));
-      updateSummary();
-    };
-    const applyFilter=(key)=>{
-      activeFilter=key;
-      $$('.reminder-filter',viewEl).forEach(b=>b.classList.toggle('active',b.dataset.filter===key));
-      drawStudents();
-    };
-
-    $$('.reminder-mode',viewEl).forEach(b=>b.addEventListener('click',()=>{
-      sendMode=b.dataset.mode;
-      selectedIds.clear();
-      $$('.reminder-mode',viewEl).forEach(x=>x.classList.toggle('active',x===b));
-      drawStudents();
-      $('#reminderQueue').innerHTML='';
-    }));
-    $$('.reminder-filter',viewEl).forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));
-    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{const ta=$('#reminderMessage');ta.value=reminderTemplate(b.dataset.template);ta.focus();toast('Modelo inserido. Os dados serão personalizados para cada aluno.');}));
-    $('#selectVisible').addEventListener('click',()=>{
-      const list=visibleStudents();
-      if(sendMode==='individual'){
-        if(list[0]) selectedIds.clear(), selectedIds.add(String(list[0].id));
-      } else {
-        list.forEach(s=>selectedIds.add(String(s.id)));
-      }
-      drawStudents();
-    });
-    $('#clearReminder').addEventListener('click',()=>{selectedIds.clear();drawStudents();$('#reminderQueue').innerHTML='';toast('Seleção limpa.');});
-    $('#prepareReminder').addEventListener('click',()=>{
-      const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva ou escolha uma mensagem primeiro.');
-      const ids=[...selectedIds];if(!ids.length)return toast('Selecione pelo menos um aluno.');
-      if(sendMode==='individual' && ids.length>1) return toast('No modo individual, selecione somente um aluno.');
-      const selected=ids.map(id=>state.students.find(s=>String(s.id)===String(id))).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-      $('#reminderQueue').innerHTML=`<div class="section-head"><div><h3>${sendMode==='individual'?'Envio individual':'Envios do grupo'}</h3><p>${selected.length} conversa${selected.length===1?'':'s'} preparada${selected.length===1?'':'s'} • cada aluno recebe seus próprios dados</p></div></div>`+selected.map(s=>{
-        const phone=cleanPhone(s.whatsapp);
-        const text=personalizeReminder(msg,s,mk);
-        return `<article class="card reminder-ready"><div class="list-row"><div class="student-profile"><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?escapeHTML(formatPhoneBR(s.whatsapp)):'WhatsApp não cadastrado'}</span><small>${escapeHTML(text)}</small></div></div>${phone?`<button class="btn btn-primary btn-small js-open-reminder" data-url="https://wa.me/${phone}?text=${encodeURIComponent(text)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</div></article>`;
-      }).join('');
-      $$('.js-open-reminder',viewEl).forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener,noreferrer')));
-      $('#reminderQueue').scrollIntoView({behavior:'smooth',block:'start'});
-    });
-    $('#reminderMessage').value=reminderTemplate('frequency');
-    drawStudents();
+        <div class="recipient-result-bar"><span id="recipientResultLabel">Escolha um filtro ou pesquise um aluno.</span><div><button type="button" class="link-btn" id="selectVisible">Selecionar exibidos</button><button type="button" class="link-btn" id="clearReminder">Limpar</button></div></div>
+        <div id="reminderStudents" class="reminder-students collapsed-list"></div>
+        <div class="reminder-footer sticky-reminder-footer"><div class="reminder-selection-summary" id="reminderSelectionSummary">Nenhum aluno selecionado</div><button type="button" class="btn btn-primary" id="prepareReminder" disabled>Revisar mensagens</button></div>
+      </section><section id="reminderQueue" class="cards reminder-review" style="margin-top:12px"></section>`;
+    const updateSummary=()=>{const n=selectedIds.size;$('#reminderSelectionSummary').innerHTML=n?`<strong>${n} aluno${n===1?'':'s'} selecionado${n===1?'':'s'}</strong> <button class="link-btn" id="reviewSelectedInline">Ver seleção</button>`:'Nenhum aluno selecionado';$('#prepareReminder').disabled=!n;};
+    const draw=()=>{const list=visibleStudents(),root=$('#reminderStudents');$('#recipientResultLabel').textContent=list.length?`${list.length} aluno${list.length===1?'':'s'} encontrado${list.length===1?'':'s'} • ${selectedIds.size} selecionado${selectedIds.size===1?'':'s'}`:'Nenhum aluno exibido';root.innerHTML=list.length?list.map(s=>{const sid=String(s.id),checked=selectedIds.has(sid),info=dueInfo(s),st=monthlyAttendanceStats(s.id,mk);const tags=[`<span class="status neutral">${st.present} treino${st.present===1?'':'s'}</span>`];if(info.key==='overdue')tags.push('<span class="status danger">Vencido</span>');if(st.absent)tags.push(`<span class="status neutral">${st.absent} falta${st.absent===1?'':'s'}</span>`);return `<label class="reminder-student recipient-card ${checked?'selected':''}"><input type="${sendMode==='individual'?'radio':'checkbox'}" name="reminderStudent" value="${sid}" ${checked?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span class="reminder-student-info"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(formatPhoneBR(s.whatsapp))}</small><span class="reminder-tags">${tags.join('')}</span></span><span class="recipient-check">${icon('check')}</span></label>`}).join(''):emptyState('Lista recolhida','Escolha um filtro ou pesquise para mostrar apenas os alunos necessários.');
+      $$('input[name="reminderStudent"]',root).forEach(x=>x.addEventListener('change',()=>{if(sendMode==='individual'){selectedIds.clear();if(x.checked)selectedIds.add(String(x.value));draw();return;}x.checked?selectedIds.add(String(x.value)):selectedIds.delete(String(x.value));draw();}));updateSummary();};
+    const applyFilter=k=>{activeFilter=k;$$('.recipient-filter',viewEl).forEach(b=>b.classList.toggle('active',b.dataset.filter===k));draw();};
+    $$('.reminder-mode',viewEl).forEach(b=>b.addEventListener('click',()=>{sendMode=b.dataset.mode;selectedIds.clear();$$('.reminder-mode',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw();$('#reminderQueue').innerHTML='';}));
+    $$('.recipient-filter',viewEl).forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));
+    $('#frequencyFilter').addEventListener('change',e=>{frequencyFilter=e.target.value;if(activeFilter==='none')activeFilter='all';draw();});
+    $('#reminderSearch').addEventListener('input',e=>{searchQuery=e.target.value.trim().toLowerCase();if(searchQuery&&activeFilter==='none')activeFilter='all';draw();});
+    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{$('#reminderMessage').value=reminderTemplate(b.dataset.template);$$('.js-template',viewEl).forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-secondary',x!==b)});}));
+    $('#selectVisible').addEventListener('click',()=>{const list=visibleStudents();if(sendMode==='individual'){selectedIds.clear();if(list[0])selectedIds.add(String(list[0].id));}else list.forEach(s=>selectedIds.add(String(s.id)));draw();});
+    $('#clearReminder').addEventListener('click',()=>{selectedIds.clear();draw();$('#reminderQueue').innerHTML='';});
+    $('#prepareReminder').addEventListener('click',()=>{const msg=$('#reminderMessage').value.trim();if(!msg)return toast('Escreva ou escolha uma mensagem primeiro.');const selected=[...selectedIds].map(id=>state.students.find(s=>String(s.id)===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));if(!selected.length)return toast('Selecione pelo menos um aluno.');$('#reminderQueue').innerHTML=`<div class="section-head"><div><h3>3. Revisar e enviar</h3><p>${selected.length} conversa${selected.length===1?'':'s'} preparada${selected.length===1?'':'s'} • confira antes de abrir o WhatsApp</p></div></div>`+selected.map(s=>{const phone=cleanPhone(s.whatsapp),msgFinal=personalizeReminder(msg,s,mk);return `<article class="card reminder-ready"><div class="list-row"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?escapeHTML(formatPhoneBR(s.whatsapp)):'WhatsApp não cadastrado'}</span><small>${escapeHTML(msgFinal)}</small></div>${phone?`<button class="btn btn-primary btn-small js-open-reminder" data-url="https://wa.me/${phone}?text=${encodeURIComponent(msgFinal)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</div></article>`}).join('');$$('.js-open-reminder',viewEl).forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener,noreferrer')));$('#reminderQueue').scrollIntoView({behavior:'smooth',block:'start'});});
+    $('#reminderMessage').value=reminderTemplate('frequency');draw();
   }
 
   function renderConsent() {
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    viewEl.innerHTML=`<div class="notice">Este modelo é uma autodeclaração de consentimento e não substitui avaliação ou liberação médica quando indicada.</div><div class="section-head"><div><h3>Termos dos alunos</h3><p>Envie, copie e registre o aceite</p></div></div><section class="cards">${students.length?students.map(s=>{const c=s.consent||{};return `<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Enviado: <strong>${c.sentAt?fmtDate(c.sentAt.slice(0,10)):'Não'}</strong></span><span>Aceite: <strong>${c.acceptedAt?fmtDate(c.acceptedAt.slice(0,10)):'Pendente'}</strong></span></div></div><div class="student-actions"><button class="mini-icon js-open-term" data-id="${s.id}" title="Abrir termo">${icon('file')}</button></div></div></article>`}).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar os termos.')}</section>`;
-    $$('.js-open-term').forEach(b=>b.addEventListener('click',()=>openConsentModal(b.dataset.id)));
+    const counts={accepted:students.filter(s=>s.consent?.acceptedAt).length,sent:students.filter(s=>s.consent?.sentAt&&!s.consent?.acceptedAt).length,pending:students.filter(s=>!s.consent?.sentAt&&!s.consent?.acceptedAt).length};
+    viewEl.innerHTML=`<div class="notice">Este modelo é uma autodeclaração de consentimento e não substitui avaliação ou liberação médica quando indicada.</div>
+      <section class="consent-summary"><div><strong>${students.length}</strong><span>Alunos</span></div><div><strong>${counts.pending}</strong><span>Pendentes</span></div><div><strong>${counts.sent}</strong><span>Enviados</span></div><div><strong>${counts.accepted}</strong><span>Aceitos</span></div></section>
+      <div class="student-toolbar"><div class="search-wrap">${icon('search')}<input id="consentSearch" type="search" placeholder="Buscar aluno" /></div><div class="tabs consent-tabs"><button class="tab active" data-consent-filter="all">Todos</button><button class="tab" data-consent-filter="pending">Pendentes</button><button class="tab" data-consent-filter="sent">Enviados</button><button class="tab" data-consent-filter="accepted">Aceitos</button></div></div>
+      <section id="consentList" class="cards"></section>`;
+    let filter='all';
+    const draw=()=>{const q=$('#consentSearch').value.trim().toLowerCase(),list=students.filter(s=>{const c=s.consent||{},status=c.acceptedAt?'accepted':c.sentAt?'sent':'pending';return (!q||s.name.toLowerCase().includes(q))&&(filter==='all'||status===filter)});$('#consentList').innerHTML=list.length?list.map(s=>{const c=s.consent||{},status=c.acceptedAt?'accepted':c.sentAt?'sent':'pending',label=status==='accepted'?`Aceito • ${fmtDate(c.acceptedAt.slice(0,10))}`:status==='sent'?`Aguardando aceite • ${fmtDate(c.sentAt.slice(0,10))}`:'Não enviado';return `<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span class="status ${status==='accepted'?'good':status==='sent'?'warn':'neutral'}">${label}</span><span>Versão: <strong>${escapeHTML(c.version||'1.0')}</strong></span></div></div><div class="student-actions"><button class="mini-icon js-open-term" data-id="${s.id}" title="Abrir termo">${icon('file')}</button></div></div></article>`}).join(''):emptyState('Nenhum termo encontrado','Ajuste a busca ou o filtro.');$$('.js-open-term',viewEl).forEach(b=>b.addEventListener('click',()=>openConsentModal(b.dataset.id)));};
+    $('#consentSearch').addEventListener('input',draw);$$('[data-consent-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.consentFilter;$$('[data-consent-filter]',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw();}));draw();
   }
 
   function openConsentModal(id) {
     const s=state.students.find(x=>x.id===id); if(!s)return;
-    const text=consentText(s);
-    openModal('Termo de consentimento',`<div class="consent-box" id="consentText">${escapeHTML(text)}</div><div class="modal-actions"><button class="btn btn-secondary" id="copyConsent">Copiar</button><button class="btn btn-primary" id="sendConsent">${icon('message')} WhatsApp</button></div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button><button class="btn btn-primary" id="acceptConsent">${icon('check')} Registrar aceite</button></div>`);
+    const text=consentText(s),c=s.consent||{},version=c.version||'1.0';
+    openModal('Termo de consentimento',`<div class="consent-version">Versão do termo: <strong>${version}</strong></div><div class="consent-box" id="consentText">${escapeHTML(text)}</div><div class="consent-how"><strong>Como aceitar</strong><span>Após o aluno responder “LI E ACEITO”, confirme o aceite abaixo para registrar no sistema.</span></div><div class="modal-actions"><button class="btn btn-secondary" id="copyConsent">Copiar termo</button><button class="btn btn-primary" id="sendConsent">${icon('message')} WhatsApp</button></div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button><button class="btn ${c.sentAt&&!c.acceptedAt?'btn-success':'btn-secondary'}" id="acceptConsent" ${c.acceptedAt?'disabled':''}>${icon('check')} ${c.acceptedAt?'Aceito em '+fmtDate(c.acceptedAt.slice(0,10)):'Registrar aceite'}</button></div>`);
     $('#copyConsent').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(text);toast('Termo copiado.');}catch{fallbackCopy(text);}});
-    $('#sendConsent').addEventListener('click',()=>{const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre o WhatsApp deste aluno.'); s.consent=s.consent||{}; s.consent.sentAt=new Date().toISOString(); saveState(); window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');});
-    $('#acceptConsent').addEventListener('click',()=>{s.consent=s.consent||{};s.consent.acceptedAt=new Date().toISOString();saveState();closeModal();toast('Aceite registrado.');render();});
+    $('#sendConsent').addEventListener('click',()=>{const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre o WhatsApp deste aluno.');s.consent=s.consent||{};s.consent.sentAt=new Date().toISOString();s.consent.version=version;saveState();window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');toast('Envio registrado. Aguardando aceite.');});
+    $('#acceptConsent')?.addEventListener('click',()=>{if(s.consent?.acceptedAt)return;if(!s.consent?.sentAt)return toast('Envie o termo antes de registrar o aceite.');openModal('Confirmar aceite',`<div class="notice">Confirma que <strong>${escapeHTML(s.name)}</strong> respondeu e aceitou o termo versão ${version}?</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-success" id="confirmConsentAccept">${icon('check')} Confirmar aceite</button></div>`);$('#confirmConsentAccept').addEventListener('click',()=>{s.consent=s.consent||{};s.consent.acceptedAt=new Date().toISOString();s.consent.version=version;saveState();closeModal();toast('Aceite registrado com data e versão.');renderConsent();});});
   }
 
   function fallbackCopy(text){const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Texto copiado.');}
@@ -1122,7 +1099,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function dayIdFromDate(d){return {1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[d.getDay()]||''}
   function weeklyScheduleOverviewHTML(){
-    return `<div class="schedule-week-overview">${SCHEDULE_DAYS.map(d=>{const date=scheduleDateForDay(d.id);const activeSlots=scheduleHours(d.id).filter(t=>slotStudents(d.id,t).length||makeupStudentIds(date,d.id,t).length);const fixed=activeSlots.reduce((n,t)=>n+slotStudents(d.id,t).length,0);const reps=activeSlots.reduce((n,t)=>n+makeupStudentIds(date,d.id,t).length,0);return `<article class="card week-overview-day"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><p>${activeSlots.length} aula${activeSlots.length===1?'':'s'} • ${fixed} fixo${fixed===1?'':'s'} • ${reps} reposição${reps===1?'':'ões'}</p><div class="week-overview-times">${activeSlots.length?activeSlots.map(t=>`<button type="button" class="week-slot-chip" data-week-day="${d.id}" data-week-time="${t}">${t} <span>${slotStudents(d.id,t).length}+${makeupStudentIds(date,d.id,t).length}R</span></button>`).join(''):'<span class="muted-inline">Sem alunos neste dia</span>'}</div></article>`}).join('')}</div>`;
+    return `<div class="schedule-week-overview">${SCHEDULE_DAYS.map(d=>{
+      const date=scheduleDateForDay(d.id),closure=closureForDate(date);
+      if(closure)return `<article class="card week-overview-day is-closed"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><div class="week-closure"><strong>${escapeHTML(closure.type)} — aulas canceladas</strong><span>${escapeHTML(closure.label||'Studio fechado')} • ninguém recebe falta</span></div></article>`;
+      const activeSlots=scheduleHours(d.id).filter(t=>slotStudents(d.id,t).length||makeupStudentIds(date,d.id,t).length);
+      const fixed=activeSlots.reduce((n,t)=>n+slotStudents(d.id,t).length,0),reps=activeSlots.reduce((n,t)=>n+makeupStudentIds(date,d.id,t).length,0);
+      return `<article class="card week-overview-day"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><p>${activeSlots.length} aula${activeSlots.length===1?'':'s'} • ${fixed} fixo${fixed===1?'':'s'} • ${reps} reposição${reps===1?'':'ões'}</p><div class="week-overview-times">${activeSlots.length?activeSlots.map(t=>`<button type="button" class="week-slot-chip" data-week-day="${d.id}" data-week-time="${t}">${t} <span>${slotStudents(d.id,t).length}+${makeupStudentIds(date,d.id,t).length}R</span></button>`).join(''):'<span class="muted-inline">Sem alunos neste dia</span>'}</div></article>`
+    }).join('')}</div>`;
   }
   function monthlyScheduleOverviewHTML(){
     const anchor=new Date(scheduleWeekStart.getFullYear(),scheduleWeekStart.getMonth(),1,12),y=anchor.getFullYear(),m=anchor.getMonth(),last=new Date(y,m+1,0).getDate(),firstDow=(new Date(y,m,1,12).getDay()+6)%7;
@@ -1147,7 +1130,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
     viewEl.innerHTML=`
       <section class="schedule-pro-head">
-        <div><span class="section-overline">AGENDA PREMIUM</span><h3>Agenda semanal</h3><p>Personal • até 4 alunos fixos • múltiplas reposições por horário</p></div>
+        <div><span class="section-overline">AGENDA PREMIUM</span><h3>${scheduleViewMode==='day'?'Agenda diária':scheduleViewMode==='week'?'Agenda semanal':'Agenda mensal'}</h3><p>Personal • até 4 alunos fixos • múltiplas reposições por horário</p></div>
         <div class="schedule-head-actions"><button class="btn btn-primary btn-small holiday-3d-btn" id="quickHoliday">★ Marcar feriado</button><button class="btn btn-secondary btn-small" id="manageClosures">Feriados / recesso</button><span class="schedule-pro-badge">${icon('calendar')} ${escapeHTML(monthLabel(mk))}</span></div>
       </section>
 
@@ -1164,7 +1147,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
       <section class="schedule-day-summary">
         <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayClosure?`<strong>${escapeHTML(dayClosure.type)} • ${escapeHTML(dayClosure.label||'Studio fechado')}</strong>`:`${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} ${dayStats.makeups===1?'reposição':'reposições'}${dayPlanned?` • ${dayPlanned} ausência${dayPlanned===1?'':'s'} programada${dayPlanned===1?'':'s'}`:''}`}</p></div>
-        <div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>
+        ${dayClosure?`<div class="schedule-day-mini closed-mini"><span>Aulas canceladas</span></div>`:`<div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>`}
       </section>
 
       ${scheduleViewMode==='day'?(dayClosure?`<section class="closed-day-card"><span>✦</span><div><strong>${escapeHTML(dayClosure.type)} — aulas canceladas</strong><p>${escapeHTML(dayClosure.label||'Studio fechado')} • Nenhum aluno recebe falta neste dia.</p></div></section>`:`<div class="schedule-pro-list">${slots.map(t=>scheduleSlotHTML(day.id,t)).join('')}</div>`):scheduleViewMode==='week'?weeklyScheduleOverviewHTML():monthlyScheduleOverviewHTML()}
@@ -1430,6 +1413,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
+      <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Gold Refinement</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',fmtMoney(m.expected),'Receita prevista')}${metricCard('chart',fmtMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',fmtMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -1461,9 +1446,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_5_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.5 gerado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Premium',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_6_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.6 gerado.');renderSettings();}
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=migrateState(data.state||data);if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
   function openModal(title, bodyHTML) {
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
