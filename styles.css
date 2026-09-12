@@ -300,3 +300,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .sticky-reminder-footer{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:#0f1014!important;transform:translateZ(0);-webkit-transform:translateZ(0)}
 .sticky-reminder-footer #prepareReminder{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .sticky-reminder-footer #prepareReminder:disabled{opacity:.72}
+@media(min-width:700px){
+  .makeup-picker-modal .luxury-booking-flow{padding-bottom:0}
+  .makeup-picker-modal .makeup-picker-actions{position:sticky;left:auto;right:auto;bottom:-14px;transform:none;width:auto;margin:2px -18px -14px;padding:12px 18px 14px;border-left:0;border-right:0;border-bottom:0;border-radius:0 0 18px 18px;background:linear-gradient(180deg,rgba(18,19,24,.30),rgba(18,19,24,.97) 28%,#121318 100%)}
+}
