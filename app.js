@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.7.0 — Makeup Picker UX & Responsive Polish
+  // MB Gestor Luxury Pro V9.7.1 — Excellence Corrective Release
 
-  const APP_VERSION = '9.7.0';
+  const APP_VERSION = '9.7.1';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -54,6 +54,7 @@
   let scheduleCompact = false;
   let scheduleViewMode = 'day';
   let selectedScheduleDay = ({1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[new Date().getDay()] || 'mon');
+  let scheduleMonthAnchor = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12);
   // Privacidade persistente: o app lembra se os valores ficaram ocultos ou visíveis.
   let financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
   let financeUnlockedThisSession = false;
@@ -147,6 +148,25 @@
 
   function privateMoney(value) { return financialValuesVisible ? fmtMoney(value) : 'R$ •••••'; }
   function toggleFinancialVisibility() { financialValuesVisible=!financialValuesVisible; state.settings.financialValuesVisible=financialValuesVisible; saveState(); render(); }
+  function pluralCount(value,singular,plural){const n=Number(value)||0;return `${n} ${n===1?singular:plural}`}
+  function firstName(value=''){return String(value||'').trim().split(/\s+/)[0]||'aluno'}
+  function monthDate(year,monthIndex){return new Date(year,monthIndex,1,12,0,0,0)}
+  function shiftMonth(date,delta){return monthDate(date.getFullYear(),date.getMonth()+delta)}
+  function isSameMonth(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()}
+  function currentScheduleDay(){return ({1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[todayNoon().getDay()]||'mon')}
+  function resetScheduleToToday(){scheduleWeekStart=mondayOf();scheduleMonthAnchor=monthDate(todayNoon().getFullYear(),todayNoon().getMonth());selectedScheduleDay=currentScheduleDay()}
+  function fixedScheduleEntries(studentId){
+    const out=[];
+    Object.entries(state.schedule||{}).forEach(([key,ids])=>{
+      if(!Array.isArray(ids)||!ids.map(String).includes(String(studentId)))return;
+      const split=key.indexOf('_');if(split<0)return;
+      const day=key.slice(0,split),time=key.slice(split+1),dayIndex=SCHEDULE_DAYS.findIndex(d=>d.id===day);
+      if(dayIndex>=0)out.push({day,time,label:SCHEDULE_DAYS[dayIndex].label,dayIndex});
+    });
+    return out.sort((a,b)=>a.dayIndex-b.dayIndex||a.time.localeCompare(b.time));
+  }
+  function fixedScheduleText(studentId){const rows=fixedScheduleEntries(studentId);return rows.length?rows.map(x=>`${x.label} ${x.time}`).join(' • '):'Nenhum horário fixo'}
+
 
   function ageFromBirth(value) {
     const birth = parseLocalDate(value);
@@ -175,7 +195,7 @@ function snapshotMonth(mk=monthKey()){
   const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
   let present=0,absent=0,makeups=0;
-  Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;Object.entries(map||{}).forEach(([id,v])=>{if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});
+  Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;const date=k.slice(0,10);Object.entries(map||{}).forEach(([id,v])=>{const student=state.students.find(x=>String(x.id)===String(id));if(!student||studentPauseAt(student,date)||plannedAbsenceFor(id,date))return;if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});
   const occ=occupancyStats();
   return {mk,label:monthLabel(mk),closedAt:new Date().toISOString(),students:students.length,expected:students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0),received,expenses,net:received-expenses,present,absent,makeups,occupancy:occ.percent};
 }
@@ -188,7 +208,7 @@ function openOccupationMap(){
   const o=occupancyStats();
   const rows=SCHEDULE_DAYS.map(d=>`<div class="occupancy-day"><strong>${d.label}</strong><div class="occupancy-slots">${scheduleHours(d.id).map(time=>{const n=slotStudents(d.id,time).length,p=Math.round(n/4*100),cls=n>=4?'full':n>=3?'high':n>=2?'mid':n?'low':'empty';return `<button class="occupancy-chip ${cls}" data-occ-day="${d.id}" data-occ-time="${time}"><span>${time}</span><strong>${n}/4</strong><small>${p}%</small></button>`}).join('')}</div></div>`).join('');
   openModal('Mapa de ocupação',`<div class="luxury-modal-hero"><span class="luxury-orb">◈</span><div><strong>Ocupação semanal</strong><small>${o.used}/${o.totalCapacity} vagas fixas • ${o.percent}% de ocupação</small></div></div><div class="occupancy-map">${rows}</div><div class="notice compact">Toque em um horário para abrir a Agenda exatamente naquela turma.</div>`);
-  $$('[data-occ-day]',modalRoot).forEach(b=>b.addEventListener('click',()=>{selectedScheduleDay=b.dataset.occDay;scheduleViewMode='day';closeModal();navigate('schedule');setTimeout(()=>document.querySelector(`[data-day="${b.dataset.occDay}"][data-time="${b.dataset.occTime}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}),120)}));
+  $$('[data-occ-day]',modalRoot).forEach(b=>b.addEventListener('click',()=>{const targetDay=b.dataset.occDay,targetTime=b.dataset.occTime;closeModal();navigate('schedule');selectedScheduleDay=targetDay;scheduleViewMode='day';renderSchedule();setTimeout(()=>document.querySelector(`[data-day="${targetDay}"][data-time="${targetTime}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}),120)}));
 }
 
 function openProspectsManager(){
@@ -208,10 +228,12 @@ function openTrialScheduler(prospectId){
 
 function openWaitlistManager(day,time){
   const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,rows=waitlistFor(day,time),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  openModal(`Lista de espera • ${dayLabel} ${time}`,`<form id="waitlistForm" class="form-grid"><div class="notice">Cadastre alunos interessados neste horário. Quando surgir vaga, o nome ficará pronto para contato.</div><div class="field"><label>Aluno</label><select name="studentId" required><option value="">Selecione</option>${students.map(s=>`<option value="${s.id}">${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="field"><label>Observação</label><input name="note" placeholder="Ex.: prefere terça, aceita reposição" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Adicionar à espera</button></div></form><div class="history-list">${rows.length?rows.map(w=>{const s=state.students.find(x=>x.id===w.studentId);return `<div class="history-row"><div><strong>${escapeHTML(s?.name||'Aluno')}</strong><span>${escapeHTML(w.note||'Aguardando vaga')}</span></div><div class="inline-actions"><button class="mini-icon js-wait-whatsapp" data-id="${w.id}">${icon('message')}</button><button class="mini-icon js-wait-remove" data-id="${w.id}">${icon('x')}</button></div></div>`}).join(''):emptyState('Lista vazia','Nenhum aluno aguardando este horário.')}</div>`);
-  $('#waitlistForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),studentId=String(fd.get('studentId'));if(rows.some(x=>String(x.studentId)===studentId))return toast('Este aluno já está na lista.');state.waitlist.push({id:uid('wait'),studentId,day,time,note:String(fd.get('note')||'').trim(),createdAt:new Date().toISOString()});const s=state.students.find(x=>x.id===studentId);addAudit('Lista de espera',`${s?.name||'Aluno'} • ${dayLabel} ${time}`);saveState();closeModal();openWaitlistManager(day,time)});
-  $$('.js-wait-remove',modalRoot).forEach(b=>b.addEventListener('click',()=>{state.waitlist=state.waitlist.filter(x=>x.id!==b.dataset.id);saveState();closeModal();openWaitlistManager(day,time)}));
-  $$('.js-wait-whatsapp',modalRoot).forEach(b=>b.addEventListener('click',()=>{const w=state.waitlist.find(x=>x.id===b.dataset.id),s=state.students.find(x=>x.id===w?.studentId),phone=cleanPhone(s?.whatsapp);if(!phone)return toast('Aluno sem WhatsApp cadastrado.');window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${(s.name||'').split(' ')[0]}! Surgiu uma possibilidade de vaga no horário de ${time} no Studio Márcio Bueno. Tem interesse?`)}`,'_blank','noopener,noreferrer')}));
+  openModal(`Lista de espera • ${dayLabel} ${time}`,`<form id="waitlistForm" class="form-grid"><div class="notice">Cadastre alunos interessados neste horário. Quando surgir vaga, o nome ficará pronto para contato.</div><div class="field"><label>Aluno</label><select name="studentId" required><option value="">Selecione</option>${students.map(s=>`<option value="${s.id}">${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="field"><label>Observação (opcional)</label><input name="note" placeholder="Ex.: prefere terça, aceita reposição" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="addWaitlist" type="submit" disabled>Adicionar à espera</button></div></form><div class="section-head compact-head"><div><h3>Em espera</h3><p>${rows.length} aguardando</p></div></div><div class="history-list">${rows.length?rows.map(w=>{const s=state.students.find(x=>x.id===w.studentId);return `<div class="history-row"><div><strong>${escapeHTML(s?.name||'Aluno')}</strong><span>${escapeHTML(w.note||'Aguardando vaga')}</span></div><div class="inline-actions"><button class="mini-icon js-wait-whatsapp" data-id="${w.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon danger js-wait-remove" data-id="${w.id}" title="Remover da espera">${icon('x')}</button></div></div>`}).join(''):emptyState('Lista vazia','Nenhum aluno aguardando este horário.')}</div>`);
+  const form=$('#waitlistForm'),addBtn=$('#addWaitlist');
+  form.elements.studentId.addEventListener('change',()=>{addBtn.disabled=!form.elements.studentId.value});
+  form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),studentId=String(fd.get('studentId'));if(!studentId)return;if(rows.some(x=>String(x.studentId)===studentId))return toast('Este aluno já está na lista.');state.waitlist.push({id:uid('wait'),studentId,day,time,note:String(fd.get('note')||'').trim(),createdAt:new Date().toISOString()});const st=state.students.find(x=>x.id===studentId);addAudit('Lista de espera',`${st?.name||'Aluno'} • ${dayLabel} ${time}`);saveState();closeModal();openWaitlistManager(day,time);toast('Aluno adicionado à lista de espera.')});
+  $$('.js-wait-remove',modalRoot).forEach(b=>b.addEventListener('click',()=>{const w=state.waitlist.find(x=>x.id===b.dataset.id),st=state.students.find(x=>x.id===w?.studentId);openModal('Remover da lista de espera',`<div class="notice">Confirma remover <strong>${escapeHTML(st?.name||'este aluno')}</strong> da lista de espera de ${escapeHTML(dayLabel)} às ${escapeHTML(time)}?</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmWaitlistRemoval">Remover</button></div>`);$('#confirmWaitlistRemoval').addEventListener('click',()=>{state.waitlist=state.waitlist.filter(x=>x.id!==b.dataset.id);addAudit('Lista de espera removida',`${st?.name||'Aluno'} • ${dayLabel} ${time}`);saveState();closeModal();openWaitlistManager(day,time);toast('Aluno removido da lista de espera.')});}));
+  $$('.js-wait-whatsapp',modalRoot).forEach(b=>b.addEventListener('click',()=>{const w=state.waitlist.find(x=>x.id===b.dataset.id),st=state.students.find(x=>x.id===w?.studentId),phone=cleanPhone(st?.whatsapp);if(!phone)return toast('Aluno sem WhatsApp válido cadastrado.');window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${firstName(st.name)}! Surgiu uma possibilidade de vaga no horário de ${time} no Studio Márcio Bueno. Se ainda tiver interesse, me avise por aqui.`)}`,'_blank','noopener,noreferrer')}));
 }
 
 function openMonthlyClose(){
@@ -226,7 +248,8 @@ function openHolidayQuick(){
 }
 
 function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,120);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')?'money':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
-function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||x.type||'Item')}</strong><span>${escapeHTML(x.type)} • removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado.');render()}))}
+function trashTypeLabel(type){return type==='student'?'Aluno':type==='prospect'?'Interessado':type==='payment'?'Receita':type==='expense'?'Gasto':'Item'}
+function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||trashTypeLabel(x.type))}</strong><span>${escapeHTML(trashTypeLabel(x.type))} removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar aluno</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado com sucesso.');render()}))}
 
   function studioTime(value) {
     const start=parseLocalDate(value); if(!start) return '—';
@@ -270,11 +293,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function sendBirthdayWhatsApp(id){const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');const first=(s.name||'').split(' ')[0]||s.name;const text=`Parabéns, ${first}! 🎉 Que seu novo ciclo venha com muita saúde, energia e conquistas. Um grande abraço do Studio Márcio Bueno!`;window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer')}
   function currentYear(){return todayNoon().getFullYear()}
   function annualReportRows(year=currentYear()){
-    const out=[];for(let m=0;m<12;m++){const mk=`${year}-${String(m+1).padStart(2,'0')}`;const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);let present=0,absent=0,makeups=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;Object.entries(map||{}).forEach(([id,v])=>{if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(new Date(year,m,1,12)).replace('.',''),received,expenses,net:received-expenses,present,absent,makeups})}return out;
+    const out=[];for(let m=0;m<12;m++){const mk=`${year}-${String(m+1).padStart(2,'0')}`;const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);let present=0,absent=0,makeups=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;const date=k.slice(0,10);if(closureForDate(date))return;Object.entries(map||{}).forEach(([id,v])=>{const st=state.students.find(x=>String(x.id)===String(id));if(!st||studentPauseAt(st,date)||plannedAbsenceFor(id,date))return;if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(new Date(year,m,1,12)).replace('.',''),received,expenses,net:received-expenses,present,absent,makeups})}return out;
   }
   function annualReportHTML(year=currentYear()){
     const rows=annualReportRows(year),sum=k=>rows.reduce((a,r)=>a+(Number(r[k])||0),0),max=Math.max(1,...rows.map(r=>r.received));
-    return `<section class="annual-report-hero"><div><span class="section-overline">RELATÓRIO ANUAL</span><h3>${year}</h3><p>Dados reais registrados no MB Gestor.</p></div><span class="annual-crown">✦</span></section><section class="metrics annual-metrics">${metricCard('wallet',privateMoney(sum('received')),'Recebido no ano','good')}${metricCard('chart',privateMoney(sum('net')),'Saldo anual',sum('net')>=0?'good':'danger')}${metricCard('check',sum('present'),'Presenças','good')}${metricCard('x',sum('absent'),'Faltas',sum('absent')?'danger':'')}${metricCard('users',sum('makeups'),'Reposições')}</section><div class="annual-bars">${rows.map(r=>`<div class="annual-bar-col"><div class="annual-bar-track"><span style="height:${Math.max(3,Math.round(r.received/max*100))}%"></span></div><strong>${escapeHTML(r.label)}</strong><small>${r.present} treinos</small></div>`).join('')}</div><div class="history-list annual-table">${rows.map(r=>`<div class="history-row"><div><strong>${monthLabel(r.mk)}</strong><span>${r.present} presenças • ${r.absent} faltas • ${r.makeups} reposições</span></div><strong class="money-positive">${privateMoney(r.received)}</strong></div>`).join('')}</div>`;
+    const chart=financialValuesVisible?`<div class="annual-bars">${rows.map(r=>`<div class="annual-bar-col"><div class="annual-bar-track"><span style="height:${Math.max(3,Math.round(r.received/max*100))}%"></span></div><strong>${escapeHTML(r.label)}</strong><small>${r.present} treinos</small></div>`).join('')}</div>`:`<div class="financial-private-placeholder">${icon('eye')}<strong>Gráfico financeiro oculto</strong><span>Use “Mostrar valores” no Financeiro para revelar dados monetários.</span></div>`;
+    return `<section class="annual-report-hero"><div><span class="section-overline">RELATÓRIO ANUAL</span><h3>${year}</h3><p>Dados reais registrados no MB Gestor.</p></div><span class="annual-crown">✦</span></section><section class="metrics annual-metrics">${metricCard('wallet',privateMoney(sum('received')),'Recebido no ano','good')}${metricCard('chart',privateMoney(sum('net')),'Saldo anual',sum('net')>=0?'good':'danger')}${metricCard('check',sum('present'),'Presenças','good')}${metricCard('x',sum('absent'),'Faltas',sum('absent')?'danger':'')}${metricCard('users',sum('makeups'),'Reposições')}</section>${chart}<div class="history-list annual-table">${rows.map(r=>`<div class="history-row"><div><strong>${monthLabel(r.mk)}</strong><span>${r.present} presenças • ${r.absent} faltas • ${r.makeups} reposições</span></div><strong class="money-positive">${privateMoney(r.received)}</strong></div>`).join('')}</div>`;
   }
 
   const SCHEDULE_DAYS=[
@@ -291,6 +315,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function addDays(date,days){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate(),12);d.setDate(d.getDate()+days);return d}
   function mondayOf(date=todayNoon()){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate(),12);const wd=d.getDay()||7;d.setDate(d.getDate()-wd+1);return d}
   let scheduleWeekStart=mondayOf();
+  function isCurrentScheduleWeek(){return isoDate(scheduleWeekStart)===isoDate(mondayOf())}
+  function displayedScheduleMonthKey(){return `${scheduleMonthAnchor.getFullYear()}-${String(scheduleMonthAnchor.getMonth()+1).padStart(2,'0')}`}
   function scheduleDateForDay(day){const idx=SCHEDULE_DAYS.findIndex(d=>d.id===day);return isoDate(addDays(scheduleWeekStart,Math.max(0,idx)))}
   function attendanceKey(date,day,time){return `${date}__${slotKey(day,time)}`}
   function attendanceMap(date,day,time){return state.attendance?.[attendanceKey(date,day,time)]||{}}
@@ -310,35 +336,30 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function makeupCreditBalance(studentId){
     let absences=0,completed=0,scheduled=0;
-    const today=isoToday();
-    Object.entries(state.attendance||{}).forEach(([k,map])=>{if(map?.[studentId]==='absent')absences++;});
+    const today=isoToday(),student=state.students.find(x=>String(x.id)===String(studentId));
+    Object.entries(state.attendance||{}).forEach(([k,map])=>{const p=parseAttendanceStorageKey(k),date=p?.date||k.slice(0,10);if(map?.[studentId]==='absent'&&student&&!closureForDate(date)&&!studentPauseAt(student,date)&&!plannedAbsenceFor(studentId,date))absences++;});
     Object.entries(state.makeups||{}).forEach(([k,raw])=>{
-      const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);
-      if(!ids.map(String).includes(String(studentId))) return;
-      if(state.attendance?.[k]?.[studentId]==='present') completed++;
-      else if(k.slice(0,10)>=today) scheduled++;
+      const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(!ids.map(String).includes(String(studentId)))return;
+      const p=parseAttendanceStorageKey(k),date=p?.date||k.slice(0,10);if(closureForDate(date)||(student&&(studentPauseAt(student,date)||plannedAbsenceFor(studentId,date))))return;
+      if(state.attendance?.[k]?.[studentId]==='present')completed++;else if(date>=today)scheduled++;
     });
     return {absences,completed,scheduled,available:Math.max(0,absences-completed-scheduled)};
   }
   function monthLabel(key){if(!/^\d{4}-\d{2}$/.test(key))return key;const [y,m]=key.split('-').map(Number);return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1,12))}
-  function monthlyAttendanceCount(studentId,mk=monthKey()){let count=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(date.startsWith(mk)&&map&&map[studentId]==='present')count++});return count}
+  function monthlyAttendanceCount(studentId,mk=monthKey()){let count=0;const student=state.students.find(x=>String(x.id)===String(studentId));Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(date.startsWith(mk)&&map&&map[studentId]==='present'&&student&&!closureForDate(date)&&!studentPauseAt(student,date)&&!plannedAbsenceFor(studentId,date))count++});return count}
 
   function monthlyAttendanceStats(studentId,mk=monthKey()){
-    let present=0, absent=0, makeups=0;
-    Object.entries(state.attendance||{}).forEach(([k,map])=>{
-      const date=k.slice(0,10); if(!date.startsWith(mk)||!map) return;
-      if(map[studentId]==='present') present++;
-      if(map[studentId]==='absent') absent++;
-      if(isMakeupStudentAtKey(k,studentId) && map[studentId]==='present') makeups++;
-    });
+    let present=0, absent=0, makeups=0;const student=state.students.find(x=>String(x.id)===String(studentId));
+    Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(!date.startsWith(mk)||!map||!student||closureForDate(date)||studentPauseAt(student,date)||plannedAbsenceFor(studentId,date))return;if(map[studentId]==='present')present++;if(map[studentId]==='absent')absent++;if(isMakeupStudentAtKey(k,studentId)&&map[studentId]==='present')makeups++;});
     return {present,absent,makeups};
   }
 
   function attendanceHistory(studentId){
-    const rows=[];
+    const rows=[],student=state.students.find(x=>String(x.id)===String(studentId));
     Object.entries(state.attendance||{}).forEach(([k,map])=>{
       if(!map || !map[studentId]) return;
-      const date=k.slice(0,10), parts=k.split('__'), slot=(parts[1]||'').split('_');
+      const date=k.slice(0,10);if(!student||closureForDate(date)||studentPauseAt(student,date)||plannedAbsenceFor(studentId,date))return;
+      const parts=k.split('__'),slot=(parts[1]||'').split('_');
       rows.push({date,status:map[studentId],isMakeup:isMakeupStudentAtKey(k,studentId),time:slot.slice(1).join('_').replace('-',':')||''});
     });
     return rows.sort((a,b)=>b.date.localeCompare(a.date));
@@ -488,6 +509,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function navigate(id) {
     const next = NAV.some(n=>n.id===id) ? id : 'dashboard';
     if(['finance','charges'].includes(next) && financeLockEnabled() && !financeUnlockedThisSession){requestFinanceUnlock(next);return;}
+    const enteringSchedule=next==='schedule'&&currentView!=='schedule';
+    if(enteringSchedule) resetScheduleToToday();
     currentView = next;
     const item = NAV.find(n=>n.id===currentView);
     pageTitle.textContent = item?.title || 'MB Gestor';
@@ -532,9 +555,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         if(fixed.length||makeupIds.length) classes++;
         fixedStudents+=fixed.length;
         makeups+=makeupIds.length;
-        const map=state.attendance?.[k]||{};
-        present+=Object.values(map).filter(v=>v==='present').length;
-        absent+=Object.values(map).filter(v=>v==='absent').length;
+        const map=state.attendance?.[k]||{},eligibleIds=[...new Set([...fixed,...makeupIds])].filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
+        present+=eligibleIds.filter(id=>map[id]==='present').length;
+        absent+=eligibleIds.filter(id=>map[id]==='absent').length;
       });
     }
     const attention=activeStudents().filter(s=>dueInfo(s).days<=Number(state.settings.chargeDaysBefore||3)).length;
@@ -616,7 +639,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function chargeMiniRow(student, info) {
-    return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(student.name)}</strong><span>${info.text} • ${fmtMoney(student.monthlyFee)}</span></div><button class="mini-icon js-charge-whatsapp" data-id="${student.id}" title="Enviar cobrança">${icon('message')}</button></div></article>`;
+    return `<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(student.name)}</strong><span>${info.text} • ${privateMoney(student.monthlyFee)}</span></div><button class="mini-icon js-charge-whatsapp" data-id="${student.id}" title="Enviar cobrança">${icon('message')}</button></div></article>`;
   }
 
   function renderStudents() {
@@ -628,7 +651,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       ${monthBirthdays.length?`<div class="birthday-month-strip"><strong>🎂 Aniversariantes do mês</strong><span>${monthBirthdays.map(s=>`${escapeHTML(s.name)} • ${String(parseLocalDate(s.birthDate).getDate()).padStart(2,'0')}/${String(parseLocalDate(s.birthDate).getMonth()+1).padStart(2,'0')}`).join(' &nbsp; • &nbsp; ')}</span></div>`:''}
       <section id="studentsList" class="cards"></section>`;
     const list=$('#studentsList');
-    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase();const filtered=students.filter(s=>{const text=[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(q));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false)||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&Boolean(studentPauseAt(s)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
+    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase(),qDigits=q.replace(/\D/g,'');const filtered=students.filter(s=>{const text=[s.name,s.email].some(v=>String(v||'').toLowerCase().includes(q))||String(s.whatsapp||'').toLowerCase().includes(q)||(qDigits&&phoneDigits(s.whatsapp).includes(qDigits));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false)||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&Boolean(studentPauseAt(s)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
     draw();$('#studentSearch').addEventListener('input',draw);$$('[data-student-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{studentFilter=b.dataset.studentFilter;$$('[data-student-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.studentFilter===studentFilter));draw();}));$('#addStudent').addEventListener('click',()=>openStudentModal());
   }
 
@@ -644,7 +667,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="student-info">
         <div class="student-name">${escapeHTML(s.name)}</div>
         <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
-        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div>
+        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${privateMoney(s.monthlyFee)}</strong></span></div>
         <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} ${studentStatusBadge(s)} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span> <span class="status ${credits.available?'warn':'neutral'}">↻ Reposições disponíveis: ${credits.available}</span></div>
         </div>
       </div>
@@ -675,10 +698,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const rows=attendanceHistory(id),present=rows.filter(x=>x.status==='present').length,absent=rows.filter(x=>x.status==='absent').length,makeups=rows.filter(x=>x.isMakeup&&x.status==='present').length,credits=makeupCreditBalance(id),mk=monthKey(),monthStats=monthlyAttendanceStats(id,mk);
     const payments=state.payments.filter(p=>String(p.studentId)===String(id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
     const paidThisMonth=payments.some(p=>monthKey(p.date)===mk),trend=studentMonthTrend(id,6),maxTrend=Math.max(1,...trend.map(x=>x.present));
-    const phone=cleanPhone(s.whatsapp),pause=studentPauseAt(s),planned=(state.plannedAbsences||[]).filter(a=>String(a.studentId)===String(id)&&a.date>=isoToday()).sort((a,b)=>a.date.localeCompare(b.date));
+    const phone=cleanPhone(s.whatsapp),pause=studentPauseAt(s),planned=(state.plannedAbsences||[]).filter(a=>String(a.studentId)===String(id)&&a.date>=isoToday()).sort((a,b)=>a.date.localeCompare(b.date)),fixedText=fixedScheduleText(id);
     openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':'Aluno ativo'}</span></div></div></section>
       <section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section>
-      <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(s.whatsapp||'—')}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div></div>${pause?`<div class="student-pause-banner"><strong>⏸ Aluno em pausa</strong><span>${fmtDate(pause.startDate)} a ${fmtDate(pause.endDate)} • ${escapeHTML(pause.reason)}</span></div>`:''}${planned.length?`<div class="planned-absence-strip"><strong>Ausências programadas</strong><span>${planned.slice(0,3).map(a=>`${fmtDate(a.date)}${a.reason?` • ${escapeHTML(a.reason)}`:''}`).join(' &nbsp; | &nbsp; ')}</span></div>`:''}${s.privateNotes?`<div class="private-notes-card"><span class="section-overline">PRIVADO</span><strong>Observações internas</strong><p>${escapeHTML(s.privateNotes)}</p></div>`:''}
+      <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(formatPhoneBR(s.whatsapp))}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div><div class="profile-detail-wide"><span>Horários fixos sincronizados com a Agenda</span><strong>${escapeHTML(fixedText)}</strong></div></div>${pause?`<div class="student-pause-banner"><strong>⏸ Aluno em pausa</strong><span>${fmtDate(pause.startDate)} a ${fmtDate(pause.endDate)} • ${escapeHTML(pause.reason)}</span><button type="button" class="btn btn-secondary btn-small" id="historyResume">Retomar treinos</button></div>`:''}${planned.length?`<div class="planned-absence-strip"><strong>Ausências programadas</strong><span>${planned.slice(0,3).map(a=>`${fmtDate(a.date)}${a.reason?` • ${escapeHTML(a.reason)}`:''}`).join(' &nbsp; | &nbsp; ')}</span></div>`:''}${s.privateNotes?`<div class="private-notes-card"><span class="section-overline">PRIVADO</span><strong>Observações internas</strong><p>${escapeHTML(s.privateNotes)}</p></div>`:''}
       <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyAbsence">${icon('calendar')} Programar ausência</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
       <div class="section-head compact-head"><div><h3>Evolução • 6 meses</h3><p>Treinos realizados por mês</p></div></div><div class="student-trend">${trend.map(x=>`<div class="student-trend-col"><div class="student-trend-bar"><span style="height:${Math.max(5,Math.round(x.present/maxTrend*100))}%"></span></div><strong>${x.present}</strong><small>${escapeHTML(x.label)}</small></div>`).join('')}</div>
       <div class="section-head compact-head"><div><h3>Pagamentos</h3><p>Últimos registros deste aluno</p></div></div><div class="history-list payment-history-list">${payments.length?payments.map(p=>`<div class="history-row"><div><strong>${fmtDate(p.date)}</strong><span>${escapeHTML((p.method||s.paymentMethod||'pix').toUpperCase())}</span></div><strong class="money-positive">${privateMoney(p.amount)}</strong></div>`).join(''):emptyState('Sem pagamentos','Nenhum pagamento individual registrado para este aluno.')}</div>
@@ -686,6 +709,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#historyWhatsapp')?.addEventListener('click',()=>window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`Olá, ${(s.name||'').split(' ')[0]}! Tudo bem?`)}`,'_blank','noopener,noreferrer'));
     $('#historyMonthly')?.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(id,mk));
     $('#historyAbsence')?.addEventListener('click',()=>{closeModal();openPlannedAbsenceModal(id)});
+    $('#historyResume')?.addEventListener('click',()=>{openModal('Encerrar pausa agora',`<div class="notice">Deseja retomar os treinos de <strong>${escapeHTML(s.name)}</strong> agora? A data original de início no Studio será preservada.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmResumeStudent">Retomar treinos</button></div>`);$('#confirmResumeStudent').addEventListener('click',()=>{s.pauseStart='';s.pauseEnd='';s.pauseReason='';addAudit('Pausa encerrada',s.name);saveState();closeModal();render();toast('Treinos retomados.');});});
     $('#historyEdit')?.addEventListener('click',()=>{closeModal();openStudentModal(id)});
   }
 
@@ -694,9 +718,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const title = s ? 'Editar aluno' : 'Novo aluno';
     openModal(title, `
       <form id="studentForm" class="form-grid two">
-        <div class="field" style="grid-column:1/-1"><label>Foto do aluno</label><div class="photo-picker luxury-photo-picker"><div id="photoPreview" class="photo-preview">${s?.photoData?`<img src="${s.photoData}" alt="Foto do aluno" />`:`<span>${escapeHTML((s?.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div><div class="photo-picker-controls"><input id="studentPhoto" class="photo-file-input" type="file" accept="image/*" /><label for="studentPhoto" class="btn btn-secondary btn-small photo-file-button">${icon('upload')} <span id="photoFileLabel">${s?.photoData?'Alterar foto':'Adicionar foto'}</span></label><small>Opcional. A foto será reduzida e salva somente no app.</small><button id="removePhoto" type="button" class="btn btn-secondary btn-small ${s?.photoData?'':'hidden'}">Remover foto</button></div></div></div>
+        <div class="field" style="grid-column:1/-1"><label>Foto do aluno</label><div class="photo-picker luxury-photo-picker"><div id="photoPreview" class="photo-preview">${s?.photoData?`<img src="${s.photoData}" alt="Foto do aluno" />`:`<span>${escapeHTML((s?.name||'').trim().charAt(0).toUpperCase()||'•')}</span>`}</div><div class="photo-picker-controls"><input id="studentPhoto" class="photo-file-input" type="file" accept="image/*" /><label for="studentPhoto" class="btn btn-secondary btn-small photo-file-button">${icon('upload')} <span id="photoFileLabel">${s?.photoData?'Alterar foto':'Adicionar foto'}</span></label><small>Opcional. A foto será reduzida e salva somente no app.</small><button id="removePhoto" type="button" class="btn btn-secondary btn-small ${s?.photoData?'':'hidden'}">Remover foto</button></div></div></div>
         <div class="field" style="grid-column:1/-1"><label>Nome completo *</label><input name="name" required value="${escapeHTML(s?.name||'')}" placeholder="Nome do aluno" /></div>
-        <div class="field"><label>Data de nascimento *</label><input name="birthDate" type="date" required value="${escapeHTML(s?.birthDate||'')}" /></div>
+        <div class="field"><label>Data de nascimento *</label><input name="birthDate" type="date" required value="${escapeHTML(s?.birthDate||'')}" /><small>Toque na data para escolher também mês e ano.</small></div>
         <div class="field"><label>Idade</label><input id="agePreview" disabled value="${s?.birthDate ? `${ageFromBirth(s.birthDate)} anos` : 'Calculada automaticamente'}" /></div>
         <div class="field"><label>WhatsApp *</label><input name="whatsapp" inputmode="tel" required value="${escapeHTML(s?.whatsapp||'')}" placeholder="(31) 99999-9999" /></div>
         <div class="field"><label>E-mail</label><input name="email" type="email" value="${escapeHTML(s?.email||'')}" placeholder="aluno@email.com" /></div>
@@ -720,24 +744,29 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const photoFileLabel=$('#photoFileLabel');
     async function compressPhoto(file){return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const max=320,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',.72))};img.onerror=reject;img.src=reader.result};reader.onerror=reject;reader.readAsDataURL(file)});}
     photoInput.addEventListener('change',async()=>{const file=photoInput.files?.[0];if(!file)return;try{photoData=await compressPhoto(file);photoPreview.innerHTML=`<img src="${photoData}" alt="Foto do aluno" />`;removePhoto.classList.remove('hidden');if(photoFileLabel)photoFileLabel.textContent='Alterar foto'}catch(e){toast('Não foi possível carregar essa foto.')}});
-    removePhoto.addEventListener('click',()=>{photoData='';photoInput.value='';const initial=(form.elements.name.value||'?').trim().charAt(0).toUpperCase()||'?';photoPreview.innerHTML=`<span>${escapeHTML(initial)}</span>`;removePhoto.classList.add('hidden');if(photoFileLabel)photoFileLabel.textContent='Adicionar foto'});
+    removePhoto.addEventListener('click',()=>{photoData='';photoInput.value='';const initial=(form.elements.name.value||'').trim().charAt(0).toUpperCase()||'•';photoPreview.innerHTML=`<span>${escapeHTML(initial)}</span>`;removePhoto.classList.add('hidden');if(photoFileLabel)photoFileLabel.textContent='Adicionar foto'});
     form.birthDate.addEventListener('change',()=>{$('#agePreview').value = form.birthDate.value ? `${ageFromBirth(form.birthDate.value)} anos` : 'Calculada automaticamente';});
     form.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(form);
+      const whatsappRaw=String(fd.get('whatsapp')||'').trim(),phoneCheck=validateWhatsApp(whatsappRaw);
+      if(!phoneCheck.valid){toast(phoneCheck.reason||'Informe um WhatsApp válido com DDD e 9 dígitos.');form.elements.whatsapp.focus();return;}
+      const pauseStart=String(fd.get('pauseStart')||''),pauseEnd=String(fd.get('pauseEnd')||'');
+      if((pauseStart&&!pauseEnd)||(!pauseStart&&pauseEnd)){toast('Preencha início e fim da pausa, ou deixe ambos vazios.');return;}
+      if(pauseStart&&pauseEnd&&pauseEnd<pauseStart){toast('O fim da pausa deve ser igual ou posterior ao início.');return;}
       const record = {
         id: s?.id || uid('stu'),
         name: String(fd.get('name')).trim(),
         birthDate: String(fd.get('birthDate')),
-        whatsapp: String(fd.get('whatsapp')).trim(),
+        whatsapp: phoneCheck.formatted,
         email: String(fd.get('email')).trim(),
         startDate: String(fd.get('startDate')),
         dueDate: String(fd.get('dueDate')),
         monthlyFee: Number(fd.get('monthlyFee')) || 0,
         paymentMethod: String(fd.get('paymentMethod')||'pix'),
         active: String(fd.get('active')) === 'true',
-        pauseStart: String(fd.get('pauseStart')||''),
-        pauseEnd: String(fd.get('pauseEnd')||''),
+        pauseStart,
+        pauseEnd,
         pauseReason: String(fd.get('pauseReason')||'').trim(),
         privateNotes: String(fd.get('privateNotes')||'').trim(),
         photoData,
@@ -760,7 +789,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function openClosuresManager(){
     const rows=[...(state.studioClosures||[])].sort((a,b)=>String(a.startDate).localeCompare(String(b.startDate)));
     openModal('Feriados e recesso do Studio',`<form id="closureForm" class="form-grid two"><div class="notice" style="grid-column:1/-1">Bloqueie um dia ou um período inteiro. As aulas ficam marcadas como canceladas e <strong>ninguém recebe falta</strong>.</div><div class="field"><label>Início</label><input name="startDate" type="date" required /></div><div class="field"><label>Fim</label><input name="endDate" type="date" required /></div><div class="field"><label>Tipo</label><select name="type"><option>Feriado</option><option>Recesso</option><option>Studio fechado</option><option>Outro</option></select></div><div class="field"><label>Descrição</label><input name="label" placeholder="Ex.: Independência do Brasil" /></div><div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Bloquear período</button></div></form><div class="section-head compact-head"><div><h3>Períodos cadastrados</h3><p>${rows.length} registro${rows.length===1?'':'s'}</p></div></div><div class="history-list">${rows.length?rows.map(c=>`<div class="history-row"><div><strong>${escapeHTML(c.label||c.type)}</strong><span>${fmtDate(c.startDate)}${c.endDate!==c.startDate?` a ${fmtDate(c.endDate)}`:''} • ${escapeHTML(c.type)}</span></div><button class="mini-icon js-remove-closure" data-id="${c.id}">${icon('x')}</button></div>`).join(''):emptyState('Nenhum bloqueio','Cadastre feriados, recessos ou dias de Studio fechado.')}</div>`);
-    const form=$('#closureForm');form.startDate.addEventListener('change',()=>{if(!form.endDate.value||form.endDate.value<form.startDate.value)form.endDate.value=form.startDate.value});form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),startDate=String(fd.get('startDate')),endDate=String(fd.get('endDate'));if(endDate<startDate)return toast('A data final deve ser igual ou posterior à inicial.');state.studioClosures=state.studioClosures||[];state.studioClosures.push({id:uid('close'),startDate,endDate,type:String(fd.get('type')),label:String(fd.get('label')||fd.get('type')).trim()});addAudit('Calendário bloqueado',`${String(fd.get('type'))} • ${fmtDate(startDate)}${endDate!==startDate?' a '+fmtDate(endDate):''}`);saveState();closeModal();toast('Período bloqueado na agenda.');renderSchedule();});$$('.js-remove-closure').forEach(b=>b.addEventListener('click',()=>{state.studioClosures=state.studioClosures.filter(c=>c.id!==b.dataset.id);saveState();closeModal();openClosuresManager();toast('Bloqueio removido.')}));
+    const form=$('#closureForm');form.startDate.addEventListener('change',()=>{if(!form.endDate.value||form.endDate.value<form.startDate.value)form.endDate.value=form.startDate.value});form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),startDate=String(fd.get('startDate')),endDate=String(fd.get('endDate'));if(endDate<startDate)return toast('A data final deve ser igual ou posterior à inicial.');state.studioClosures=state.studioClosures||[];state.studioClosures.push({id:uid('close'),startDate,endDate,type:String(fd.get('type')),label:String(fd.get('label')||fd.get('type')).trim()});addAudit('Calendário bloqueado',`${String(fd.get('type'))} • ${fmtDate(startDate)}${endDate!==startDate?' a '+fmtDate(endDate):''}`);saveState();closeModal();toast('Período bloqueado na agenda.');renderSchedule();});$$('.js-remove-closure').forEach(b=>b.addEventListener('click',()=>{const closure=state.studioClosures.find(c=>c.id===b.dataset.id);openModal('Remover feriado / recesso',`<div class="notice">Confirma remover <strong>${escapeHTML(closure?.label||closure?.type||'este bloqueio')}</strong> do calendário? As aulas do período voltarão a aparecer normalmente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmClosureRemoval">Remover</button></div>`);$('#confirmClosureRemoval').addEventListener('click',()=>{state.studioClosures=state.studioClosures.filter(c=>c.id!==b.dataset.id);addAudit('Bloqueio de calendário removido',closure?.label||closure?.type||'');saveState();closeModal();openClosuresManager();toast('Bloqueio removido.');});}));
   }
 
   function confirmDeleteStudent(id) {
@@ -773,7 +802,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const out=[],now=todayNoon();
     for(let i=months-1;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1,12),mk=monthKey(isoDate(d)),received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0),expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(d).replace('.',''),received,expenses,net:received-expenses})}return out;
   }
-  function financeTrendHTML(){const rows=financeTrend(6),max=Math.max(1,...rows.map(x=>Math.max(x.received,x.expenses)));return `<article class="card finance-trend-card"><div class="premium-card-title"><span>Últimos 6 meses</span>${icon('chart')}</div><div class="finance-bars">${rows.map(x=>`<div class="finance-bar-col"><div class="finance-bars-stack"><span class="finance-bar received" style="height:${Math.max(3,Math.round(x.received/max*100))}%" title="Recebido: ${fmtMoney(x.received)}"></span><span class="finance-bar expense" style="height:${Math.max(3,Math.round(x.expenses/max*100))}%" title="Gastos: ${fmtMoney(x.expenses)}"></span></div><strong>${escapeHTML(x.label)}</strong><small>${privateMoney(x.net)}</small></div>`).join('')}</div><div class="finance-legend"><span>▮ Recebido</span><span>▮ Gastos</span><span>Saldo abaixo de cada mês</span></div></article>`}
+  function financeTrendHTML(){
+    if(!financialValuesVisible)return `<article class="card finance-trend-card"><div class="premium-card-title"><span>Últimos 6 meses</span>${icon('chart')}</div><div class="financial-private-placeholder">${icon('eye')}<strong>Valores e gráfico ocultos</strong><span>A privacidade também protege proporções, barras e dicas de valor.</span></div></article>`;
+    const rows=financeTrend(6),max=Math.max(1,...rows.map(x=>Math.max(x.received,x.expenses)));
+    return `<article class="card finance-trend-card"><div class="premium-card-title"><span>Últimos 6 meses</span>${icon('chart')}</div><div class="finance-bars">${rows.map(x=>`<div class="finance-bar-col"><div class="finance-bars-stack"><span class="finance-bar received" style="height:${Math.max(3,Math.round(x.received/max*100))}%" title="Recebido: ${fmtMoney(x.received)}"></span><span class="finance-bar expense" style="height:${Math.max(3,Math.round(x.expenses/max*100))}%" title="Gastos: ${fmtMoney(x.expenses)}"></span></div><strong>${escapeHTML(x.label)}</strong><small>${fmtMoney(x.net)}</small></div>`).join('')}</div><div class="finance-legend"><span>▮ Recebido</span><span>▮ Gastos</span><span>Saldo abaixo de cada mês</span></div></article>`;
+  }
 
   function renderFinance() {
     const m = metrics();
@@ -904,6 +937,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openPaymentModal(preselectedId='') {
+    if(!financialValuesVisible){toast('Mostre os valores antes de registrar uma receita.');return;}
     const students = activeStudents();
     if (!students.length) return toast('Cadastre um aluno antes de registrar uma mensalidade.');
     openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(s=>`<option value="${s.id}" ${s.id===preselectedId?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod" required><option value="pix">PIX</option><option value="cash">Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
@@ -925,6 +959,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openPaymentEditModal(id){
+    if(!financialValuesVisible){toast('Mostre os valores antes de editar uma receita.');return;}
     const p=state.payments.find(x=>x.id===id);if(!p)return;
     openModal('Editar receita',`<form id="editPaymentForm" class="form-grid"><div class="field"><label>Data</label><input name="date" type="date" required value="${escapeHTML(p.date||isoToday())}" /></div><div class="field"><label>Valor</label><input name="amount" type="number" min="0" step="0.01" required value="${Number(p.amount)||0}" /></div><div class="field"><label>Forma de pagamento</label><select name="paymentMethod"><option value="pix" ${(p.paymentMethod||'pix')==='pix'?'selected':''}>PIX</option><option value="cash" ${p.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);
     $('#editPaymentForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget);p.date=String(fd.get('date'));p.amount=Number(fd.get('amount'))||0;p.paymentMethod=String(fd.get('paymentMethod')||'pix');saveState();closeModal();renderFinance();toast('Receita atualizada.');});
@@ -934,12 +969,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const expenses=[...state.expenses].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     c.innerHTML=`<div class="section-head"><div><h3>Gastos</h3><p>Despesas do studio</p></div><button class="btn btn-primary" id="addExpense">${icon('plus')} Novo gasto</button></div><section class="cards">${expenses.length?expenses.map(e=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(e.description)}</strong><span>${fmtDate(e.date)} • ${escapeHTML(e.category||'Outros')}${e.recurring?' • Recorrente':''}</span></div><div class="finance-row-actions"><strong class="money-negative">${privateMoney(e.amount)}</strong><button class="mini-icon js-edit-expense" data-id="${e.id}" title="Editar">${icon('edit')}</button><button class="mini-icon danger js-del-expense" data-id="${e.id}" title="Excluir">${icon('trash')}</button></div></div></article>`).join(''):emptyState('Nenhum gasto cadastrado','Cadastre equipamentos, manutenção, impostos, serviços e outras despesas.')}</section>`;
     $('#addExpense').addEventListener('click',()=>openExpenseModal());
-    $$('.js-edit-expense',c).forEach(b=>b.addEventListener('click',()=>openExpenseModal(b.dataset.id)));
+    $$('.js-edit-expense',c).forEach(b=>b.addEventListener('click',()=>{if(!financialValuesVisible)return toast('Mostre os valores antes de editar um gasto.');openExpenseModal(b.dataset.id)}));
     $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{const e=state.expenses.find(x=>x.id===b.dataset.id);openModal('Excluir gasto',`<div class="notice">Confirma excluir <strong>${escapeHTML(e?.description||'este gasto')}</strong>? O saldo do mês será recalculado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeleteExpense">Excluir</button></div>`);$('#confirmDeleteExpense').addEventListener('click',()=>{state.expenses=state.expenses.filter(x=>x.id!==b.dataset.id);saveState();closeModal();renderFinance();toast('Gasto excluído.');});}));
   }
 
   function openExpenseModal(id=null) {
     const existing=id?state.expenses.find(x=>x.id===id):null;
+    if(existing&&!financialValuesVisible)return toast('Mostre os valores antes de editar um gasto.');
     openModal(existing?'Editar gasto':'Novo gasto',`<form id="expenseForm" class="form-grid"><div class="field"><label>Descrição *</label><input name="description" required value="${escapeHTML(existing?.description||'')}" placeholder="Ex.: Manutenção de equipamento" /></div><div class="form-grid two"><div class="field"><label>Categoria</label><select name="category">${['Equipamentos','Manutenção','Impostos','Serviços','Materiais','Estrutura','Energia','Água','Marketing','Outros'].map(x=>`<option ${existing?.category===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>Data *</label><input type="date" name="date" required value="${escapeHTML(existing?.date||isoToday())}" /></div></div><div class="field"><label>Valor *</label><input type="number" name="amount" min="0" step="0.01" required value="${existing?.amount??''}" /></div><label class="toggle-row"><input type="checkbox" name="recurring" ${existing?.recurring?'checked':''}><span>Gasto recorrente mensal</span></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar gasto'}</button></div></form>`);
     $('#expenseForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),record={id:existing?.id||uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')||'Outros'),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,recurring:fd.get('recurring')==='on',createdAt:existing?.createdAt||new Date().toISOString()};if(existing)state.expenses=state.expenses.map(x=>x.id===existing.id?record:x);else state.expenses.push(record);saveState();closeModal();renderFinance();toast(existing?'Gasto atualizado.':'Gasto registrado.');});
   }
@@ -948,16 +984,26 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const students=activeStudents().map(s=>({s,info:dueInfo(s)})).sort((a,b)=>a.info.days-b.info.days);
     const tabs=[['all','Todos'],['overdue','Vencidos'],['soon','Vencendo']];
     const filtered=students.filter(x=>chargeTab==='all'||(chargeTab==='overdue'?x.info.key==='overdue':['today','soon'].includes(x.info.key)));
-    viewEl.innerHTML=`<div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${chargeTab===id?'active':''}" data-charge-tab="${id}">${l}</button>`).join('')}</div><div class="notice">O botão de WhatsApp abre uma mensagem pronta. O envio só acontece quando você confirma no WhatsApp.</div><div class="section-head"><div><h3>Lembretes de mensalidade</h3><p>Vencimentos e cobranças</p></div></div><section class="cards">${filtered.length?filtered.map(({s,info})=>`<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${fmtMoney(s.monthlyFee)}</strong></span></div><div style="margin-top:9px"><span class="status ${info.cls}">${info.text}</span></div></div><div class="student-actions"><button class="mini-icon js-charge-whatsapp" data-id="${s.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon js-mark-paid" data-id="${s.id}" title="Registrar pagamento">${icon('check')}</button></div></div></article>`).join(''):emptyState('Nenhum aluno nessa situação','As cobranças aparecerão aqui conforme as datas de vencimento.')}</section>`;
+    viewEl.innerHTML=`<div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${chargeTab===id?'active':''}" data-charge-tab="${id}">${l}</button>`).join('')}</div><div class="notice">O botão de WhatsApp abre uma mensagem pronta. O envio só acontece quando você confirma no WhatsApp.</div><div class="section-head"><div><h3>Lembretes de mensalidade</h3><p>Vencimentos e cobranças</p></div></div><section class="cards">${filtered.length?filtered.map(({s,info})=>`<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${privateMoney(s.monthlyFee)}</strong></span></div><div style="margin-top:9px"><span class="status ${info.cls}">${info.text}</span></div></div><div class="student-actions"><button class="mini-icon js-charge-whatsapp" data-id="${s.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon js-mark-paid" data-id="${s.id}" title="Registrar pagamento">${icon('check')}</button></div></div></article>`).join(''):emptyState('Nenhum aluno nessa situação','As cobranças aparecerão aqui conforme as datas de vencimento.')}</section>`;
     $$('[data-charge-tab]').forEach(b=>b.addEventListener('click',()=>{chargeTab=b.dataset.chargeTab;renderCharges();}));
     $$('.js-charge-whatsapp').forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
     $$('.js-mark-paid').forEach(b=>b.addEventListener('click',()=>openPaymentModal(b.dataset.id)));
   }
 
-  function cleanPhone(value) {
+  function phoneDigits(value){
     const digits=String(value||'').replace(/\D/g,'');
-    if (!digits) return '';
-    return digits.startsWith('55') ? digits : `55${digits}`;
+    return digits.startsWith('55')&&digits.length>11?digits.slice(2):digits;
+  }
+  function validateWhatsApp(value){
+    const local=phoneDigits(value);
+    if(!local)return {valid:false,reason:'Informe o WhatsApp do aluno.'};
+    if(local.length!==11)return {valid:false,reason:'WhatsApp incompleto. Informe DDD + 9 dígitos.'};
+    if(local.charAt(2)!=='9')return {valid:false,reason:'Confira o celular: após o DDD deve haver 9 dígitos.'};
+    return {valid:true,local,international:`55${local}`,formatted:`(${local.slice(0,2)}) ${local.slice(2,7)}-${local.slice(7)}`};
+  }
+  function cleanPhone(value) {
+    const check=validateWhatsApp(value);
+    return check.valid?check.international:'';
   }
 
   function chargeMessage(s) {
@@ -970,6 +1016,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function sendChargeWhatsApp(id) {
     const s=state.students.find(x=>x.id===id); if(!s)return;
+    if(!financialValuesVisible)return toast('Mostre os valores no Financeiro antes de preparar uma cobrança.');
+    if(!(Number(s.monthlyFee)>0))return toast('Valor da mensalidade não cadastrado para este aluno.');
+    if(!parseLocalDate(s.dueDate))return toast('Vencimento da mensalidade não cadastrado para este aluno.');
     const phone=cleanPhone(s.whatsapp);
     if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');
     const url=`https://wa.me/${phone}?text=${encodeURIComponent(chargeMessage(s))}`;
@@ -982,17 +1031,17 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function formatPhoneBR(value){
-    const digits=String(value||'').replace(/\D/g,'');
-    let n=digits.startsWith('55')?digits.slice(2):digits;
-    if(n.length===11) return `+55 (${n.slice(0,2)}) ${n.slice(2,7)}-${n.slice(7)}`;
-    if(n.length===10) return `+55 (${n.slice(0,2)}) ${n.slice(2,6)}-${n.slice(6)}`;
-    return value||'Sem WhatsApp';
+    const check=validateWhatsApp(value);
+    if(check.valid)return `+55 (${check.local.slice(0,2)}) ${check.local.slice(2,7)}-${check.local.slice(7)}`;
+    const digits=phoneDigits(value);
+    if(digits.length===10)return `+55 (${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)} • incompleto`;
+    return value?'Número inválido':'Sem WhatsApp';
   }
 
   function reminderTemplate(type){
     const templates={
       frequency:'Olá, [nome]! Seu resumo de [mes] no Studio Márcio Bueno: você realizou [treinos] treino(s), teve [faltas] falta(s) e [reposicoes] reposição(ões). Continue firme! 💪',
-      charge:'Olá, [nome]! Tudo bem? Passando para lembrar sobre sua mensalidade do Studio Márcio Bueno. Quando puder, me confirme o pagamento. Obrigado!',
+      charge:'Olá, [nome]! Tudo bem? Passando para lembrar que sua mensalidade do Studio Márcio Bueno, no valor de [valor], [status_vencimento]. Quando puder, me confirme o pagamento. Obrigado!',
       birthday:'Olá, [nome]! 🎉 Passando para desejar um feliz aniversário! Que seu novo ciclo seja cheio de saúde, conquistas e bons momentos. Um abraço do Studio Márcio Bueno!',
       absence:'Olá, [nome]! Tudo bem? Sentimos sua falta nos últimos treinos. Quando puder, me avise para organizarmos sua rotina e mantermos a frequência. 💪',
       confirmation:'Olá, [nome]! Tudo bem? Passando para confirmar seu horário de treino no Studio Márcio Bueno. Se precisar ajustar, me avise por aqui. 👍',
@@ -1002,15 +1051,29 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return templates[type]||templates.general;
   }
 
+  function billingStatusText(student){
+    if(!student?.dueDate)return '';
+    const days=daysBetween(student.dueDate,todayNoon()),date=fmtDate(student.dueDate);
+    if(days<0)return `venceu em ${date}`;
+    if(days===0)return `vence hoje (${date})`;
+    return `vence em ${date}`;
+  }
   function personalizeReminder(template, student, mk=monthKey()){
     const st=monthlyAttendanceStats(student.id,mk);
-    const first=(student.name||'').trim().split(/\s+/)[0]||student.name||'aluno';
-    return String(template||'')
-      .replaceAll('[nome]',first)
+    let out=String(template||'')
+      .replaceAll('[nome]',firstName(student.name))
       .replaceAll('[treinos]',String(st.present))
       .replaceAll('[faltas]',String(st.absent))
       .replaceAll('[reposicoes]',String(st.makeups))
-      .replaceAll('[mes]',monthLabel(mk));
+      .replaceAll('[mes]',monthLabel(mk))
+      .replaceAll('[valor]',fmtMoney(student.monthlyFee))
+      .replaceAll('[vencimento]',fmtDate(student.dueDate))
+      .replaceAll('[forma_pagamento]',student.paymentMethod==='cash'?'Dinheiro':'PIX')
+      .replaceAll('[status_vencimento]',billingStatusText(student));
+    out=out.replace(/\b1 treino\(s\)/gi,'1 treino').replace(/\b(\d+) treino\(s\)/gi,'$1 treinos')
+      .replace(/\b1 falta\(s\)/gi,'1 falta').replace(/\b(\d+) falta\(s\)/gi,'$1 faltas')
+      .replace(/\b1 reposição\(ões\)/gi,'1 reposição').replace(/\b(\d+) reposição\(ões\)/gi,'$1 reposições');
+    return out;
   }
 
   function renderReminders(){
@@ -1031,12 +1094,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(frequencyFilter!=='all')base=new Set([...base].filter(id=>frequencySets[frequencyFilter].has(id)));
       return base;
     };
-    const visibleStudents=()=>activeFilter==='none'&&!searchQuery?[]:students.filter(s=>filterIds().has(String(s.id))&&(!searchQuery||[s.name,s.whatsapp,s.email].some(v=>String(v||'').toLowerCase().includes(searchQuery))));
+    const visibleStudents=()=>{const qDigits=searchQuery.replace(/\D/g,'');return activeFilter==='none'&&!searchQuery?[]:students.filter(s=>filterIds().has(String(s.id))&&(!searchQuery||[s.name,s.email].some(v=>String(v||'').toLowerCase().includes(searchQuery))||String(s.whatsapp||'').toLowerCase().includes(searchQuery)||(qDigits&&phoneDigits(s.whatsapp).includes(qDigits))))};
     viewEl.innerHTML=`<div class="notice reminder-intro">${icon('message')}<div><strong>Central de comunicação</strong><span>Fluxo simples: escolha a mensagem, selecione os destinatários e revise antes de abrir o WhatsApp.</span></div></div>
       <section class="reminder-steps"><span class="active">1 <b>Mensagem</b></span><span>2 <b>Destinatários</b></span><span>3 <b>Revisar</b></span></section>
       <section class="card reminder-card">
         <div class="reminder-mode-switch"><button type="button" class="reminder-mode" data-mode="individual">${icon('users')} Individual</button><button type="button" class="reminder-mode active" data-mode="group">${icon('message')} Grupo de alunos</button></div>
-        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" class="auto-message" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> <span class="token-help">(reposições)</span> e <strong>[mes]</strong>.</small></div>
+        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" class="auto-message reminder-auto-grow" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> <span class="token-help">(reposições)</span>, <strong>[mes]</strong>, <strong>[valor]</strong>, <strong>[vencimento]</strong>, <strong>[status_vencimento]</strong> e <strong>[forma_pagamento]</strong>.</small></div>
         <div class="reminder-template-head"><strong>Mensagens prontas</strong><span>Personalizadas automaticamente</span></div>
         <div class="reminder-templates">${[['frequency','calendar','Frequência do mês'],['charge','bell','Cobrança'],['birthday','calendar','Aniversário'],['absence','users','Retorno'],['confirmation','check','Confirmar horário'],['makeup','calendar','Reposição disponível'],['general','message','Geral']].map(([k,i,l],idx)=>`<button type="button" class="btn ${idx===0?'btn-primary':'btn-secondary'} btn-small js-template" data-template="${k}">${icon(i)} ${l}</button>`).join('')}</div>
         <div class="reminder-stage-title"><span class="stage-number">2</span><div><strong>Selecionar destinatários</strong><small>Use busca ou filtro; a lista só aparece quando necessária.</small></div></div>
@@ -1062,11 +1125,27 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $$('.recipient-filter',viewEl).forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));
     $('#frequencyFilter').addEventListener('change',e=>{clearSelectionForContextChange();frequencyFilter=e.target.value;if(activeFilter==='none')activeFilter='all';draw();});
     $('#reminderSearch').addEventListener('input',e=>{resetReminderReview();searchQuery=e.target.value.trim().toLowerCase();if(searchQuery&&activeFilter==='none')activeFilter='all';draw();});
-    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{$('#reminderMessage').value=reminderTemplate(b.dataset.template);$$('.js-template',viewEl).forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-secondary',x!==b)});}));
+    const messageBox=$('#reminderMessage');const growMessage=()=>{messageBox.style.height='auto';messageBox.style.height=`${Math.min(230,Math.max(110,messageBox.scrollHeight))}px`;};messageBox.addEventListener('input',growMessage);
+    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{messageBox.value=reminderTemplate(b.dataset.template);growMessage();$$('.js-template',viewEl).forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-secondary',x!==b)});}));
     $('#selectVisible').addEventListener('click',()=>{const list=visibleStudents();if(!list.length)return;const applyVisibleSelection=()=>{resetReminderReview();if(sendMode==='individual'){selectedIds.clear();if(list[0])selectedIds.add(String(list[0].id));}else list.forEach(s=>selectedIds.add(String(s.id)));draw();};if(sendMode==='group'&&list.length>10){openModal('Selecionar destinatários',`<div class="notice">Você está prestes a selecionar <strong>${list.length} alunos</strong>. Isso pode preparar muitas conversas de WhatsApp. Confirme somente se essa é realmente a sua intenção.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmBulkRecipients">Selecionar ${list.length}</button></div>`);$('#confirmBulkRecipients').addEventListener('click',()=>{closeModal();applyVisibleSelection();toast(`${list.length} destinatários selecionados.`)});return;}applyVisibleSelection();});
     $('#clearReminder').addEventListener('click',()=>{selectedIds.clear();resetReminderReview();draw();});
     let reminderReviewOpening=false;
-    const openReminderReview=()=>{const msg=$('#reminderMessage')?.value.trim()||'';if(!msg)return toast('Escreva ou escolha uma mensagem primeiro.');const selected=[...selectedIds].map(id=>state.students.find(s=>String(s.id)===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));if(!selected.length)return toast('Selecione pelo menos um aluno.');if(selected.length!==selectedIds.size)return toast('Revise a seleção: um destinatário não está mais disponível.');const reviewCards=selected.map(s=>{const phone=cleanPhone(s.whatsapp),msgFinal=personalizeReminder(msg,s,mk);return `<article class="card reminder-ready reminder-review-card"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${phone?escapeHTML(formatPhoneBR(s.whatsapp)):'WhatsApp não cadastrado'}</span><small>${escapeHTML(msgFinal)}</small></div>${phone?`<button type="button" class="btn btn-primary js-open-reminder-modal" data-url="https://wa.me/${phone}?text=${encodeURIComponent(msgFinal)}">${icon('message')} Abrir WhatsApp</button>`:'<span class="status danger">Sem número</span>'}</article>`}).join('');openModal('3. Revisar e enviar',`<div class="notice reminder-review-notice"><strong>${selected.length} destinatário${selected.length===1?'':'s'} selecionado${selected.length===1?'':'s'}</strong><span>Confira as mensagens abaixo. Nada será enviado automaticamente.</span></div><div class="cards reminder-review-modal">${reviewCards}</div><div class="modal-actions reminder-review-actions"><button type="button" class="btn btn-secondary" data-close-modal>Voltar aos destinatários</button></div>`);$$('.js-open-reminder-modal',modalRoot).forEach(b=>b.addEventListener('click',()=>window.open(b.dataset.url,'_blank','noopener,noreferrer')));};
+    const openReminderReview=()=>{
+      const msg=$('#reminderMessage')?.value.trim()||'';if(!msg)return toast('Escreva ou escolha uma mensagem primeiro.');
+      const selected=[...selectedIds].map(id=>state.students.find(s=>String(s.id)===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+      if(!selected.length)return toast('Selecione pelo menos um aluno.');
+      if(selected.length!==selectedIds.size)return toast('Revise a seleção: um destinatário não está mais disponível.');
+      const financeTokens=/\[(valor|vencimento|status_vencimento)\]/i.test(msg);
+      if(financeTokens&&!financialValuesVisible)return toast('Para revisar uma cobrança com valor, primeiro escolha “Mostrar valores” no Financeiro.');
+      const reviewCards=selected.map(s=>{
+        const phoneCheck=validateWhatsApp(s.whatsapp),missingFinance=financeTokens&&(!(Number(s.monthlyFee)>0)||!parseLocalDate(s.dueDate)),msgFinal=personalizeReminder(msg,s,mk);
+        const issues=[];if(!phoneCheck.valid)issues.push(phoneCheck.reason);if(missingFinance)issues.push(!(Number(s.monthlyFee)>0)?'Valor da mensalidade não cadastrado.':'Vencimento da mensalidade não cadastrado.');
+        const blocked=issues.length>0;
+        return `<article class="card reminder-ready reminder-review-card ${blocked?'review-blocked':''}"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${escapeHTML(formatPhoneBR(s.whatsapp))}</span>${blocked?`<div class="reminder-review-warning">${issues.map(escapeHTML).join(' ')}</div>`:''}<small>${escapeHTML(msgFinal)}</small></div>${!blocked?`<button type="button" class="btn btn-primary js-open-reminder-modal" data-url="https://wa.me/${phoneCheck.international}?text=${encodeURIComponent(msgFinal)}">${icon('message')} <span>Abrir WhatsApp</span></button>`:'<span class="status danger">Revisar dados</span>'}</article>`;
+      }).join('');
+      openModal('3. Revisar e enviar',`<div class="notice reminder-review-notice"><strong>${selected.length} destinatário${selected.length===1?'':'s'} selecionado${selected.length===1?'':'s'} • ${selected.length} mensage${selected.length===1?'m':'ns'} para revisar</strong><span>Confira cada mensagem abaixo. Nada será enviado automaticamente.</span></div><div class="cards reminder-review-modal">${reviewCards}</div><div class="modal-actions reminder-review-actions"><button type="button" class="btn btn-secondary" data-close-modal>Voltar aos destinatários</button></div>`);
+      $$('.js-open-reminder-modal',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{window.open(btn.dataset.url,'_blank','noopener,noreferrer');if(!btn.classList.contains('whatsapp-opened')){btn.classList.add('whatsapp-opened');const label=btn.querySelector('span');if(label)label.textContent='WhatsApp aberto';btn.insertAdjacentHTML('afterbegin','✓ ');}}));
+    };
     const reviewBtn=$('#prepareReminder');
     let touchStartX=0,touchStartY=0,lastReviewTrigger=0;
     const triggerReminderReview=(e)=>{
@@ -1090,7 +1169,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     reviewBtn.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(t){touchStartX=t.clientX;touchStartY=t.clientY;}},{passive:true});
     reviewBtn.addEventListener('touchend',e=>{const t=e.changedTouches?.[0];if(!t)return;const moved=Math.hypot(t.clientX-touchStartX,t.clientY-touchStartY);if(moved<=14)triggerReminderReview(e);},{passive:false});
     reviewBtn.addEventListener('click',e=>{if(Date.now()-lastReviewTrigger<700){e.preventDefault();e.stopPropagation();return;}triggerReminderReview(e);});
-    $('#reminderMessage').value=reminderTemplate('frequency');draw();
+    messageBox.value=reminderTemplate('frequency');growMessage();draw();
   }
 
   function renderConsent() {
@@ -1135,69 +1214,54 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     }).join('')}</div>`;
   }
   function monthlyScheduleOverviewHTML(){
-    const anchor=new Date(scheduleWeekStart.getFullYear(),scheduleWeekStart.getMonth(),1,12),y=anchor.getFullYear(),m=anchor.getMonth(),last=new Date(y,m+1,0).getDate(),firstDow=(new Date(y,m,1,12).getDay()+6)%7;
+    const anchor=scheduleMonthAnchor,y=anchor.getFullYear(),m=anchor.getMonth(),last=new Date(y,m+1,0).getDate(),firstDow=(new Date(y,m,1,12).getDay()+6)%7;
     const cells=[];for(let i=0;i<firstDow;i++)cells.push('<div class="month-day blank"></div>');
-    for(let n=1;n<=last;n++){const d=new Date(y,m,n,12),dayId=dayIdFromDate(d),date=isoDate(d),closure=closureForDate(date);if(!dayId){cells.push(`<div class="month-day weekend"><strong>${n}</strong></div>`);continue;}const slots=scheduleHours(dayId),classes=slots.filter(t=>slotStudents(dayId,t).length||makeupStudentIds(date,dayId,t).length).length,reps=slots.reduce((a,t)=>a+makeupStudentIds(date,dayId,t).length,0),planned=plannedAbsencesOn(date).length,vacancies=slots.filter(t=>slotStudents(dayId,t).length||makeupStudentIds(date,dayId,t).length).reduce((a,t)=>{const fixed=effectiveFixedStudentIds(dayId,t,date).length;return a+Math.max(0,4-fixed)},0),mapCount=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(date+'__')).reduce((a,[,map])=>a+Object.values(map||{}).filter(v=>v==='present').length,0);cells.push(`<button type="button" class="month-day ${date===isoToday()?'today':''} ${closure?'is-closed':''}" data-month-date="${date}"><strong>${n}</strong>${closure?`<span class="month-closed">${escapeHTML(closure.type)}</span>`:`<span>${classes} aula${classes===1?'':'s'}</span>${reps?`<em>${reps}R</em>`:''}${planned?`<em class="month-absence">${planned}A</em>`:''}${vacancies?`<small>${vacancies} vaga${vacancies===1?'':'s'}</small>`:''}${mapCount?`<small>✓ ${mapCount}</small>`:''}`}</button>`)}
+    for(let n=1;n<=last;n++){
+      const d=new Date(y,m,n,12),dayId=dayIdFromDate(d),date=isoDate(d),closure=closureForDate(date);
+      if(!dayId){cells.push(`<div class="month-day weekend"><strong>${n}</strong></div>`);continue;}
+      const slots=scheduleHours(dayId),classes=slots.filter(tm=>slotStudents(dayId,tm).length||makeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).length,reps=slots.reduce((a,tm)=>a+makeupStudentIds(date,dayId,tm).length,0),planned=plannedAbsencesOn(date).length;
+      const vacancies=slots.filter(tm=>slotStudents(dayId,tm).length||makeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).reduce((a,tm)=>{const occupied=effectiveFixedStudentIds(dayId,tm,date).length+makeupStudentIds(date,dayId,tm).length+trialsFor(date,dayId,tm).length;return a+Math.max(0,4-occupied)},0);
+      const mapCount=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(date+'__')).reduce((a,[k,map])=>{const slot=k.split('__')[1]||'',idx=slot.indexOf('_'),tm=slot.slice(idx+1),dId=slot.slice(0,idx);return a+Object.entries(map||{}).filter(([id,v])=>{const st=state.students.find(x=>String(x.id)===String(id));return v==='present'&&st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)&&dId===dayId&&tm}).length},0);
+      cells.push(`<button type="button" class="month-day ${date===isoToday()?'today':''} ${closure?'is-closed':''}" data-month-date="${date}"><strong>${n}</strong>${closure?`<span class="month-closed">${escapeHTML(closure.type)}</span>`:`<span>${classes} aula${classes===1?'':'s'}</span>${reps?`<em>${reps}R</em>`:''}${planned?`<em class="month-absence">${planned}A</em>`:''}${vacancies?`<small>${vacancies} vaga${vacancies===1?'':'s'}</small>`:''}${mapCount?`<small>✓ ${mapCount}</small>`:''}`}</button>`);
+    }
     return `<section class="month-overview"><div class="month-weekdays"><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span><span>DOM</span></div><div class="month-grid">${cells.join('')}</div></section>`;
   }
 
   function renderSchedule(){
-    const weekEnd=addDays(scheduleWeekStart,4),mk=monthKey(),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),occ=occupancyStats();
-    const day=SCHEDULE_DAYS.find(d=>d.id===selectedScheduleDay)||SCHEDULE_DAYS[0];
-    const date=scheduleDateForDay(day.id);
-    const slots=scheduleHours(day.id),dayClosure=closureForDate(date),dayPlanned=plannedAbsencesOn(date).length;
+    const isMonth=scheduleViewMode==='month',weekEnd=addDays(scheduleWeekStart,4),displayMk=isMonth?displayedScheduleMonthKey():monthKey(scheduleDateForDay(selectedScheduleDay)),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),occ=occupancyStats();
+    const day=SCHEDULE_DAYS.find(d=>d.id===selectedScheduleDay)||SCHEDULE_DAYS[0],date=scheduleDateForDay(day.id),slots=scheduleHours(day.id),dayClosure=closureForDate(date),dayPlanned=plannedAbsencesOn(date).length;
     const dayStats=slots.reduce((acc,time)=>{
-      const ids=slotStudents(day.id,time),makeupIds=makeupStudentIds(date,day.id,time),map=attendanceMap(date,day.id,time);
+      const ids=slotStudents(day.id,time),makeupIds=makeupStudentIds(date,day.id,time),map=attendanceMap(date,day.id,time),eligible=[...new Set([...ids,...makeupIds])].filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
       if(ids.length||makeupIds.length)acc.classes++;
-      acc.fixed+=ids.length;
-      acc.makeups+=makeupIds.length;
-      [...ids,...makeupIds].forEach(id=>{if(map[id]==='present')acc.present++;if(map[id]==='absent')acc.absent++;});
+      acc.fixed+=ids.length;acc.makeups+=makeupIds.length;
+      eligible.forEach(id=>{if(map[id]==='present')acc.present++;if(map[id]==='absent')acc.absent++;});
       return acc;
     },{classes:0,fixed:0,makeups:0,present:0,absent:0});
+    const navHTML=isMonth?`<div class="week-nav schedule-week-nav month-navigation"><button class="mini-icon" id="prevMonth" title="Mês anterior">‹</button><div class="week-label"><strong>${escapeHTML(monthLabel(displayMk))}</strong>${isSameMonth(scheduleMonthAnchor,todayNoon())?'<span class="current-period-label">Mês atual</span>':'<button class="link-btn" id="currentMonth">Ir para o mês atual</button>'}</div><button class="mini-icon" id="nextMonth" title="Próximo mês">›</button></div>`:`<div class="week-nav schedule-week-nav"><button class="mini-icon" id="prevWeek" title="Semana anterior">‹</button><div class="week-label"><strong>${fmtDate(isoDate(scheduleWeekStart))} — ${fmtDate(isoDate(weekEnd))}</strong>${isCurrentScheduleWeek()?'<span class="current-period-label">Semana atual</span>':'<button class="link-btn" id="currentWeek">Ir para a semana atual</button>'}</div><button class="mini-icon" id="nextWeek" title="Próxima semana">›</button></div>`;
 
     viewEl.innerHTML=`
       <section class="schedule-pro-head">
-        <div><span class="section-overline">AGENDA PREMIUM</span><h3>${scheduleViewMode==='day'?'Agenda diária':scheduleViewMode==='week'?'Agenda semanal':'Agenda mensal'}</h3><p>Personal • até 4 alunos fixos • múltiplas reposições por horário</p></div>
-        <div class="schedule-head-actions"><button class="btn btn-primary btn-small holiday-3d-btn" id="quickHoliday">★ Marcar feriado</button><button class="btn btn-secondary btn-small" id="manageClosures">Feriados / recesso</button><span class="schedule-pro-badge">${icon('calendar')} ${escapeHTML(monthLabel(mk))}</span></div>
+        <div><span class="section-overline">AGENDA PREMIUM</span><h3>${scheduleViewMode==='day'?'Agenda diária':scheduleViewMode==='week'?'Agenda semanal':'Agenda mensal'}</h3><p>Personal • até 4 alunos por horário • múltiplas reposições com controle de créditos</p></div>
+        <div class="schedule-head-actions">${!isMonth?`<button class="btn btn-secondary btn-small" id="shareMakeupSlots">${icon('message')} Horários de reposição</button>`:''}<button class="btn btn-primary btn-small holiday-3d-btn" id="quickHoliday">★ Marcar feriado</button><button class="btn btn-secondary btn-small" id="manageClosures">Feriados / recesso</button><span class="schedule-pro-badge">${icon('calendar')} ${escapeHTML(monthLabel(displayMk))}</span></div>
       </section>
-
-      <div class="week-nav schedule-week-nav"><button class="mini-icon" id="prevWeek" title="Semana anterior">‹</button><div class="week-label"><strong>${fmtDate(isoDate(scheduleWeekStart))} — ${fmtDate(isoDate(weekEnd))}</strong><button class="link-btn" id="currentWeek">Semana atual</button></div><button class="mini-icon" id="nextWeek" title="Próxima semana">›</button></div>
-
+      ${navHTML}
       <div class="schedule-view-tabs" role="tablist"><button type="button" class="tab ${scheduleViewMode==='day'?'active':''}" data-schedule-view="day">Dia</button><button type="button" class="tab ${scheduleViewMode==='week'?'active':''}" data-schedule-view="week">Semana</button><button type="button" class="tab ${scheduleViewMode==='month'?'active':''}" data-schedule-view="month">Mês</button></div>
-
-      <div class="schedule-day-tabs ${scheduleViewMode==='month'?'hidden':''}" role="tablist">${SCHEDULE_DAYS.map(d=>{
-        const dte=parseLocalDate(scheduleDateForDay(d.id));
-        const short=d.label.slice(0,3).toUpperCase();
-        const active=d.id===day.id;
-        return `<button type="button" class="schedule-day-tab ${active?'active':''}" data-schedule-day="${d.id}" role="tab" aria-selected="${active}"><small>${short}</small><strong>${String(dte.getDate()).padStart(2,'0')}</strong></button>`;
-      }).join('')}</div>
-
-      <section class="schedule-day-summary">
-        <div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayClosure?`<strong>${escapeHTML(dayClosure.type)} • ${escapeHTML(dayClosure.label||'Studio fechado')}</strong>`:`${dayStats.classes} aula${dayStats.classes===1?'':'s'} • ${dayStats.fixed} aluno${dayStats.fixed===1?'':'s'} fixo${dayStats.fixed===1?'':'s'} • ${dayStats.makeups} ${dayStats.makeups===1?'reposição':'reposições'}${dayPlanned?` • ${dayPlanned} ausência${dayPlanned===1?'':'s'} programada${dayPlanned===1?'':'s'}`:''}`}</p></div>
-        ${dayClosure?`<div class="schedule-day-mini closed-mini"><span>Aulas canceladas</span></div>`:`<div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>`}
-      </section>
-
-      ${scheduleViewMode==='day'?(dayClosure?`<section class="closed-day-card"><span>✦</span><div><strong>${escapeHTML(dayClosure.type)} — aulas canceladas</strong><p>${escapeHTML(dayClosure.label||'Studio fechado')} • Nenhum aluno recebe falta neste dia.</p></div></section>`:`<div class="schedule-pro-list">${slots.map(t=>scheduleSlotHTML(day.id,t)).join('')}</div>`):scheduleViewMode==='week'?weeklyScheduleOverviewHTML():monthlyScheduleOverviewHTML()}
-
-      <section class="schedule-insights">
-        <article class="card"><div class="premium-card-title"><span>Ocupação geral</span>${icon('chart')}</div><div class="schedule-kpi">${occ.percent}%</div><small>${occ.used}/${occ.totalCapacity} vagas fixas ocupadas</small></article>
-        <article class="card"><div class="premium-card-title"><span>Reposições</span>${icon('users')}</div><div class="schedule-kpi">${makeupSummary().scheduledNext7}</div><small>agendadas nos próximos 7 dias</small></article>
-      </section>
-
-      <div class="section-head"><div><h3>Resumo mensal de treinos</h3><p>${monthLabel(mk)} • presenças registradas, incluindo reposições</p></div></div>
-      <section class="cards">${students.length?students.map(s=>monthlyReportRow(s,mk)).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar o resumo mensal.')}</section>`;
+      <div class="schedule-day-tabs ${isMonth?'hidden':''}" role="tablist">${SCHEDULE_DAYS.map(d=>{const dte=parseLocalDate(scheduleDateForDay(d.id)),short=d.label.slice(0,3).toUpperCase(),active=d.id===day.id;return `<button type="button" class="schedule-day-tab ${active?'active':''}" data-schedule-day="${d.id}" role="tab" aria-selected="${active}"><small>${short}</small><strong>${String(dte.getDate()).padStart(2,'0')}</strong></button>`}).join('')}</div>
+      ${!isMonth?`<section class="schedule-day-summary"><div><span class="section-overline">${day.label.toUpperCase()}</span><h3>${day.label}, ${fmtDate(date)}</h3><p>${dayClosure?`<strong>${escapeHTML(dayClosure.type)} • ${escapeHTML(dayClosure.label||'Studio fechado')}</strong>`:`${pluralCount(dayStats.classes,'aula','aulas')} • ${pluralCount(dayStats.fixed,'aluno fixo','alunos fixos')} • ${pluralCount(dayStats.makeups,'reposição','reposições')}${dayPlanned?` • ${pluralCount(dayPlanned,'ausência programada','ausências programadas')}`:''}`}</p></div>${dayClosure?`<div class="schedule-day-mini closed-mini"><span>Aulas canceladas</span></div>`:`<div class="schedule-day-mini"><span>✓ ${dayStats.present}</span><span>✕ ${dayStats.absent}</span></div>`}</section>`:''}
+      ${scheduleViewMode==='day'?(dayClosure?`<section class="closed-day-card"><span>✦</span><div><strong>${escapeHTML(dayClosure.type)} — aulas canceladas</strong><p>${escapeHTML(dayClosure.label||'Studio fechado')} • Nenhum aluno recebe falta neste dia.</p></div></section>`:`<div class="schedule-pro-list">${slots.map(tm=>scheduleSlotHTML(day.id,tm)).join('')}</div>`):scheduleViewMode==='week'?weeklyScheduleOverviewHTML():monthlyScheduleOverviewHTML()}
+      <section class="schedule-insights"><article class="card"><div class="premium-card-title"><span>Ocupação geral</span>${icon('chart')}</div><div class="schedule-kpi">${occ.percent}%</div><small>${occ.used}/${occ.totalCapacity} vagas fixas ocupadas</small></article><article class="card"><div class="premium-card-title"><span>Reposições</span>${icon('users')}</div><div class="schedule-kpi">${makeupSummary().scheduledNext7}</div><small>agendadas nos próximos 7 dias</small></article></section>
+      <div class="section-head"><div><h3>Resumo mensal de treinos</h3><p>${monthLabel(displayMk)} • presenças registradas, incluindo reposições</p></div></div>
+      <section class="cards">${students.length?students.map(st=>monthlyReportRow(st,displayMk)).join(''):emptyState('Nenhum aluno ativo','Cadastre alunos para gerar o resumo mensal.')}</section>`;
 
     $$('.schedule-slot',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.day,b.dataset.time)));
-    $('#manageClosures')?.addEventListener('click',openClosuresManager);
-    $('#quickHoliday')?.addEventListener('click',openHolidayQuick);
-    $$('[data-schedule-view]',viewEl).forEach(b=>b.addEventListener('click',()=>{scheduleViewMode=b.dataset.scheduleView;renderSchedule()}));
+    $('#manageClosures')?.addEventListener('click',openClosuresManager);$('#quickHoliday')?.addEventListener('click',openHolidayQuick);$('#shareMakeupSlots')?.addEventListener('click',openMakeupAvailabilityShare);
+    $$('[data-schedule-view]',viewEl).forEach(b=>b.addEventListener('click',()=>{const next=b.dataset.scheduleView;if(next==='month'&&scheduleViewMode!=='month'){const focus=parseLocalDate(scheduleDateForDay(selectedScheduleDay))||scheduleWeekStart;scheduleMonthAnchor=monthDate(focus.getFullYear(),focus.getMonth())}scheduleViewMode=next;renderSchedule()}));
     $$('[data-week-day]',viewEl).forEach(b=>b.addEventListener('click',()=>openScheduleSlot(b.dataset.weekDay,b.dataset.weekTime)));
     $$('[data-month-date]',viewEl).forEach(b=>b.addEventListener('click',()=>{const d=parseLocalDate(b.dataset.monthDate),dayId=dayIdFromDate(d);if(!dayId)return;scheduleWeekStart=mondayOf(d);selectedScheduleDay=dayId;scheduleViewMode='day';renderSchedule()}));
     $$('.schedule-day-tab',viewEl).forEach(b=>b.addEventListener('click',()=>{selectedScheduleDay=b.dataset.scheduleDay;renderSchedule()}));
-    $('#prevWeek').addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,-7);renderSchedule()});
-    $('#nextWeek').addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,7);renderSchedule()});
-    $('#currentWeek').addEventListener('click',()=>{scheduleWeekStart=mondayOf();selectedScheduleDay=({1:'mon',2:'tue',3:'wed',4:'thu',5:'fri'}[new Date().getDay()]||'mon');renderSchedule()});
-    $$('.js-month-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(b.dataset.id,mk)));
+    $('#prevWeek')?.addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,-7);renderSchedule()});$('#nextWeek')?.addEventListener('click',()=>{scheduleWeekStart=addDays(scheduleWeekStart,7);renderSchedule()});$('#currentWeek')?.addEventListener('click',()=>{scheduleWeekStart=mondayOf();selectedScheduleDay=currentScheduleDay();renderSchedule()});
+    $('#prevMonth')?.addEventListener('click',()=>{scheduleMonthAnchor=shiftMonth(scheduleMonthAnchor,-1);renderSchedule()});$('#nextMonth')?.addEventListener('click',()=>{scheduleMonthAnchor=shiftMonth(scheduleMonthAnchor,1);renderSchedule()});$('#currentMonth')?.addEventListener('click',()=>{scheduleMonthAnchor=monthDate(todayNoon().getFullYear(),todayNoon().getMonth());renderSchedule()});
+    $$('.js-month-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(b.dataset.id,displayMk)));
   }
 
   function monthlyReportRow(s,mk){
@@ -1215,13 +1279,57 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer');
   }
 
+  function parseAttendanceStorageKey(key){
+    const parts=String(key||'').split('__');if(parts.length!==2)return null;const date=parts[0],slot=parts[1],cut=slot.indexOf('_');if(cut<0)return null;return {date,day:slot.slice(0,cut),time:slot.slice(cut+1)};
+  }
+  function availableMakeupSlotsForWeek(studentId=''){
+    const out=[],today=isoToday();
+    SCHEDULE_DAYS.forEach(day=>{
+      const date=scheduleDateForDay(day.id);if(date<today||closureForDate(date))return;
+      scheduleHours(day.id).forEach(time=>{
+        const fixed=effectiveFixedStudentIds(day.id,time,date),makeups=makeupStudentIds(date,day.id,time),trials=trialsFor(date,day.id,time),occupied=fixed.length+makeups.length+trials.length;
+        if(!slotStudents(day.id,time).length||occupied>=4)return;
+        if(studentId&&(fixed.map(String).includes(String(studentId))||makeups.map(String).includes(String(studentId))))return;
+        out.push({date,day:day.id,dayLabel:day.label,time,vacancies:4-occupied});
+      });
+    });
+    return out;
+  }
+  function groupedMakeupSlotsText(slots){
+    const groups=new Map();slots.forEach(x=>{const key=`${x.dayLabel}, ${fmtDate(x.date)}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x.time)});
+    return [...groups.entries()].map(([label,times])=>`• ${label}: ${times.join(', ')}`).join('\n');
+  }
+  async function copyText(text){try{await navigator.clipboard.writeText(text);toast('Mensagem copiada.')}catch{fallbackCopy(text)}}
+  function openMakeupAvailabilityShare(){
+    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    openModal('Horários disponíveis para reposição',`<div class="notice">Escolha um aluno. O MB Gestor lista somente horários desta semana que ainda têm vaga real e não estejam bloqueados por feriado/recesso.</div><div class="field"><label>Aluno</label><select id="makeupShareStudent"><option value="">Selecione</option>${students.map(s=>`<option value="${s.id}">${escapeHTML(s.name)}</option>`).join('')}</select></div><div id="makeupAvailabilityStatus" class="makeup-availability-status"></div><div class="field"><label>Mensagem</label><textarea id="makeupAvailabilityMessage" rows="8" readonly></textarea></div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button><button class="btn btn-secondary" id="copyMakeupAvailability" disabled>Copiar mensagem</button><button class="btn btn-primary" id="openMakeupAvailabilityWhatsapp" disabled>${icon('message')} Abrir WhatsApp</button></div>`);
+    const select=$('#makeupShareStudent'),status=$('#makeupAvailabilityStatus'),box=$('#makeupAvailabilityMessage'),copyBtn=$('#copyMakeupAvailability'),waBtn=$('#openMakeupAvailabilityWhatsapp');
+    let currentMessage='',currentPhone='';
+    const update=()=>{const st=state.students.find(x=>String(x.id)===String(select.value));if(!st){currentMessage='';currentPhone='';box.value='';status.innerHTML='<span>Selecione um aluno para calcular os horários.</span>';copyBtn.disabled=true;waBtn.disabled=true;return;}const slots=availableMakeupSlotsForWeek(st.id),check=validateWhatsApp(st.whatsapp);currentPhone=check.valid?check.international:'';if(!slots.length){currentMessage=`Olá, ${firstName(st.name)}! No momento não há horários de reposição disponíveis nesta semana. Assim que surgir uma vaga, aviso você por aqui.`;status.innerHTML='<strong>Nenhum horário disponível nesta semana.</strong>';box.value=currentMessage;copyBtn.disabled=false;waBtn.disabled=!currentPhone;return;}currentMessage=`Olá, ${firstName(st.name)}! Estes são os horários de reposição disponíveis nesta semana no Studio Márcio Bueno:\n\n${groupedMakeupSlotsText(slots)}\n\nSe algum funcionar para você, me responda por aqui para confirmarmos. 👍`;status.innerHTML=`<strong>${slots.length} horário${slots.length===1?'':'s'} ${slots.length===1?'disponível':'disponíveis'}</strong><span>Horários lotados e bloqueados não aparecem.</span>`;box.value=currentMessage;copyBtn.disabled=false;waBtn.disabled=!currentPhone;};
+    select.addEventListener('change',update);copyBtn.addEventListener('click',()=>copyText(currentMessage));waBtn.addEventListener('click',()=>{if(!currentPhone)return toast('Cadastre um WhatsApp válido para este aluno.');window.open(`https://wa.me/${currentPhone}?text=${encodeURIComponent(currentMessage)}`,'_blank','noopener,noreferrer');waBtn.textContent='✓ WhatsApp aberto';waBtn.classList.add('whatsapp-opened')});update();
+  }
+  function futureMakeupBookings(studentId){
+    const today=isoToday(),rows=[];Object.keys(state.makeups||{}).forEach(k=>{if(!isMakeupStudentAtKey(k,studentId))return;const p=parseAttendanceStorageKey(k);if(!p||p.date<today)return;const dayLabel=SCHEDULE_DAYS.find(d=>d.id===p.day)?.label||p.day;rows.push({...p,dayLabel})});return rows.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  }
+  function makeupConfirmationMessage(student){
+    const rows=futureMakeupBookings(student.id),items=rows.map(x=>`• ${x.dayLabel}, ${fmtDate(x.date)} às ${x.time}`).join('\n');
+    return rows.length===1?`Olá, ${firstName(student.name)}! Sua reposição no Studio Márcio Bueno está confirmada:\n\n${items}\n\nSe precisar ajustar, me avise por aqui. 👍`:`Olá, ${firstName(student.name)}! Suas reposições no Studio Márcio Bueno estão confirmadas:\n\n${items}\n\nSe precisar ajustar, me avise por aqui. 👍`;
+  }
+  function openMakeupConfirmationShare(studentIds){
+    const students=[...new Set(studentIds.map(String))].map(id=>state.students.find(s=>String(s.id)===id)).filter(Boolean);
+    if(!students.length)return;
+    openModal('Reposição confirmada',`<div class="notice"><strong>${students.length===1?'Agendamento concluído':'Agendamentos concluídos'}</strong><span>Revise a confirmação e envie individualmente. Nada é enviado automaticamente.</span></div><div class="cards">${students.map(st=>{const msg=makeupConfirmationMessage(st),check=validateWhatsApp(st.whatsapp);return `<article class="card makeup-confirmation-card"><div class="list-main"><strong>${escapeHTML(st.name)}</strong><span>${escapeHTML(formatPhoneBR(st.whatsapp))}</span><small>${escapeHTML(msg)}</small></div><div class="makeup-confirmation-actions"><button class="btn btn-secondary btn-small js-copy-makeup-confirm" data-id="${st.id}">Copiar mensagem</button>${check.valid?`<button class="btn btn-primary btn-small js-open-makeup-confirm" data-id="${st.id}" data-url="https://wa.me/${check.international}?text=${encodeURIComponent(msg)}">${icon('message')} <span>Abrir WhatsApp</span></button>`:'<span class="status danger">WhatsApp inválido</span>'}</div></article>`}).join('')}</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Concluir</button></div>`);
+    $$('.js-copy-makeup-confirm',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const st=state.students.find(x=>String(x.id)===String(btn.dataset.id));if(st)copyText(makeupConfirmationMessage(st))}));
+    $$('.js-open-makeup-confirm',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{window.open(btn.dataset.url,'_blank','noopener,noreferrer');btn.classList.add('whatsapp-opened');const span=btn.querySelector('span');if(span)span.textContent='WhatsApp aberto'}));
+  }
+
   function scheduleSlotHTML(day,time){
     const ids=slotStudents(day,time),date=scheduleDateForDay(day),map=attendanceMap(date,day,time);
     const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
     const makeupIds=makeupStudentIds(date,day,time), makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
-    const allIds=[...new Set([...ids,...makeupIds])];
-    const present=allIds.filter(id=>map[id]==='present').length, absent=allIds.filter(id=>map[id]==='absent').length;
-    const effectiveIds=effectiveFixedStudentIds(day,time,date),plannedIds=ids.filter(id=>plannedAbsenceFor(id,date)),pausedIds=ids.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return Boolean(studentPauseAt(st,date))}),vacancies=Math.max(0,4-effectiveIds.length),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
+    const allIds=[...new Set([...ids,...makeupIds])],eligibleIds=allIds.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
+    const present=eligibleIds.filter(id=>map[id]==='present').length, absent=eligibleIds.filter(id=>map[id]==='absent').length;
+    const effectiveIds=effectiveFixedStudentIds(day,time,date),plannedIds=ids.filter(id=>plannedAbsenceFor(id,date)),pausedIds=ids.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return Boolean(studentPauseAt(st,date))}),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time),vacancies=Math.max(0,4-(effectiveIds.length+makeupIds.length+trials.length));
     const countClass=ids.length>=4?'full':ids.length>=3?'busy':ids.length?'active':'empty';
     return `<button type="button" class="schedule-slot schedule-slot-pro ${countClass} ${makeups.length?'has-makeup':''}" data-day="${day}" data-time="${time}">
       <span class="schedule-time-rail"><strong>${time}</strong><small>PERSONAL</small></span>
@@ -1242,13 +1350,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     removed.forEach(id=>setAttendance(date,day,time,id,''));
     if(next.length){
       state.makeups[k]=next;
-      // Somente novas reposições recebem o status inicial. Alunos já agendados
-      // não são reprocessados, evitando qualquer efeito duplicado no histórico/créditos.
-      added.forEach(id=>{if(!attendanceStatus(date,day,time,id))setAttendance(date,day,time,id,'present')});
+      // Reposição nova sempre começa em AGUARDANDO. Presença/falta só existe após ação explícita.
+      added.forEach(id=>setAttendance(date,day,time,id,''));
     }else delete state.makeups[k];
     saveState();
     return {added,removed,kept:next.filter(id=>old.includes(id))};
   }
+
   function removeMakeupStudent(date,day,time,studentId){
     const next=makeupStudentIds(date,day,time).filter(id=>String(id)!==String(studentId));
     setMakeupStudents(date,day,time,next);
@@ -1277,29 +1385,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function bindAttendanceButtons(root,date,day,time){
     $$('.attendance-btn',root).forEach(b=>b.addEventListener('click',()=>{
-      const id=b.dataset.id,status=b.dataset.att;
-      setAttendance(date,day,time,id,status); const stAudit=state.students.find(s=>s.id===id); addAudit(status==='present'?'Presença registrada':'Falta registrada',`${stAudit?.name||'Aluno'} • ${fmtDate(date)} ${time}`); saveState();
-
-      // Atualiza imediatamente os controles e os indicadores do modal.
-      $$(`.attendance-btn[data-id="${id}"]`,root).forEach(x=>x.classList.toggle('active',x.dataset.att===status));
-      const card=b.closest('.luxury-attendance-card');
-      const statusText=card?.querySelector('.attendance-status-text');
-      if(statusText) statusText.textContent=status==='present'?'Presente':'Falta';
-      const presentNow=$$('.luxury-attendance-card .attendance-btn.present.active',root).length;
-      const absentNow=$$('.luxury-attendance-card .attendance-btn.absent.active',root).length;
-      const totalNow=$$('.luxury-attendance-card',root).length;
-      const pendingNow=Math.max(0,totalNow-presentNow-absentNow);
+      const id=b.dataset.id,requested=b.dataset.att,current=attendanceStatus(date,day,time,id),next=current===requested?'':requested,stAudit=state.students.find(s=>String(s.id)===String(id));
+      setAttendance(date,day,time,id,next);
+      addAudit(next==='present'?'Presença registrada':next==='absent'?'Falta registrada':'Status de frequência redefinido',`${stAudit?.name||'Aluno'} • ${fmtDate(date)} ${time}${next?'':' • aguardando'}`);saveState();
+      $$(`.attendance-btn[data-id="${id}"]`,root).forEach(x=>x.classList.toggle('active',Boolean(next)&&x.dataset.att===next));
+      const card=b.closest('.luxury-attendance-card'),statusText=card?.querySelector('.attendance-status-text');if(statusText)statusText.textContent=next==='present'?'Presente':next==='absent'?'Falta':'Aguardando';
+      const presentNow=$$('.luxury-attendance-card .attendance-btn.present.active',root).length,absentNow=$$('.luxury-attendance-card .attendance-btn.absent.active',root).length,totalEligible=$$('.luxury-attendance-card .attendance-actions',root).length,pendingNow=Math.max(0,totalEligible-presentNow-absentNow);
       const presentChip=$('.lesson-status-strip .is-present',root),absentChip=$('.lesson-status-strip .is-absent',root),pendingChip=$('.lesson-status-strip .is-pending',root);
-      if(presentChip) presentChip.textContent=`✓ ${presentNow} presente${presentNow===1?'':'s'}`;
-      if(absentChip) absentChip.textContent=`✕ ${absentNow} falta${absentNow===1?'':'s'}`;
-      if(pendingChip) pendingChip.textContent=`• ${pendingNow} aguardando`;
-
-      // Atualiza imediatamente a Agenda que está atrás do modal, incluindo
-      // a cor da inicial, os totais de presença/falta e os indicadores do dia.
-      // Assim não é necessário sair e entrar novamente na Agenda.
-      if(currentView==='schedule') renderSchedule();
-
-      toast(status==='present'?'Presença registrada.':'Falta registrada.');
+      if(presentChip)presentChip.textContent=`✓ ${presentNow} presente${presentNow===1?'':'s'}`;if(absentChip)absentChip.textContent=`✕ ${absentNow} falta${absentNow===1?'':'s'}`;if(pendingChip)pendingChip.textContent=`• ${pendingNow} aguardando`;
+      if(currentView==='schedule')renderSchedule();
+      toast(next==='present'?'Presença registrada.':next==='absent'?'Falta registrada.':'Status voltou para Aguardando.');
     }));
   }
 
@@ -1309,10 +1404,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const ids=slotStudents(day,time).slice(0,4);
     const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
     const makeupIds=makeupStudentIds(date,day,time),makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
-    const vacancies=Math.max(0,4-enrolled.length),allStudents=[...enrolled,...makeups];
-    const present=allStudents.filter(s=>attendanceStatus(date,day,time,s.id)==='present').length;
-    const absent=allStudents.filter(s=>attendanceStatus(date,day,time,s.id)==='absent').length;
-    const pending=Math.max(0,allStudents.length-present-absent);
+    const effectiveFixed=effectiveFixedStudentIds(day,time,date).length,vacancies=Math.max(0,4-(effectiveFixed+makeups.length+trials.length)),allStudents=[...enrolled,...makeups],eligibleStudents=allStudents.filter(st=>!studentPauseAt(st,date)&&!plannedAbsenceFor(st.id,date));
+    const present=eligibleStudents.filter(st=>attendanceStatus(date,day,time,st.id)==='present').length;
+    const absent=eligibleStudents.filter(st=>attendanceStatus(date,day,time,st.id)==='absent').length;
+    const pending=Math.max(0,eligibleStudents.length-present-absent);
     openModal(`${dayLabel} • ${fmtDate(date)} • ${time}`,`
       <section class="lesson-luxury-hero">
         <div class="lesson-luxury-time"><span>${time}</span><small>${dayLabel} • ${fmtDate(date)}</small></div>
@@ -1346,7 +1441,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#editClassStudents',modal)?.addEventListener('click',()=>openClassEditor(day,time));
     $('#addMakeup',modal)?.addEventListener('click',()=>openMakeupPicker(day,time));
     $('#manageWaitlist',modal)?.addEventListener('click',()=>openWaitlistManager(day,time));
-    $$('[data-remove-makeup]',modal).forEach(b=>b.addEventListener('click',()=>{removeMakeupStudent(date,day,time,b.dataset.removeMakeup);addAudit('Reposição removida',`${fmtDate(date)} ${time}`);saveState();openScheduleSlot(day,time);toast('Reposição removida.');renderSchedule()}));
+    $$('[data-remove-makeup]',modal).forEach(btn=>btn.addEventListener('click',()=>{const st=state.students.find(x=>String(x.id)===String(btn.dataset.removeMakeup));openModal('Remover reposição',`<div class="notice">Confirma remover a reposição de <strong>${escapeHTML(st?.name||'este aluno')}</strong> em ${fmtDate(date)} às ${escapeHTML(time)}? O crédito agendado voltará a ficar disponível quando aplicável.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmMakeupRemoval">Remover reposição</button></div>`);$('#confirmMakeupRemoval').addEventListener('click',()=>{removeMakeupStudent(date,day,time,btn.dataset.removeMakeup);addAudit('Reposição removida',`${st?.name||'Aluno'} • ${fmtDate(date)} ${time}`);saveState();closeModal();renderSchedule();openScheduleSlot(day,time);toast('Reposição removida e saldo recalculado.');});}));
   }
 
   function openClassEditor(day,time){
@@ -1417,113 +1512,31 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openMakeupPicker(day,time){
-    const date=scheduleDateForDay(day),fixed=new Set(slotStudents(day,time)),currentIds=makeupStudentIds(date,day,time),current=new Set(currentIds);
-    const students=[...activeStudents()].filter(s=>!fixed.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    const studentRow=(s)=>{
-      const credits=makeupCreditBalance(s.id),existing=current.has(s.id);
-      return `<label class="class-picker-student makeup-picker-student ${existing?'selected existing-booking':credits.available<=0?'no-credit-option':''}" data-student-name="${escapeHTML((s.name||'').toLowerCase())}" data-existing="${existing?'1':'0'}" data-credits="${credits.available}">
-        <span class="student-photo tiny-photo class-picker-avatar">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
-        <span class="class-picker-name">${escapeHTML(s.name)}<small>${existing?'<b class="existing-booking-pill">JÁ AGENDADA</b> ':''}<b class="credit-pill ${credits.available>0?'has-credit':'no-credit'}">${credits.available}</b> crédito${credits.available===1?'':'s'} de reposição ${credits.available===1?'disponível':'disponíveis'}</small></span>
-        <input class="class-picker-checkbox" type="checkbox" name="makeupStudent" value="${s.id}" ${existing?'checked':''} aria-label="Selecionar ${escapeHTML(s.name)} para reposição">
-        <span class="class-picker-check" aria-hidden="true">${icon('check')}</span>
-      </label>`};
+    const date=scheduleDateForDay(day),fixed=new Set(slotStudents(day,time).map(String)),currentIds=makeupStudentIds(date,day,time).map(String),current=new Set(currentIds);
+    const candidates=[...activeStudents()].filter(st=>!fixed.has(String(st.id))&&(current.has(String(st.id))||(!studentPauseAt(st,date)&&!plannedAbsenceFor(st.id,date)))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    const students=candidates.filter(st=>current.has(String(st.id))||makeupCreditBalance(st.id).available>0);
+    const availableCount=students.filter(st=>!current.has(String(st.id))&&makeupCreditBalance(st.id).available>0).length;
+    const studentRow=(st)=>{const credits=makeupCreditBalance(st.id),existing=current.has(String(st.id));return `<label class="class-picker-student makeup-picker-student ${existing?'selected existing-booking':''}" data-student-name="${escapeHTML((st.name||'').toLowerCase())}" data-existing="${existing?'1':'0'}" data-credits="${credits.available}"><span class="student-photo tiny-photo class-picker-avatar">${st.photoData?`<img src="${st.photoData}" alt="" />`:`<span>${escapeHTML((st.name||'•').charAt(0).toUpperCase())}</span>`}</span><span class="class-picker-name">${escapeHTML(st.name)}<small>${existing?'<b class="existing-booking-pill">JÁ AGENDADA</b> ':''}<b class="credit-pill ${credits.available>0?'has-credit':'no-credit'}">${credits.available}</b> ${credits.available===1?'crédito disponível':'créditos disponíveis'}</small></span><input class="class-picker-checkbox" type="checkbox" name="makeupStudent" value="${st.id}" ${existing?'checked':''} aria-label="Selecionar ${escapeHTML(st.name)} para reposição"><span class="class-picker-check" aria-hidden="true">${icon('check')}</span></label>`};
     openModal(`Reposições • ${fmtDate(date)} • ${time}`,`
       <form id="makeupPickerForm" class="class-picker-form luxury-booking-flow">
-        <div class="booking-flow-strip"><span class="active"><b>1</b> Escolher aluno</span><span><b>2</b> Confirmar alterações</span></div>
-        <section class="makeup-picker-hero">
-          <div class="makeup-picker-icon">R</div><div><strong>Reposição nesta aula</strong><span>${fmtDate(date)} • ${time}</span><small>As reposições já agendadas ficam preservadas até você alterar a seleção.</small></div>
-        </section>
+        <div class="booking-flow-strip"><span class="active" id="makeupStep1"><b>1</b> Escolher aluno</span><span id="makeupStep2"><b>2</b> Confirmar alterações</span></div>
+        <section class="makeup-picker-hero"><div class="makeup-picker-icon">R</div><div><strong>Reposição nesta aula</strong><span>${fmtDate(date)} • ${time}</span><small>Novas reposições entram como <b>AGUARDANDO</b>. Presença ou falta só será registrada quando você marcar.</small></div></section>
         <div class="search-wrap class-picker-search">${icon('search')}<input id="makeupPickerSearch" type="search" placeholder="Buscar aluno pelo nome" autocomplete="off" /></div>
-        <div class="picker-guidance picker-guidance-actions"><div><span>O saldo de reposições será exibido antes da confirmação.</span><strong>Busque um nome ou use “Ver todos” entre ${students.length} alunos elegíveis.</strong></div><button type="button" class="picker-browse-btn" id="makeupPickerShowAll">Ver todos</button></div>
-        <div class="class-picker-tabs" role="tablist">
-          <button type="button" class="class-picker-tab" data-makeup-filter="all">Disponíveis <span>${students.length}</span></button>
-          <button type="button" class="class-picker-tab active" data-makeup-filter="selected">Nesta aula <span id="makeupPickerSelectedBadge">${current.size}</span></button>
-        </div>
+        <div class="picker-guidance picker-guidance-actions"><div><span>O saldo de reposições será exibido antes da confirmação.</span><strong>${availableCount} aluno${availableCount===1?'':'s'} realmente ${availableCount===1?'elegível':'elegíveis'} para nova reposição.</strong></div><button type="button" class="picker-browse-btn" id="makeupPickerShowAll">Ver todos</button></div>
+        <div class="class-picker-tabs" role="tablist"><button type="button" class="class-picker-tab" data-makeup-filter="all">Disponíveis <span>${availableCount}</span></button><button type="button" class="class-picker-tab active" data-makeup-filter="selected">Nesta aula <span id="makeupPickerSelectedBadge">${current.size}</span></button></div>
         <div id="makeupPickerList" class="class-picker-list modern-picker-list">${students.length?students.map(studentRow).join(''):''}</div>
-        <div id="makeupPickerEmpty" class="empty compact"><strong>${current.size?'Reposições atuais exibidas':'Nenhuma reposição nesta aula'}</strong>${current.size?'Use a busca ou “Ver todos” para adicionar outro aluno.':'Busque um aluno para adicionar.'}</div>
-        <div id="makeupSelectionSummary" class="makeup-selection-summary makeup-selection-deltas hidden">
-          <div><span>Mantidas</span><strong id="makeupExistingCount">${current.size}</strong></div>
-          <div><span>Adicionar</span><strong id="makeupNewCount">0</strong></div>
-          <div><span>Remover</span><strong id="makeupRemoveCount">0</strong></div>
-          <small id="makeupChangeHint">Nenhuma alteração pendente.</small>
-        </div>
+        <div id="makeupPickerEmpty" class="empty compact"><strong>${current.size?'Reposições atuais exibidas':'Nenhuma reposição nesta aula'}</strong>${current.size?'Use a busca ou “Ver todos” para adicionar outro aluno.':'Busque um aluno elegível para adicionar.'}</div>
+        <div id="makeupDeltaSummary" class="makeup-selection-summary makeup-selection-deltas hidden"><div><span>Já agendadas</span><strong id="makeupExistingCount">${current.size}</strong></div><div><span>Novas</span><strong id="makeupNewCount">0</strong></div><div><span>Remover</span><strong id="makeupRemoveCount">0</strong></div><small id="makeupChangeHint">Nenhuma alteração pendente.</small></div>
         <div class="class-picker-actions makeup-picker-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="confirmMakeup" disabled>${icon('check')} Nenhuma alteração</button></div>
       </form>`);
-    $('.modal',modalRoot)?.classList.add('makeup-picker-modal');
-    const form=$('#makeupPickerForm'),search=$('#makeupPickerSearch'),list=$('#makeupPickerList'),empty=$('#makeupPickerEmpty'),showAllBtn=$('#makeupPickerShowAll'),confirmBtn=$('#confirmMakeup'),summary=$('#makeupSelectionSummary'),steps=$$('.booking-flow-strip span',form);
-    let filter='selected',showAll=false;
-    const setFilter=(next)=>{
-      filter=next;
-      $$('.class-picker-tab',form).forEach(x=>x.classList.toggle('active',x.dataset.makeupFilter===filter));
-    };
-    const getDelta=()=>{
-      const selected=$$('input[name="makeupStudent"]:checked',form).map(x=>String(x.value));
-      const added=selected.filter(id=>!current.has(id)),removed=currentIds.filter(id=>!selected.includes(String(id))),kept=selected.filter(id=>current.has(id));
-      return {selected,added,removed,kept};
-    };
-    const update=()=>{
-      const {selected,added,removed,kept}=getDelta(),q=(search.value||'').trim().toLowerCase();
-      $('#makeupPickerSelectedBadge').textContent=String(selected.length);
-      $('#makeupExistingCount').textContent=String(kept.length);
-      $('#makeupNewCount').textContent=String(added.length);
-      $('#makeupRemoveCount').textContent=String(removed.length);
-      $$('.makeup-picker-student',list).forEach(row=>{
-        const input=$('input[name="makeupStudent"]',row),isSelected=input.checked,isExisting=row.dataset.existing==='1';
-        row.classList.toggle('selected',isSelected);
-        row.classList.toggle('existing-booking',isExisting&&isSelected);
-        row.classList.toggle('no-credit-option',!isExisting&&!isSelected&&Number(row.dataset.credits||0)<=0);
-        const matchesName=(row.dataset.studentName||'').includes(q);
-        let visible=false;
-        if(filter==='selected') visible=isSelected;
-        else visible=matchesName && (q.length>0||showAll);
-        row.classList.toggle('hidden',!visible);
-      });
-      const hasVisible=$$('.makeup-picker-student:not(.hidden)',list).length>0;
-      list.classList.toggle('hidden',!hasVisible);
-      empty.classList.toggle('hidden',hasVisible);
-      if(!hasVisible){
-        if(filter==='selected') empty.innerHTML='<strong>Nenhuma reposição nesta aula</strong>Busque um aluno para adicionar.';
-        else if(q) empty.innerHTML='<strong>Nenhum aluno encontrado</strong>Tente outro nome.';
-        else empty.innerHTML='<strong>Lista recolhida</strong>Digite um nome ou toque em “Ver todos”.';
-      }
-      const changeCount=added.length+removed.length;
-      summary?.classList.toggle('hidden',changeCount===0);
-      steps?.[0]?.classList.toggle('active',changeCount===0);
-      steps?.[1]?.classList.toggle('active',changeCount>0);
-      confirmBtn.disabled=changeCount===0;
-      confirmBtn.innerHTML=changeCount?`${icon('check')} Confirmar alterações`:`${icon('check')} Nenhuma alteração`;
-      $('#makeupChangeHint').textContent=changeCount?`${added.length} para adicionar • ${removed.length} para remover. Reposições mantidas não serão reprocessadas.`:'Nenhuma alteração pendente.';
-      showAllBtn.textContent=showAll?'Ocultar lista':'Ver todos';
-    };
-    search.addEventListener('input',()=>{
-      if(search.value.trim()){showAll=false;setFilter('all')}
-      update();
-    });
-    showAllBtn.addEventListener('click',()=>{showAll=!showAll;setFilter('all');if(showAll)search.value='';update()});
-    $$('.class-picker-tab',form).forEach(b=>b.addEventListener('click',()=>{setFilter(b.dataset.makeupFilter);if(filter==='selected'){search.value='';showAll=false}update()}));
-    form.addEventListener('change',e=>{if(e.target.name==='makeupStudent')update()});
-    form.addEventListener('submit',e=>{
-      e.preventDefault();
-      const {selected,added,removed}=getDelta();
-      if(!added.length&&!removed.length)return;
-      const result=setMakeupStudents(date,day,time,selected);
-      const parts=[];if(result.added.length)parts.push(`+${result.added.length}`);if(result.removed.length)parts.push(`-${result.removed.length}`);
-      addAudit('Reposições atualizadas',`${fmtDate(date)} ${time} • ${parts.join(' / ')||'sem alteração'}`);
-      saveState();closeModal();renderSchedule();openScheduleSlot(day,time);
-      const msg=result.added.length&&result.removed.length?'Reposições atualizadas.':result.added.length?`${result.added.length} nova${result.added.length===1?' reposição adicionada.':'s reposições adicionadas.'}`:`${result.removed.length} reposição${result.removed.length===1?' removida.':'ões removidas.'}`;
-      toast(msg);
-    });
-    update();
-    if(window.matchMedia('(min-width:700px)').matches)setTimeout(()=>search.focus({preventScroll:true}),50);
-  }
-
-  async function enableBirthdayNotifications(){
-    if(!('Notification' in window)) return toast('Este navegador não oferece notificações.');
-    const p=await Notification.requestPermission();
-    state.birthdayNotifications=state.birthdayNotifications||{};
-    state.birthdayNotifications.enabled=p==='granted';saveState();
-    if(p==='granted'){toast('Notificações de aniversário ativadas.');checkBirthdayNotification(true);}
-    else toast('Permissão de notificações não concedida.');
+    const form=$('#makeupPickerForm'),search=$('#makeupPickerSearch'),list=$('#makeupPickerList'),empty=$('#makeupPickerEmpty'),showAllBtn=$('#makeupPickerShowAll'),confirmBtn=$('#confirmMakeup'),summary=$('#makeupDeltaSummary');
+    let filter='selected',showAll=false,removalArmed=false;
+    const setFilter=next=>{filter=next;$$('.class-picker-tab',form).forEach(x=>x.classList.toggle('active',x.dataset.makeupFilter===filter))};
+    const getDelta=()=>{const selected=$$('input[name="makeupStudent"]:checked',form).map(x=>String(x.value)),added=selected.filter(id=>!current.has(id)),removed=currentIds.filter(id=>!selected.includes(String(id))),kept=selected.filter(id=>current.has(id));return {selected,added,removed,kept}};
+    const update=()=>{const {selected,added,removed,kept}=getDelta(),q=(search.value||'').trim().toLowerCase(),changeCount=added.length+removed.length;$('#makeupPickerSelectedBadge').textContent=String(selected.length);$('#makeupExistingCount').textContent=String(kept.length);$('#makeupNewCount').textContent=String(added.length);$('#makeupRemoveCount').textContent=String(removed.length);summary.classList.toggle('hidden',changeCount===0);$('#makeupStep1').classList.toggle('active',changeCount===0);$('#makeupStep2').classList.toggle('active',changeCount>0);$$('.makeup-picker-student',list).forEach(row=>{const input=$('input[name="makeupStudent"]',row),isSelected=input.checked,isExisting=row.dataset.existing==='1',matches=(row.dataset.studentName||'').includes(q);row.classList.toggle('selected',isSelected);row.classList.toggle('existing-booking',isExisting&&isSelected);let visible=filter==='selected'?isSelected:(matches&&(q.length>0||showAll));row.classList.toggle('hidden',!visible)});const hasVisible=$$('.makeup-picker-student:not(.hidden)',list).length>0;empty.classList.toggle('hidden',hasVisible);if(!hasVisible){if(filter==='selected')empty.innerHTML='<strong>Nenhuma reposição nesta aula</strong>Busque um aluno elegível para adicionar.';else if(q)empty.innerHTML='<strong>Nenhum aluno elegível encontrado</strong>Confira o nome ou o saldo de créditos.';else empty.innerHTML='<strong>Lista recolhida</strong>Digite um nome ou toque em “Ver todos”.';}confirmBtn.disabled=changeCount===0;confirmBtn.innerHTML=changeCount?`${icon('check')} Confirmar alterações`:`${icon('check')} Nenhuma alteração`;$('#makeupChangeHint').textContent=changeCount?`${pluralCount(added.length,'nova reposição','novas reposições')} • ${pluralCount(removed.length,'remoção','remoções')}.`:'Nenhuma alteração pendente.';showAllBtn.textContent=showAll?'Ocultar lista':'Ver todos';};
+    search.addEventListener('input',()=>{removalArmed=false;if(search.value.trim()){showAll=false;setFilter('all')}update()});showAllBtn.addEventListener('click',()=>{showAll=!showAll;setFilter('all');if(showAll)search.value='';update()});$$('.class-picker-tab',form).forEach(btn=>btn.addEventListener('click',()=>{setFilter(btn.dataset.makeupFilter);if(filter==='selected'){search.value='';showAll=false}update()}));form.addEventListener('change',e=>{if(e.target.name==='makeupStudent'){removalArmed=false;update()}});
+    form.addEventListener('submit',e=>{e.preventDefault();const {selected,added,removed}=getDelta();if(!added.length&&!removed.length)return;if(removed.length&&!removalArmed){removalArmed=true;summary.classList.remove('hidden');$('#makeupChangeHint').innerHTML=`<strong>Confirma remover ${pluralCount(removed.length,'reposição','reposições')}?</strong> O crédito agendado voltará a ficar disponível quando aplicável. Toque novamente em “Confirmar alterações”.`;confirmBtn.classList.add('confirm-warning');return;}const result=setMakeupStudents(date,day,time,selected),parts=[];if(result.added.length)parts.push(`+${result.added.length}`);if(result.removed.length)parts.push(`-${result.removed.length}`);addAudit('Reposições atualizadas',`${fmtDate(date)} ${time} • ${parts.join(' / ')||'sem alteração'}`);saveState();closeModal();renderSchedule();if(result.added.length)openMakeupConfirmationShare(result.added);else openScheduleSlot(day,time);toast(result.added.length&&result.removed.length?'Reposições atualizadas e saldos recalculados.':result.added.length?`${pluralCount(result.added.length,'nova reposição adicionada','novas reposições adicionadas')}.`:`${pluralCount(result.removed.length,'reposição removida','reposições removidas')}.`);});
+    update();setTimeout(()=>search.focus({preventScroll:true}),50);
   }
 
   function checkBirthdayNotification(force=false){
@@ -1564,9 +1577,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Final Polish & Communication Safety</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Excellence Corrective</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
-      <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',fmtMoney(m.expected),'Receita prevista')}${metricCard('chart',fmtMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',fmtMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
+      <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
     $('#installSettings').addEventListener('click',installApp);
     $('#changeDays').addEventListener('click',changeChargeDays);
@@ -1596,14 +1609,26 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_7_0_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.7.0 gerado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(`Backup completo V${APP_VERSION} gerado.`);renderSettings();}
 
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+
+  function enhanceDateInputs(root){
+    $$('input[type="date"]',root).forEach(input=>{
+      if(input.dataset.monthNavEnhanced==='1')return;input.dataset.monthNavEnhanced='1';
+      const nav=document.createElement('div');nav.className='date-month-nav';nav.innerHTML='<span>Mês / ano</span><input type="month" aria-label="Escolher mês e ano" />';
+      const monthInput=nav.querySelector('input');monthInput.value=(input.value||isoToday()).slice(0,7);
+      monthInput.addEventListener('change',()=>{if(!monthInput.value)return;const [y,m]=monthInput.value.split('-').map(Number),current=parseLocalDate(input.value),day=current?current.getDate():1,last=new Date(y,m,0).getDate();input.value=`${y}-${String(m).padStart(2,'0')}-${String(Math.min(day,last)).padStart(2,'0')}`;input.dispatchEvent(new Event('change',{bubbles:true}));});
+      input.addEventListener('change',()=>{if(input.value)monthInput.value=input.value.slice(0,7)});
+      input.insertAdjacentElement('afterend',nav);
+    });
+  }
 
   function openModal(title, bodyHTML) {
     const openedAt=Date.now();
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
     $$('[data-close-modal]',modalRoot).forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeModal();}));
+    enhanceDateInputs(modalRoot);
     $('.modal-backdrop',modalRoot).addEventListener('click',e=>{if(Date.now()-openedAt<400)return;if(e.target.classList.contains('modal-backdrop'))closeModal();});
   }
   function closeModal(){modalRoot.innerHTML='';}
