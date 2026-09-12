@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.6.9 — Reminder Review Touch Reliability Hotfix
+  // MB Gestor Luxury Pro V9.7.0 — Makeup Picker UX & Responsive Polish
 
-  const APP_VERSION = '9.6.9';
+  const APP_VERSION = '9.7.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -1434,22 +1434,23 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           <div class="makeup-picker-icon">R</div><div><strong>Reposição nesta aula</strong><span>${fmtDate(date)} • ${time}</span><small>As reposições já agendadas ficam preservadas até você alterar a seleção.</small></div>
         </section>
         <div class="search-wrap class-picker-search">${icon('search')}<input id="makeupPickerSearch" type="search" placeholder="Buscar aluno pelo nome" autocomplete="off" /></div>
-        <div class="picker-guidance picker-guidance-actions"><div><span>O saldo aparece antes da confirmação.</span><strong>Busque um nome ou use “Ver todos” entre ${students.length} alunos elegíveis.</strong></div><button type="button" class="picker-browse-btn" id="makeupPickerShowAll">Ver todos</button></div>
+        <div class="picker-guidance picker-guidance-actions"><div><span>O saldo de reposições será exibido antes da confirmação.</span><strong>Busque um nome ou use “Ver todos” entre ${students.length} alunos elegíveis.</strong></div><button type="button" class="picker-browse-btn" id="makeupPickerShowAll">Ver todos</button></div>
         <div class="class-picker-tabs" role="tablist">
-          <button type="button" class="class-picker-tab" data-makeup-filter="all">Buscar <span>${students.length}</span></button>
+          <button type="button" class="class-picker-tab" data-makeup-filter="all">Disponíveis <span>${students.length}</span></button>
           <button type="button" class="class-picker-tab active" data-makeup-filter="selected">Nesta aula <span id="makeupPickerSelectedBadge">${current.size}</span></button>
         </div>
         <div id="makeupPickerList" class="class-picker-list modern-picker-list">${students.length?students.map(studentRow).join(''):''}</div>
-        <div id="makeupPickerEmpty" class="empty compact"><strong>Reposições atuais exibidas</strong>Use a busca ou “Ver todos” para adicionar outro aluno.</div>
-        <div class="makeup-selection-summary makeup-selection-deltas">
-          <div><span>Já agendadas</span><strong id="makeupExistingCount">${current.size}</strong></div>
-          <div><span>Novas</span><strong id="makeupNewCount">0</strong></div>
+        <div id="makeupPickerEmpty" class="empty compact"><strong>${current.size?'Reposições atuais exibidas':'Nenhuma reposição nesta aula'}</strong>${current.size?'Use a busca ou “Ver todos” para adicionar outro aluno.':'Busque um aluno para adicionar.'}</div>
+        <div id="makeupSelectionSummary" class="makeup-selection-summary makeup-selection-deltas hidden">
+          <div><span>Mantidas</span><strong id="makeupExistingCount">${current.size}</strong></div>
+          <div><span>Adicionar</span><strong id="makeupNewCount">0</strong></div>
           <div><span>Remover</span><strong id="makeupRemoveCount">0</strong></div>
-          <small id="makeupChangeHint">Nenhuma alteração pendente. Os alunos já agendados não serão reprocessados.</small>
+          <small id="makeupChangeHint">Nenhuma alteração pendente.</small>
         </div>
         <div class="class-picker-actions makeup-picker-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" id="confirmMakeup" disabled>${icon('check')} Nenhuma alteração</button></div>
       </form>`);
-    const form=$('#makeupPickerForm'),search=$('#makeupPickerSearch'),list=$('#makeupPickerList'),empty=$('#makeupPickerEmpty'),showAllBtn=$('#makeupPickerShowAll'),confirmBtn=$('#confirmMakeup');
+    $('.modal',modalRoot)?.classList.add('makeup-picker-modal');
+    const form=$('#makeupPickerForm'),search=$('#makeupPickerSearch'),list=$('#makeupPickerList'),empty=$('#makeupPickerEmpty'),showAllBtn=$('#makeupPickerShowAll'),confirmBtn=$('#confirmMakeup'),summary=$('#makeupSelectionSummary'),steps=$$('.booking-flow-strip span',form);
     let filter='selected',showAll=false;
     const setFilter=(next)=>{
       filter=next;
@@ -1478,6 +1479,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         row.classList.toggle('hidden',!visible);
       });
       const hasVisible=$$('.makeup-picker-student:not(.hidden)',list).length>0;
+      list.classList.toggle('hidden',!hasVisible);
       empty.classList.toggle('hidden',hasVisible);
       if(!hasVisible){
         if(filter==='selected') empty.innerHTML='<strong>Nenhuma reposição nesta aula</strong>Busque um aluno para adicionar.';
@@ -1485,12 +1487,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         else empty.innerHTML='<strong>Lista recolhida</strong>Digite um nome ou toque em “Ver todos”.';
       }
       const changeCount=added.length+removed.length;
+      summary?.classList.toggle('hidden',changeCount===0);
+      steps?.[0]?.classList.toggle('active',changeCount===0);
+      steps?.[1]?.classList.toggle('active',changeCount>0);
       confirmBtn.disabled=changeCount===0;
-      if(added.length && !removed.length) confirmBtn.innerHTML=`${icon('check')} Adicionar ${added.length} reposição${added.length===1?'':'ões'}`;
-      else if(removed.length && !added.length) confirmBtn.innerHTML=`${icon('check')} Remover ${removed.length} reposição${removed.length===1?'':'ões'}`;
-      else if(changeCount) confirmBtn.innerHTML=`${icon('check')} Salvar alterações`;
-      else confirmBtn.innerHTML=`${icon('check')} Nenhuma alteração`;
-      $('#makeupChangeHint').textContent=changeCount?`${added.length} nova${added.length===1?'':'s'} • ${removed.length} remoção${removed.length===1?'':'ões'}. Reposições mantidas não são reprocessadas.`:'Nenhuma alteração pendente. Os alunos já agendados não serão reprocessados.';
+      confirmBtn.innerHTML=changeCount?`${icon('check')} Confirmar alterações`:`${icon('check')} Nenhuma alteração`;
+      $('#makeupChangeHint').textContent=changeCount?`${added.length} para adicionar • ${removed.length} para remover. Reposições mantidas não serão reprocessadas.`:'Nenhuma alteração pendente.';
       showAllBtn.textContent=showAll?'Ocultar lista':'Ver todos';
     };
     search.addEventListener('input',()=>{
@@ -1511,7 +1513,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       const msg=result.added.length&&result.removed.length?'Reposições atualizadas.':result.added.length?`${result.added.length} nova${result.added.length===1?' reposição adicionada.':'s reposições adicionadas.'}`:`${result.removed.length} reposição${result.removed.length===1?' removida.':'ões removidas.'}`;
       toast(msg);
     });
-    update();setTimeout(()=>search.focus({preventScroll:true}),50);
+    update();
+    if(window.matchMedia('(min-width:700px)').matches)setTimeout(()=>search.focus({preventScroll:true}),50);
   }
 
   async function enableBirthdayNotifications(){
@@ -1593,7 +1596,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_6_9_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.6.9 gerado.');renderSettings();}
+  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V9_7_0_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup completo V9.7.0 gerado.');renderSettings();}
 
   async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
 
