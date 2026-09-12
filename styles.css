@@ -331,3 +331,5 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 @media(max-width:620px){.schedule-head-actions #shareMakeupSlots{width:100%}.makeup-confirmation-actions{display:grid;grid-template-columns:1fr}.makeup-confirmation-actions .btn{width:100%;min-width:0}.profile-detail-grid .profile-detail-wide{grid-column:auto}}
 .date-month-nav{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid rgba(255,255,255,.055);border-radius:10px;background:rgba(255,255,255,.018)}
 .date-month-nav>span{color:#858992;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}.date-month-nav input[type=month]{min-height:34px!important;padding:6px 8px!important;border-radius:8px!important;font-size:10px!important;background:#101216!important}
+
+/* MB Gestor Luxury Pro V9.7.3 — Stabilization & Corrective Baseline */

@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V9.7.2 — força atualização dos arquivos do PWA
-const CACHE='mb-gestor-luxury-pro-v9-7-2-rebuild-57-correcoes';
+// MB Gestor Luxury Pro V9.7.3 — atualização estável da base corretiva
+const CACHE='mb-gestor-luxury-pro-v9-7-3-stabilization-corrective-baseline';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

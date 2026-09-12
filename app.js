@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.7.2 — Rebuild integral das 57 correções
+// MB Gestor Luxury Pro V9.7.3 — Stabilization & Corrective Baseline
 (() => {
   'use strict';
   // MB Gestor Luxury Pro V9.7.1 — Excellence Corrective Rebuild Release
 
-  const APP_VERSION = '9.7.2';
+  const APP_VERSION = '9.7.3';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
