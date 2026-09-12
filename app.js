@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.7.3 — Stabilization & Corrective Baseline
+// MB Gestor Luxury Pro V9.7.4 — Settings Interaction Hotfix
 (() => {
   'use strict';
   // MB Gestor Luxury Pro V9.7.1 — Excellence Corrective Rebuild Release
 
-  const APP_VERSION = '9.7.3';
+  const APP_VERSION = '9.7.4';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -1538,6 +1538,20 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     search.addEventListener('input',()=>{removalArmed=false;if(search.value.trim()){showAll=false;setFilter('all')}update()});showAllBtn.addEventListener('click',()=>{showAll=!showAll;setFilter('all');if(showAll)search.value='';update()});$$('.class-picker-tab',form).forEach(btn=>btn.addEventListener('click',()=>{setFilter(btn.dataset.makeupFilter);if(filter==='selected'){search.value='';showAll=false}update()}));form.addEventListener('change',e=>{if(e.target.name==='makeupStudent'){removalArmed=false;update()}});
     form.addEventListener('submit',e=>{e.preventDefault();const {selected,added,removed}=getDelta();if(!added.length&&!removed.length)return;if(removed.length&&!removalArmed){removalArmed=true;summary.classList.remove('hidden');$('#makeupChangeHint').innerHTML=`<strong>Confirma remover ${pluralCount(removed.length,'reposição','reposições')}?</strong> O crédito agendado voltará a ficar disponível quando aplicável. Toque novamente em “Confirmar alterações”.`;confirmBtn.classList.add('confirm-warning');return;}const result=setMakeupStudents(date,day,time,selected),parts=[];if(result.added.length)parts.push(`+${result.added.length}`);if(result.removed.length)parts.push(`-${result.removed.length}`);addAudit('Reposições atualizadas',`${fmtDate(date)} ${time} • ${parts.join(' / ')||'sem alteração'}`);saveState();closeModal();renderSchedule();if(result.added.length)openMakeupConfirmationShare(result.added);else openScheduleSlot(day,time);toast(result.added.length&&result.removed.length?'Reposições atualizadas e saldos recalculados.':result.added.length?`${pluralCount(result.added.length,'nova reposição adicionada','novas reposições adicionadas')}.`:`${pluralCount(result.removed.length,'reposição removida','reposições removidas')}.`);});
     update();setTimeout(()=>search.focus({preventScroll:true}),50);
+  }
+
+  async function enableBirthdayNotifications(){
+    if(!('Notification' in window)) return toast('Este navegador não oferece notificações.');
+    const permission=await Notification.requestPermission();
+    state.birthdayNotifications=state.birthdayNotifications||{};
+    state.birthdayNotifications.enabled=permission==='granted';
+    saveState();
+    if(permission==='granted'){
+      toast('Notificações de aniversário ativadas.');
+      checkBirthdayNotification(true);
+    }else{
+      toast('Permissão de notificações não concedida.');
+    }
   }
 
   function checkBirthdayNotification(force=false){
