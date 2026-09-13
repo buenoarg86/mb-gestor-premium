@@ -454,3 +454,14 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .anatomy-side-labels rect{fill:rgba(233,198,110,.08);stroke:rgba(233,198,110,.26);stroke-width:1}.anatomy-side-labels text{fill:#c7af6a;font-size:9px;font-weight:950}
 .anatomical-guide-visual>#anatomicalGuideFigure{min-height:308px}.anatomy-figure{width:min(100%,232px)}
 @media(min-width:721px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:390px}.anatomy-figure{width:min(100%,290px)}}
+
+/* V9.9.3 — silhueta clínica premium 4D */
+.anatomy-head,.anatomy-neck,.anatomy-torso,.anatomy-pelvis,.anatomy-foot,.anatomy-arm-surface,.anatomy-leg-surface{fill:url(#anatomyBody);stroke:rgba(255,255,255,.10);stroke-width:1.05}
+.anatomy-clinical-core,.anatomy-arm-surface,.anatomy-leg-surface,.anatomy-pelvis{filter:drop-shadow(0 8px 12px rgba(0,0,0,.16))}
+.anatomy-highlight{fill:url(#anatomyShine);opacity:.72;pointer-events:none}
+.anatomy-front-lines,.anatomy-back-lines,.anatomy-glute-line{fill:none;stroke:rgba(19,20,24,.56);stroke-width:1.32;stroke-linecap:round;stroke-linejoin:round}
+.anatomy-detail{fill:rgba(20,22,26,.55)}
+.anatomy-side-labels rect{fill:rgba(233,198,110,.082);stroke:rgba(233,198,110,.28);stroke-width:1}.anatomy-side-labels text{fill:#d0b56b;font-size:9px;font-weight:950}
+.anatomy-view-caption{fill:#80858d;font-size:8px;font-weight:900;letter-spacing:.17em}
+.anatomical-guide-visual>#anatomicalGuideFigure{min-height:316px}.anatomy-figure{width:min(100%,236px)}
+@media(min-width:721px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:396px}.anatomy-figure{width:min(100%,294px)}}
