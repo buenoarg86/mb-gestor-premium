@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V9.7.2 — Rebuild integral das 57 correções */
+/* MB Gestor Luxury Pro V9.7.9 — Capacity Guard Reliability Hotfix */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -382,3 +382,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .weekend-overview-copy{display:grid;gap:4px}.weekend-overview-copy strong{color:#d9bd75;font-size:11px}.weekend-overview-copy span{color:#8d9198;font-size:9px;line-height:1.4}
 .month-day.weekend{cursor:pointer}.month-day.weekend span{color:#7f8793;font-size:7px}
 @media(max-width:430px){.schedule-day-tabs{gap:4px}.schedule-day-tab{border-radius:13px;padding-top:8px;padding-bottom:8px}.schedule-day-tab small{font-size:7px;letter-spacing:.04em}.schedule-day-tab strong{font-size:15px}.weekend-rest-card{padding:17px;gap:12px}.weekend-rest-card>span{width:46px;height:46px;border-radius:15px}}
+
+/* V9.7.9 — aviso preventivo de sobrelotação no fluxo manual de reposição */
+.makeup-capacity-alert{display:grid;gap:4px;margin:10px 0 2px;padding:12px 14px;border:1px solid rgba(232,183,95,.34);border-left:3px solid var(--warn);border-radius:12px;background:rgba(232,183,95,.08);color:#ead7aa;line-height:1.35}
+.makeup-capacity-alert strong{color:#f4d792;font-size:13px}.makeup-capacity-alert span{font-size:12px;color:#c9bea5}.makeup-capacity-alert b{color:#f4d792}
