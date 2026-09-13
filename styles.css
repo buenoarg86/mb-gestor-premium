@@ -562,3 +562,27 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
   .body-comp-results{grid-template-columns:1fr}.body-comp-results .assessment-result:first-child{grid-column:auto}
   .body-comp-skinfold-summary{grid-template-columns:1fr}
 }
+
+
+/* ================================================================
+   V10.0.1 • POLIMENTO — DESCOBERTA E NAVEGAÇÃO DA COMPOSIÇÃO
+   ================================================================ */
+.assessment-feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.assessment-feature-grid .assessment-guide-entry{margin:0;min-height:76px}
+.assessment-composition-entry{border-color:rgba(231,196,105,.26);background:radial-gradient(circle at 10% 12%,rgba(215,163,61,.15),transparent 34%),linear-gradient(145deg,#191a1d,#101115)}
+.assessment-composition-entry .assessment-guide-entry-icon{background:linear-gradient(145deg,rgba(233,198,110,.13),rgba(233,198,110,.055));box-shadow:inset 0 1px rgba(255,255,255,.03)}
+.assessment-composition-entry>i{color:#d3b666;background:rgba(233,198,110,.045)}
+.assessment-composition-inline{gap:5px!important;max-width:100%}
+.assessment-composition-inline i{display:inline-flex;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border:1px solid rgba(231,196,105,.14);border-radius:999px;background:rgba(231,196,105,.04);color:#b99e58;font-size:7.5px;font-style:normal;font-weight:850;line-height:1}
+.assessment-composition-jump{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(231,196,105,.18);border-radius:15px;background:linear-gradient(145deg,rgba(231,196,105,.055),rgba(14,15,18,.98));color:#eeeef0;text-align:left;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.025);transition:.18s ease}
+.assessment-composition-jump:hover,.assessment-composition-jump:focus-visible{border-color:rgba(231,196,105,.34);transform:translateY(-1px)}
+.assessment-composition-jump-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;border:1px solid rgba(231,196,105,.17);background:rgba(231,196,105,.07);color:#dabc69}
+.assessment-composition-jump-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.assessment-composition-jump b,.assessment-composition-jump small{display:block}.assessment-composition-jump b{font-size:10.5px}.assessment-composition-jump small{margin-top:2px;color:#7f838a;font-size:8.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.assessment-composition-jump>i{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;background:rgba(231,196,105,.075);color:#d7b961;font-size:9px;font-style:normal;font-weight:950;letter-spacing:.04em}
+.assessment-composition-jump.has-method{border-color:rgba(231,196,105,.3);background:radial-gradient(circle at 90% 20%,rgba(231,196,105,.085),transparent 34%),linear-gradient(145deg,rgba(231,196,105,.065),rgba(13,14,17,.98))}
+.body-comp-empty-compact{margin-top:9px;padding:11px 12px;background:rgba(9,10,13,.66)}
+.body-comp-empty-compact strong{color:#d9dadd}.body-comp-empty-compact span{max-width:620px}
+#assessmentBodyCompositionSection{scroll-margin-top:78px}
+#assessmentStudentsSection{scroll-margin-top:88px}
+@media(max-width:620px){.assessment-feature-grid{grid-template-columns:1fr;gap:9px}.assessment-feature-grid .assessment-guide-entry{min-height:70px}.assessment-composition-inline i{max-width:145px}}
