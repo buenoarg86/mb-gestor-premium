@@ -445,3 +445,12 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .anatomical-guide-info-head{padding:12px 14px}.anatomical-guide-rule{padding:10px 14px}.anatomical-guide-rule p{line-height:1.44}.anatomical-guide-protocol{padding:11px 13px}.anatomical-guide-protocol span{color:#9aa19d;line-height:1.5}
 @media(max-width:720px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:300px}.anatomy-figure{width:min(100%,225px)}.anatomical-guide-picker>div{grid-template-columns:repeat(2,minmax(0,1fr))}.anatomical-guide-picker button:last-child:nth-child(odd){grid-column:1/-1;text-align:center}.anatomical-guide-side-toggle{grid-template-columns:82px 1fr 1fr}}
 @media(max-width:430px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:285px}.anatomy-figure{width:min(100%,215px)}.anatomical-guide-info-head{padding:11px 12px}.anatomical-guide-rule{padding:9px 12px}.anatomical-guide-protocol{padding:10px 12px}}
+
+/* V9.9.2 — boneco anatômico mais realista */
+.anatomy-head,.anatomy-neck,.anatomy-torso,.anatomy-pelvis,.anatomy-foot,.anatomy-arm-surface,.anatomy-leg-surface{fill:url(#anatomyBody);stroke:rgba(255,255,255,.10);stroke-width:1}
+.anatomy-arm-surface,.anatomy-leg-surface,.anatomy-torso,.anatomy-pelvis{filter:drop-shadow(0 7px 10px rgba(0,0,0,.14))}
+.anatomy-front-lines,.anatomy-back-lines,.anatomy-glute-line{fill:none;stroke:rgba(17,18,22,.54);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round}
+.anatomy-detail{fill:rgba(18,19,24,.48)}
+.anatomy-side-labels rect{fill:rgba(233,198,110,.08);stroke:rgba(233,198,110,.26);stroke-width:1}.anatomy-side-labels text{fill:#c7af6a;font-size:9px;font-weight:950}
+.anatomical-guide-visual>#anatomicalGuideFigure{min-height:308px}.anatomy-figure{width:min(100%,232px)}
+@media(min-width:721px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:390px}.anatomy-figure{width:min(100%,290px)}}

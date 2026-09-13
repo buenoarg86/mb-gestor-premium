@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.9.1 — Etapa 3A • Polimento Anatômico Premium
+// MB Gestor Luxury Pro V9.9.2 — Etapa 3A • Boneco Anatômico Realista Premium
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.9.1 — Etapa 3A • Polimento Anatômico Premium
+  // MB Gestor Luxury Pro V9.9.2 — Etapa 3A • Boneco Anatômico Realista Premium
 
-  const APP_VERSION = '9.9.1';
+  const APP_VERSION = '9.9.2';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -801,7 +801,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#historyAssessmentEvolution')?.addEventListener('click',()=>{closeModal();openAssessmentEvolution(id)});
   }
 
-  // === V9.9.1 • Etapa 3A — Polimento Anatômico Premium =============================
+  // === V9.9.2 • Etapa 3A — Boneco Anatômico Realista Premium =============================
   // A avaliação permanece opcional e independente das rotinas operacionais.
   // Objetivo e estágio são definidos pelo profissional. Tendências mostram variação numérica,
   // nunca uma interpretação automática de "bom" ou "ruim".
@@ -878,42 +878,36 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const marker=focus?`<g class="anatomy-focus"><rect x="${focus.x-focus.w/2}" y="${focus.y-focus.h/2}" width="${focus.w}" height="${focus.h}" rx="${Math.min(9,focus.h/2)}"/><line x1="${focus.x-focus.w/2-8}" y1="${focus.y}" x2="${focus.x+focus.w/2+8}" y2="${focus.y}"/></g>`:'';
     const frontBody=`
       <g class="anatomy-body is-front">
-        <ellipse class="anatomy-head anatomy-head-front" cx="150" cy="43" rx="23" ry="26"/>
-        <path class="anatomy-neck" d="M138 65 Q143 75 141 86 Q150 92 159 86 Q157 75 162 65 Q150 72 138 65 Z"/>
-        <path class="anatomy-torso anatomy-torso-front" d="M137 83 Q124 86 113 96 Q105 108 106 128 Q112 154 118 181 Q120 208 126 232 Q136 244 150 247 Q164 244 174 232 Q180 208 182 181 Q188 154 194 128 Q195 108 187 96 Q176 86 163 83 Q150 91 137 83 Z"/>
-        <path class="anatomy-shoulder anatomy-shoulder-front" d="M138 87 Q123 86 111 99 M162 87 Q177 86 189 99"/>
-        <path class="anatomy-limb anatomy-arm anatomy-arm-front" d="M112 104 Q101 127 96 157 Q91 190 76 222"/>
-        <path class="anatomy-limb anatomy-arm anatomy-arm-front" d="M188 104 Q199 127 204 157 Q209 190 224 222"/>
-        <path class="anatomy-hand" d="M69 219 Q76 214 82 222 Q84 230 78 235 Q71 237 67 231 Q65 225 69 219 Z"/>
-        <path class="anatomy-hand" d="M231 219 Q224 214 218 222 Q216 230 222 235 Q229 237 233 231 Q235 225 231 219 Z"/>
-        <path class="anatomy-hip anatomy-hip-front" d="M126 228 Q134 242 150 246 Q166 242 174 228 Q180 243 173 258 Q162 267 150 264 Q138 267 127 258 Q120 243 126 228 Z"/>
-        <path class="anatomy-limb anatomy-leg anatomy-leg-front" d="M137 254 Q129 294 132 336 Q136 374 130 439"/>
-        <path class="anatomy-limb anatomy-leg anatomy-leg-front" d="M163 254 Q171 294 168 336 Q164 374 170 439"/>
-        <path class="anatomy-foot" d="M120 439 Q130 432 141 440 L140 449 Q128 454 116 449 Z"/>
-        <path class="anatomy-foot" d="M180 439 Q170 432 159 440 L160 449 Q172 454 184 449 Z"/>
-        <path class="anatomy-front-lines" d="M125 119 Q138 108 150 113 Q162 108 175 119 M124 135 Q137 145 150 144 Q163 145 176 135 M150 112 L150 220 M137 158 Q143 164 150 164 Q157 164 163 158 M136 184 Q143 190 150 190 Q157 190 164 184 M140 208 Q150 214 160 208 M146 199 Q150 203 154 199 M131 260 Q139 273 141 294 M169 260 Q161 273 159 294 M135 341 Q141 346 146 345 M165 341 Q159 346 154 345"/>
-        <circle class="anatomy-detail" cx="150" cy="198" r="2.2"/>
+        <ellipse class="anatomy-head" cx="150" cy="42" rx="23" ry="26"/>
+        <path class="anatomy-neck" d="M139 66 Q142 79 141 90 Q150 96 159 90 Q158 79 161 66 Q150 72 139 66 Z"/>
+        <path class="anatomy-torso" d="M128 85 Q118 88 110 98 Q104 111 105 126 Q108 148 116 168 Q122 184 126 204 Q128 220 132 232 Q139 245 150 248 Q161 245 168 232 Q172 220 174 204 Q178 184 184 168 Q192 148 195 126 Q196 111 190 98 Q182 88 172 85 Q161 92 150 95 Q139 92 128 85 Z"/>
+        <path class="anatomy-arm-surface" d="M112 98 Q98 110 93 134 Q89 157 83 176 Q78 193 71 210 Q66 222 71 231 Q76 239 86 236 Q93 233 96 225 Q100 214 103 203 Q108 186 114 169 Q119 152 121 133 Q123 111 112 98 Z"/>
+        <path class="anatomy-arm-surface" d="M188 98 Q202 110 207 134 Q211 157 217 176 Q222 193 229 210 Q234 222 229 231 Q224 239 214 236 Q207 233 204 225 Q200 214 197 203 Q192 186 186 169 Q181 152 179 133 Q177 111 188 98 Z"/>
+        <path class="anatomy-pelvis" d="M131 227 Q137 239 150 242 Q163 239 169 227 Q176 236 176 248 Q166 263 150 265 Q134 263 124 248 Q124 236 131 227 Z"/>
+        <path class="anatomy-leg-surface" d="M131 250 Q126 278 126 306 Q127 330 128 354 Q129 383 126 436 Q127 447 138 447 Q148 447 149 437 Q151 388 151 353 Q151 327 147 302 Q145 276 145 253 Q138 249 131 250 Z"/>
+        <path class="anatomy-leg-surface" d="M169 250 Q174 278 174 306 Q173 330 172 354 Q171 383 174 436 Q173 447 162 447 Q152 447 151 437 Q149 388 149 353 Q149 327 153 302 Q155 276 155 253 Q162 249 169 250 Z"/>
+        <path class="anatomy-foot" d="M123 438 Q132 433 142 438 Q145 444 141 449 Q130 452 120 448 Q118 442 123 438 Z"/>
+        <path class="anatomy-foot" d="M177 438 Q168 433 158 438 Q155 444 159 449 Q170 452 180 448 Q182 442 177 438 Z"/>
+        <path class="anatomy-front-lines" d="M122 103 Q136 94 150 99 Q164 94 178 103 M122 120 Q134 133 150 133 Q166 133 178 120 M128 146 Q138 157 150 157 Q162 157 172 146 M134 172 Q142 181 150 181 Q158 181 166 172 M140 196 Q145 204 150 204 Q155 204 160 196 M150 101 L150 220 M144 192 Q150 197 156 192 M138 261 Q141 274 142 291 M162 261 Q159 274 158 291 M134 342 Q141 347 146 347 M166 342 Q159 347 154 347"/>
+        <circle class="anatomy-detail" cx="150" cy="194" r="2.2"/>
       </g>`;
     const backBody=`
       <g class="anatomy-body is-back">
-        <ellipse class="anatomy-head anatomy-head-back" cx="150" cy="43" rx="23" ry="26"/>
-        <path class="anatomy-neck anatomy-neck-back" d="M138 65 Q144 76 140 87 Q150 96 160 87 Q156 76 162 65 Q150 70 138 65 Z"/>
-        <path class="anatomy-torso anatomy-torso-back" d="M136 84 Q120 87 109 101 Q105 117 111 139 Q119 161 119 184 Q120 212 126 232 Q137 243 150 245 Q163 243 174 232 Q180 212 181 184 Q181 161 189 139 Q195 117 191 101 Q180 87 164 84 Q150 94 136 84 Z"/>
-        <path class="anatomy-trapezius" d="M141 84 Q150 101 159 84 M141 88 Q126 100 116 113 M159 88 Q174 100 184 113"/>
-        <path class="anatomy-limb anatomy-arm anatomy-arm-back" d="M111 107 Q98 130 94 162 Q90 193 76 222"/>
-        <path class="anatomy-limb anatomy-arm anatomy-arm-back" d="M189 107 Q202 130 206 162 Q210 193 224 222"/>
-        <path class="anatomy-hand" d="M69 219 Q76 214 82 222 Q84 230 78 235 Q71 237 67 231 Q65 225 69 219 Z"/>
-        <path class="anatomy-hand" d="M231 219 Q224 214 218 222 Q216 230 222 235 Q229 237 233 231 Q235 225 231 219 Z"/>
-        <path class="anatomy-hip anatomy-hip-back" d="M126 226 Q136 236 150 237 Q164 236 174 226 Q181 240 175 257 Q164 271 150 266 Q136 271 125 257 Q119 240 126 226 Z"/>
-        <path class="anatomy-limb anatomy-leg anatomy-leg-back" d="M136 256 Q127 297 132 337 Q136 374 130 439"/>
-        <path class="anatomy-limb anatomy-leg anatomy-leg-back" d="M164 256 Q173 297 168 337 Q164 374 170 439"/>
-        <path class="anatomy-foot" d="M120 439 Q130 432 141 440 L140 449 Q128 454 116 449 Z"/>
-        <path class="anatomy-foot" d="M180 439 Q170 432 159 440 L160 449 Q172 454 184 449 Z"/>
-        <path class="anatomy-back-lines" d="M150 94 L150 223 M123 118 Q134 111 145 119 M177 118 Q166 111 155 119 M121 132 Q135 151 145 151 M179 132 Q165 151 155 151 M127 170 Q139 181 146 183 M173 170 Q161 181 154 183 M132 205 Q141 213 150 214 Q159 213 168 205 M127 242 Q136 232 150 239 Q164 232 173 242 M129 249 Q139 263 150 264 Q161 263 171 249 M134 338 Q141 333 146 337 M166 338 Q159 333 154 337 M135 386 Q141 379 146 383 M165 386 Q159 379 154 383"/>
-        <path class="anatomy-glute-line" d="M150 238 Q137 239 127 252 M150 238 Q163 239 173 252"/>
+        <ellipse class="anatomy-head" cx="150" cy="42" rx="23" ry="26"/>
+        <path class="anatomy-neck" d="M139 66 Q143 80 141 91 Q150 98 159 91 Q157 80 161 66 Q150 71 139 66 Z"/>
+        <path class="anatomy-torso" d="M128 85 Q117 89 109 99 Q102 113 104 129 Q108 149 115 168 Q120 184 124 203 Q127 221 132 232 Q140 243 150 246 Q160 243 168 232 Q173 221 176 203 Q180 184 185 168 Q192 149 196 129 Q198 113 191 99 Q183 89 172 85 Q161 92 150 94 Q139 92 128 85 Z"/>
+        <path class="anatomy-arm-surface" d="M111 99 Q99 111 94 133 Q90 154 84 174 Q79 193 73 210 Q68 223 72 232 Q76 239 85 237 Q93 235 96 226 Q100 214 103 201 Q107 184 112 168 Q118 150 121 132 Q123 112 111 99 Z"/>
+        <path class="anatomy-arm-surface" d="M189 99 Q201 111 206 133 Q210 154 216 174 Q221 193 227 210 Q232 223 228 232 Q224 239 215 237 Q207 235 204 226 Q200 214 197 201 Q193 184 188 168 Q182 150 179 132 Q177 112 189 99 Z"/>
+        <path class="anatomy-pelvis" d="M129 225 Q136 232 150 234 Q164 232 171 225 Q179 237 177 250 Q166 268 150 270 Q134 268 123 250 Q121 237 129 225 Z"/>
+        <path class="anatomy-leg-surface" d="M131 252 Q127 276 127 305 Q128 331 129 355 Q130 381 127 437 Q129 448 139 448 Q149 448 150 437 Q151 391 151 355 Q151 331 147 304 Q145 278 145 254 Q138 251 131 252 Z"/>
+        <path class="anatomy-leg-surface" d="M169 252 Q173 276 173 305 Q172 331 171 355 Q170 381 173 437 Q171 448 161 448 Q151 448 150 437 Q149 391 149 355 Q149 331 153 304 Q155 278 155 254 Q162 251 169 252 Z"/>
+        <path class="anatomy-foot" d="M124 438 Q133 433 143 438 Q146 444 142 449 Q131 452 121 448 Q119 442 124 438 Z"/>
+        <path class="anatomy-foot" d="M176 438 Q167 433 157 438 Q154 444 158 449 Q169 452 179 448 Q181 442 176 438 Z"/>
+        <path class="anatomy-back-lines" d="M150 98 L150 220 M129 102 Q140 113 150 118 Q160 113 171 102 M122 119 Q131 137 144 145 M178 119 Q169 137 156 145 M126 145 Q136 158 146 163 M174 145 Q164 158 154 163 M130 173 Q140 181 147 186 M170 173 Q160 181 153 186 M132 200 Q142 209 150 209 Q158 209 168 200 M128 228 Q138 239 150 240 Q162 239 172 228 M127 244 Q136 255 150 257 Q164 255 173 244 M136 341 Q142 335 146 338 M164 341 Q158 335 154 338 M136 387 Q142 380 146 383 M164 387 Q158 380 154 383"/>
+        <path class="anatomy-glute-line" d="M150 234 Q138 240 130 252 M150 234 Q162 240 170 252"/>
       </g>`;
     return `<svg class="anatomy-figure" viewBox="0 0 300 470" role="img" aria-label="Modelo anatômico ${back?'posterior':'frontal'} com destaque em ${escapeHTML(item.label)}">
-      <defs><linearGradient id="anatomyBody" x1="0" x2="1"><stop offset="0" stop-color="#464950"/><stop offset=".48" stop-color="#74777d"/><stop offset="1" stop-color="#40434a"/></linearGradient><filter id="anatomyGlow"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <defs><linearGradient id="anatomyBody" x1="0" x2="1"><stop offset="0" stop-color="#494c53"/><stop offset=".5" stop-color="#858993"/><stop offset="1" stop-color="#43464d"/></linearGradient><linearGradient id="anatomyShade" x1="0" x2="1"><stop offset="0" stop-color="rgba(255,255,255,.10)"/><stop offset=".5" stop-color="rgba(255,255,255,.02)"/><stop offset="1" stop-color="rgba(0,0,0,.14)"/></linearGradient><filter id="anatomyGlow"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
       ${back?backBody:frontBody}${marker}
       <g class="anatomy-side-labels"><g transform="translate(31 75)"><rect x="-11" y="-12" width="22" height="22" rx="8"/><text x="0" y="4" text-anchor="middle">${back?'E':'D'}</text></g><g transform="translate(269 75)"><rect x="-11" y="-12" width="22" height="22" rx="8"/><text x="0" y="4" text-anchor="middle">${back?'D':'E'}</text></g></g>
       <text class="anatomy-view-caption" x="150" y="463" text-anchor="middle">${back?'VISTA POSTERIOR':'VISTA FRONTAL'}</text>
@@ -2044,7 +2038,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Polimento Anatômico Premium</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Boneco Anatômico Realista Premium</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
