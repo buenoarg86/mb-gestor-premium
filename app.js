@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.7.9 — Capacity Guard Reliability Hotfix
+// MB Gestor Luxury Pro V9.8.1 — Avaliação Física + Evolução
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.7.9 — Capacity Guard Reliability Hotfix
+  // MB Gestor Luxury Pro V9.8.1 — Avaliação Física + Evolução
 
-  const APP_VERSION = '9.7.9';
+  const APP_VERSION = '9.8.1';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -23,6 +23,7 @@
     prospects: [],
     trials: [],
     monthClosures: [],
+    physicalAssessments: [],
     auditLog: [],
     trash: [],
     settings: {
@@ -43,6 +44,7 @@
   const NAV = [
     {id:'dashboard', label:'Início', icon:'home', title:'Visão geral'},
     {id:'students', label:'Alunos', icon:'users', title:'Alunos'},
+    {id:'assessments', label:'Avaliação', icon:'chart', title:'Avaliação física'},
     {id:'finance', label:'Financeiro', icon:'wallet', title:'Financeiro'},
     {id:'charges', label:'Cobranças', icon:'bell', title:'Mensalidades e pendências'},
     {id:'reminders', label:'Lembretes', icon:'message', title:'Lembretes e WhatsApp'},
@@ -99,6 +101,7 @@
         prospects: Array.isArray(parsed.prospects) ? parsed.prospects : [],
         trials: Array.isArray(parsed.trials) ? parsed.trials : [],
         monthClosures: Array.isArray(parsed.monthClosures) ? parsed.monthClosures : [],
+        physicalAssessments: Array.isArray(parsed.physicalAssessments) ? parsed.physicalAssessments : [],
         auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
         trash: Array.isArray(parsed.trash) ? parsed.trash : [],
         settings: {...DEFAULT_STATE.settings, ...(parsed.settings || {})}
@@ -532,7 +535,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   const MOBILE_NAV_IDS=['dashboard','schedule','students','finance'];
-  const MORE_NAV_IDS=['charges','reminders','consent','settings'];
+  const MORE_NAV_IDS=['assessments','charges','reminders','consent','settings'];
 
   function renderNav() {
     const desktop = $('#desktopNav');
@@ -591,6 +594,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const renderer = {
       dashboard: renderDashboard,
       students: renderStudents,
+      assessments: renderAssessments,
       finance: renderFinance,
       charges: renderCharges,
       reminders: renderReminders,
@@ -782,6 +786,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':pause?'Pausado':'Aluno ativo'}</span></div></div></section>
       <section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section>
       <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(formatPhoneBR(s.whatsapp))}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div><div class="profile-detail-wide"><span>Horários fixos sincronizados com a Agenda</span><strong>${escapeHTML(fixedText)}</strong></div></div>${pause?`<div class="student-pause-banner"><strong>⏸ Aluno em pausa</strong><span>${fmtDate(pause.startDate)} a ${fmtDate(pause.endDate)} • ${escapeHTML(pause.reason)}</span><button type="button" class="btn btn-secondary btn-small" id="historyResume">Retomar treinos</button></div>`:''}${planned.length?`<div class="planned-absence-strip"><strong>Ausências programadas</strong><span>${planned.slice(0,3).map(a=>`${fmtDate(a.date)}${a.reason?` • ${escapeHTML(a.reason)}`:''}`).join(' &nbsp; | &nbsp; ')}</span></div>`:''}${s.privateNotes?`<div class="private-notes-card"><span class="section-overline">PRIVADO</span><strong>Observações internas</strong><p>${escapeHTML(s.privateNotes)}</p></div>`:''}
+      ${assessmentProfileCardHTML(s)}
       <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyAbsence">${icon('calendar')} Programar ausência</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
       <div class="section-head compact-head"><div><h3>Evolução • 6 meses</h3><p>Treinos realizados por mês</p></div></div><div class="student-trend">${trend.map(x=>`<div class="student-trend-col"><div class="student-trend-bar"><span style="height:${Math.max(5,Math.round(x.present/maxTrend*100))}%"></span></div><strong>${x.present}</strong><small>${escapeHTML(x.label)}</small></div>`).join('')}</div>
       <div class="section-head compact-head"><div><h3>Pagamentos</h3><p>Últimos registros deste aluno</p></div></div><div class="history-list payment-history-list">${payments.length?payments.map(p=>`<div class="history-row"><div><strong>${fmtDate(p.date)}</strong><span>${escapeHTML((p.method||s.paymentMethod||'pix').toUpperCase())}</span></div><strong class="money-positive">${privateMoney(p.amount)}</strong></div>`).join(''):emptyState('Sem pagamentos','Nenhum pagamento individual registrado para este aluno.')}</div>
@@ -791,6 +796,225 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#historyAbsence')?.addEventListener('click',()=>{closeModal();openPlannedAbsenceModal(id)});
     $('#historyResume')?.addEventListener('click',()=>{openModal('Encerrar pausa agora',`<div class="notice">Deseja retomar os treinos de <strong>${escapeHTML(s.name)}</strong> agora? A data original de início no Studio será preservada.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmResumeStudent">Retomar treinos</button></div>`);$('#confirmResumeStudent').addEventListener('click',()=>{s.pauseStart='';s.pauseEnd='';s.pauseReason='';addAudit('Pausa encerrada',s.name);saveState();closeModal();render();toast('Treinos retomados.');});});
     $('#historyEdit')?.addEventListener('click',()=>{closeModal();openStudentModal(id)});
+    $('#historyAssessmentNew')?.addEventListener('click',()=>{closeModal();openAssessmentModal(id)});
+    $('#historyAssessmentHistory')?.addEventListener('click',()=>{closeModal();openAssessmentHistory(id)});
+    $('#historyAssessmentEvolution')?.addEventListener('click',()=>{closeModal();openAssessmentEvolution(id)});
+  }
+
+  // === V9.8.1 • Avaliação Física + Evolução ================================
+  // A avaliação permanece opcional e independente das rotinas operacionais.
+  // Objetivo e estágio são definidos pelo profissional. Tendências mostram variação numérica,
+  // nunca uma interpretação automática de "bom" ou "ruim".
+  const ASSESSMENT_OBJECTIVES=[
+    ['', 'Não definido'],
+    ['health','Saúde e qualidade de vida'],
+    ['conditioning','Condicionamento físico'],
+    ['strength','Força e hipertrofia'],
+    ['recomposition','Recomposição corporal'],
+    ['mobility','Mobilidade e funcionalidade'],
+    ['performance','Desempenho esportivo'],
+    ['maintenance','Manutenção'],
+    ['other','Outro']
+  ];
+  const ASSESSMENT_STAGES=[
+    ['', 'Não definido'],
+    ['initial','Avaliação inicial'],
+    ['adaptation','Adaptação'],
+    ['evolution','Em evolução'],
+    ['consolidation','Consolidação'],
+    ['maintenance','Manutenção'],
+    ['reassessment','Reavaliação necessária']
+  ];
+  const ASSESSMENT_EVOLUTION_METRICS=[
+    {key:'weight',label:'Peso',unit:'kg',digits:1},
+    {key:'bmi',label:'IMC',unit:'kg/m²',digits:1},
+    {key:'ircq',label:'IRCQ',unit:'',digits:2},
+    {key:'neck',label:'Pescoço',unit:'cm',digits:1},
+    {key:'chest',label:'Peitoral',unit:'cm',digits:1},
+    {key:'waist',label:'Cintura',unit:'cm',digits:1},
+    {key:'abdomen',label:'Abdômen',unit:'cm',digits:1},
+    {key:'hip',label:'Quadril',unit:'cm',digits:1},
+    {key:'bicepsRelaxedR',label:'Bíceps relaxado • D',unit:'cm',digits:1},
+    {key:'bicepsRelaxedL',label:'Bíceps relaxado • E',unit:'cm',digits:1},
+    {key:'bicepsContractedR',label:'Bíceps contraído • D',unit:'cm',digits:1},
+    {key:'bicepsContractedL',label:'Bíceps contraído • E',unit:'cm',digits:1},
+    {key:'wristR',label:'Punho • D',unit:'cm',digits:1},
+    {key:'wristL',label:'Punho • E',unit:'cm',digits:1},
+    {key:'thighProximalR',label:'Coxa proximal • D',unit:'cm',digits:1},
+    {key:'thighProximalL',label:'Coxa proximal • E',unit:'cm',digits:1},
+    {key:'thighMedialR',label:'Coxa medial • D',unit:'cm',digits:1},
+    {key:'thighMedialL',label:'Coxa medial • E',unit:'cm',digits:1},
+    {key:'thighDistalR',label:'Coxa distal • D',unit:'cm',digits:1},
+    {key:'thighDistalL',label:'Coxa distal • E',unit:'cm',digits:1},
+    {key:'calfR',label:'Panturrilha • D',unit:'cm',digits:1},
+    {key:'calfL',label:'Panturrilha • E',unit:'cm',digits:1}
+  ];
+  function assessmentNumber(value,digits=1){
+    const n=Number(value);if(!Number.isFinite(n))return '—';
+    return new Intl.NumberFormat('pt-BR',{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(n);
+  }
+  function parseAssessmentNumber(value){
+    const raw=String(value??'').trim().replace(',','.');if(!raw)return null;
+    const n=Number(raw);return Number.isFinite(n)&&n>0?n:null;
+  }
+  function ageOnDate(birthDate,referenceDate){
+    const birth=parseLocalDate(birthDate),ref=parseLocalDate(referenceDate)||todayNoon();if(!birth)return null;
+    let age=ref.getFullYear()-birth.getFullYear();const m=ref.getMonth()-birth.getMonth();
+    if(m<0||(m===0&&ref.getDate()<birth.getDate()))age--;return Math.max(0,age);
+  }
+  function assessmentsForStudent(studentId){
+    return (state.physicalAssessments||[]).filter(a=>String(a.studentId)===String(studentId)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  }
+  function latestAssessment(studentId){return assessmentsForStudent(studentId)[0]||null}
+  function assessmentBMI(a){
+    const kg=Number(a?.weight),cm=Number(a?.heightCm);if(!(kg>0&&cm>0))return null;
+    const m=cm/100;return kg/(m*m);
+  }
+  function assessmentIRCQ(a){
+    const waist=Number(a?.measurements?.waist),hip=Number(a?.measurements?.hip);return waist>0&&hip>0?waist/hip:null;
+  }
+  function bmiClassification(a,student){
+    const bmi=assessmentBMI(a),age=ageOnDate(student?.birthDate,a?.date);if(bmi==null)return {label:'Sem cálculo',tone:'neutral',note:'Informe peso e altura.'};
+    if(age==null)return {label:'Sem classificação',tone:'neutral',note:'Data de nascimento necessária.'};
+    if(age<20)return {label:'Avaliar por idade/sexo',tone:'neutral',note:'A escala adulta não é aplicada antes dos 20 anos.'};
+    if(bmi<18.5)return {label:'Baixo peso',tone:'warn',note:'Referência adulta OMS.'};
+    if(bmi<25)return {label:'Faixa adequada',tone:'ok',note:'Referência adulta OMS.'};
+    if(bmi<30)return {label:'Sobrepeso',tone:'warn',note:'Referência adulta OMS.'};
+    if(bmi<35)return {label:'Obesidade I',tone:'danger',note:'Referência adulta OMS.'};
+    if(bmi<40)return {label:'Obesidade II',tone:'danger',note:'Referência adulta OMS.'};
+    return {label:'Obesidade III',tone:'danger',note:'Referência adulta OMS.'};
+  }
+  function ircqClassification(a,student){
+    const ratio=assessmentIRCQ(a),age=ageOnDate(student?.birthDate,a?.date);if(ratio==null)return {label:'Sem cálculo',tone:'neutral',note:'Informe cintura e quadril.'};
+    if(age==null||age<20)return {label:'Sem escala adulta',tone:'neutral',note:'Classificação automática somente para adultos.'};
+    const sex=String(a?.referenceSex||'');if(!['male','female'].includes(sex))return {label:'Sem classificação',tone:'neutral',note:'Selecione o sexo de referência para aplicar o ponto de corte.'};
+    const cutoff=sex==='male'?0.90:0.85;
+    return ratio>=cutoff?{label:'Acima da referência',tone:'danger',note:`Ponto de corte: ${assessmentNumber(cutoff,2)}.`}:{label:'Dentro da referência',tone:'ok',note:`Ponto de corte: ${assessmentNumber(cutoff,2)}.`};
+  }
+  function assessmentStatusPill(result){return `<span class="status ${result.tone}">${escapeHTML(result.label)}</span>`}
+  function assessmentMetric(value,label,detail='',tone=''){
+    return `<article class="assessment-result ${tone}"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong>${detail?`<small>${escapeHTML(detail)}</small>`:''}</article>`;
+  }
+  function assessmentOptionLabel(options,value){return options.find(([key])=>key===String(value||''))?.[1]||'Não definido'}
+  function assessmentSelectOptions(options,value){return options.map(([key,label])=>`<option value="${escapeHTML(key)}" ${String(value||'')===key?'selected':''}>${escapeHTML(label)}</option>`).join('')}
+  function assessmentContextChips(a){
+    const objective=assessmentOptionLabel(ASSESSMENT_OBJECTIVES,a?.objective),stage=assessmentOptionLabel(ASSESSMENT_STAGES,a?.stage);
+    return `<div class="assessment-context-chips"><span><b>Objetivo</b>${escapeHTML(objective)}</span><span><b>Estágio</b>${escapeHTML(stage)}</span></div>`;
+  }
+  function assessmentMetricConfig(key){return ASSESSMENT_EVOLUTION_METRICS.find(m=>m.key===key)||ASSESSMENT_EVOLUTION_METRICS[0]}
+  function assessmentValue(a,key){
+    if(!a)return null;
+    if(key==='weight')return Number(a.weight)>0?Number(a.weight):null;
+    if(key==='bmi')return assessmentBMI(a);
+    if(key==='ircq')return assessmentIRCQ(a);
+    const n=Number(a.measurements?.[key]);return n>0?n:null;
+  }
+  function assessmentSeries(studentId,key){
+    return assessmentsForStudent(studentId).slice().reverse().map(a=>({date:a.date,value:assessmentValue(a,key),assessment:a})).filter(p=>Number.isFinite(p.value));
+  }
+  function assessmentShortDate(date){
+    const d=parseLocalDate(date);return d?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit'}).format(d):'—';
+  }
+  function assessmentDelta(current,base,digits=1,unit=''){
+    const valid=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));if(!valid(current)||!valid(base))return {text:'Sem comparação',dir:'flat',raw:null};
+    const c=Number(current),b=Number(base);
+    const diff=c-b,eps=Math.pow(10,-digits)/2;if(Math.abs(diff)<eps)return {text:`→ 0${unit?` ${unit}`:''}`,dir:'flat',raw:0};
+    return {text:`${diff>0?'↑':'↓'} ${assessmentNumber(Math.abs(diff),digits)}${unit?` ${unit}`:''}`,dir:diff>0?'up':'down',raw:diff};
+  }
+  function assessmentTrendCard(label,current,base,unit='',digits=1,caption='vs. anterior'){
+    const d=assessmentDelta(current,base,digits,unit),valid=current!==null&&current!==undefined&&current!==''&&Number.isFinite(Number(current)),value=valid?`${assessmentNumber(current,digits)}${unit?` ${unit}`:''}`:'—';
+    return `<article class="assessment-trend-card"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong><small class="${d.dir}">${escapeHTML(d.text)} <i>${escapeHTML(caption)}</i></small></article>`;
+  }
+  function assessmentLineChart(series,config){
+    if(series.length<2)return `<div class="assessment-chart-empty"><strong>Dados insuficientes para o gráfico</strong><span>São necessários pelo menos dois registros deste indicador.</span></div>`;
+    const width=680,height=270,padL=54,padR=22,padT=24,padB=48,vals=series.map(p=>p.value),rawMin=Math.min(...vals),rawMax=Math.max(...vals),spread=Math.max(rawMax-rawMin,Math.max(Math.abs(rawMax),1)*.06),min=rawMin-spread*.22,max=rawMax+spread*.22,range=Math.max(max-min,1e-9),innerW=width-padL-padR,innerH=height-padT-padB;
+    const x=i=>padL+(series.length===1?innerW/2:(i/(series.length-1))*innerW),y=v=>padT+((max-v)/range)*innerH,points=series.map((p,i)=>`${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+    const ticks=4,grid=Array.from({length:ticks},(_,i)=>{const ratio=i/(ticks-1),yy=padT+ratio*innerH,val=max-ratio*range;return `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${width-padR}" y2="${yy.toFixed(1)}" class="assessment-chart-grid"/><text x="${padL-9}" y="${(yy+4).toFixed(1)}" text-anchor="end" class="assessment-chart-ylabel">${escapeHTML(assessmentNumber(val,config.digits))}</text>`}).join('');
+    const every=Math.max(1,Math.ceil(series.length/5)),labels=series.map((p,i)=>((i%every===0||i===series.length-1)?`<text x="${x(i).toFixed(1)}" y="${height-15}" text-anchor="middle" class="assessment-chart-xlabel">${escapeHTML(assessmentShortDate(p.date))}</text>`:'')).join('');
+    const dots=series.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="4" class="assessment-chart-dot"><title>${escapeHTML(fmtDate(p.date))}: ${escapeHTML(assessmentNumber(p.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</title></circle>`).join('');
+    return `<div class="assessment-chart-scroll"><svg class="assessment-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolução de ${escapeHTML(config.label)}">${grid}<polyline points="${points}" class="assessment-chart-line"/>${dots}${labels}</svg></div>`;
+  }
+  function assessmentEvolutionTable(series,config){
+    return `<div class="assessment-evolution-table">${series.slice().reverse().map((p,i)=>{const prev=series[series.length-2-i]?.value,d=assessmentDelta(p.value,prev,config.digits,config.unit);return `<div><span>${escapeHTML(fmtDate(p.date))}</span><strong>${escapeHTML(assessmentNumber(p.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</strong><small class="${d.dir}">${i===series.length-1?'Primeiro registro':escapeHTML(d.text)}</small></div>`}).join('')}</div>`;
+  }
+  function assessmentProfileCardHTML(student){
+    const rows=assessmentsForStudent(student.id),a=rows[0];
+    if(!a)return `<section class="profile-assessment-card empty-assessment"><div class="profile-assessment-head"><div><span class="section-overline">AVALIAÇÃO FÍSICA</span><strong>Ainda sem avaliação</strong><p>Opcional. O cadastro e todas as demais funções continuam normalmente.</p></div><span class="assessment-emblem">${icon('chart')}</span></div><button class="btn btn-secondary btn-small" id="historyAssessmentNew">${icon('plus')} Criar primeira avaliação</button></section>`;
+    const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),bc=bmiClassification(a,student),rc=ircqClassification(a,student);
+    return `<section class="profile-assessment-card"><div class="profile-assessment-head"><div><span class="section-overline">AVALIAÇÃO FÍSICA</span><strong>Última avaliação • ${fmtDate(a.date)}</strong><p>${rows.length} ${rows.length===1?'registro':'registros'} no histórico.</p></div><span class="assessment-emblem">${icon('chart')}</span></div>${assessmentContextChips(a)}<div class="assessment-profile-metrics">${assessmentMetric(bmi==null?'—':assessmentNumber(bmi,1),'IMC',bc.label,bc.tone)}${assessmentMetric(ircq==null?'—':assessmentNumber(ircq,2),'IRCQ',rc.label,rc.tone)}${assessmentMetric(a.weight?`${assessmentNumber(a.weight,1)} kg`:'—','Peso')}${assessmentMetric(a.measurements?.waist?`${assessmentNumber(a.measurements.waist,1)} cm`:'—','Cintura')}</div><div class="profile-assessment-actions"><button class="btn btn-primary btn-small" id="historyAssessmentNew">${icon('plus')} Nova avaliação</button><button class="btn btn-secondary btn-small" id="historyAssessmentHistory">Histórico</button>${rows.length>1?`<button class="btn btn-secondary btn-small" id="historyAssessmentEvolution">${icon('chart')} Evolução</button>`:''}</div></section>`;
+  }
+  function renderAssessments(){
+    const students=[...state.students].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    const withAssessment=students.filter(s=>latestAssessment(s.id)).length,total=(state.physicalAssessments||[]).filter(a=>students.some(s=>String(s.id)===String(a.studentId))).length,withEvolution=students.filter(s=>assessmentsForStudent(s.id).length>1).length;
+    viewEl.innerHTML=`<section class="assessment-hero"><div><span class="section-overline">AVALIAÇÃO FÍSICA</span><h2>Perímetros & evolução</h2><p>Avaliação opcional, histórico comparável e leitura visual da evolução — sem interferir nas demais áreas do app.</p></div><span class="assessment-hero-icon">${icon('chart')}</span></section>
+      <section class="metrics assessment-top-metrics">${metricCard('users',students.length,'Alunos cadastrados')}${metricCard('check',withAssessment,'Com avaliação','good')}${metricCard('chart',total,'Avaliações salvas')}${metricCard('chart',withEvolution,'Com evolução')}</section>
+      <div class="assessment-guidance"><strong>Base antropométrica responsável</strong><span>IMC = peso ÷ altura² • IRCQ = cintura ÷ quadril. Os gráficos mostram tendência numérica; objetivo e estágio são definidos pelo profissional. Os indicadores são de triagem, não diagnóstico clínico.</span></div>
+      <div class="section-head"><div><h3>Alunos</h3><p>Selecione um aluno para avaliar, consultar histórico ou acompanhar evolução.</p></div></div>
+      <div class="search-wrap">${icon('search')}<input id="assessmentSearch" placeholder="Buscar aluno por nome" autocomplete="off" /></div>
+      <div class="tabs assessment-tabs"><button class="tab active" data-assessment-filter="all">Todos</button><button class="tab" data-assessment-filter="done">Avaliados</button><button class="tab" data-assessment-filter="evolution">Com evolução</button><button class="tab" data-assessment-filter="pending">Sem avaliação</button></div>
+      <section id="assessmentStudentList" class="cards assessment-student-list"></section>`;
+    let filter='all';
+    const draw=()=>{const q=String($('#assessmentSearch')?.value||'').trim().toLocaleLowerCase('pt-BR');const list=students.filter(s=>{const rows=assessmentsForStudent(s.id),has=Boolean(rows.length);if(filter==='done'&&!has)return false;if(filter==='evolution'&&rows.length<2)return false;if(filter==='pending'&&has)return false;return !q||String(s.name||'').toLocaleLowerCase('pt-BR').includes(q)});$('#assessmentStudentList').innerHTML=list.length?list.map(s=>{const rows=assessmentsForStudent(s.id),a=rows[0],bmi=a?assessmentBMI(a):null,ircq=a?assessmentIRCQ(a):null,bc=a?bmiClassification(a,s):null,rc=a?ircqClassification(a,s):null;return `<article class="card assessment-student-card"><div class="assessment-student-main"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(s.name)}</strong><span>${a?`Última avaliação: ${fmtDate(a.date)} • ${rows.length} ${rows.length===1?'registro':'registros'}`:'Nenhuma avaliação registrada'}${s.active===false?' • aluno inativo':''}</span>${a?`${assessmentContextChips(a)}<div class="assessment-inline-status"><span>IMC <b>${bmi==null?'—':assessmentNumber(bmi,1)}</b> ${assessmentStatusPill(bc)}</span><span>IRCQ <b>${ircq==null?'—':assessmentNumber(ircq,2)}</b> ${assessmentStatusPill(rc)}</span></div>`:''}</div></div><div class="assessment-student-actions"><button class="btn ${a?'btn-secondary':'btn-primary'} btn-small js-assessment-new" data-id="${s.id}">${icon('plus')} ${a?'Nova':'Avaliar'}</button>${a?`<button class="btn btn-secondary btn-small js-assessment-history" data-id="${s.id}">Histórico</button>`:''}${rows.length>1?`<button class="btn btn-secondary btn-small js-assessment-evolution" data-id="${s.id}">${icon('chart')} Evolução</button>`:''}</div></article>`}).join(''):emptyState('Nenhum aluno neste filtro','Ajuste a busca ou escolha outro filtro.');$$('.js-assessment-new',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentModal(b.dataset.id)));$$('.js-assessment-history',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentHistory(b.dataset.id)));$$('.js-assessment-evolution',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentEvolution(b.dataset.id)));};
+    $('#assessmentSearch')?.addEventListener('input',draw);$$('[data-assessment-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.assessmentFilter;$$('[data-assessment-filter]',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw()}));draw();
+  }
+  function assessmentInput(name,label,value='',required=false){return `<div class="field"><label>${escapeHTML(label)}</label><div class="assessment-input-wrap"><input name="${name}" type="number" inputmode="decimal" min="1" max="300" step="0.1" ${required?'required':''} value="${value??''}" placeholder="0,0" /><span>cm</span></div></div>`}
+  function assessmentPair(title,rightName,leftName,rightValue='',leftValue=''){
+    return `<div class="assessment-pair"><div class="assessment-pair-title"><strong>${escapeHTML(title)}</strong><span>Direito / Esquerdo</span></div><div class="assessment-pair-grid">${assessmentInput(rightName,'Direito',rightValue)}${assessmentInput(leftName,'Esquerdo',leftValue)}</div></div>`;
+  }
+  function openAssessmentModal(studentId,assessmentId=null){
+    const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;
+    const existing=assessmentId?(state.physicalAssessments||[]).find(a=>String(a.id)===String(assessmentId)):null,last=latestAssessment(studentId),m=existing?.measurements||{};
+    const defaultSex=existing?.referenceSex||last?.referenceSex||'',defaultObjective=existing?.objective??last?.objective??'',defaultStage=existing?.stage??last?.stage??(last?'':'initial');
+    openModal(`${existing?'Editar':'Nova'} avaliação • ${student.name}`,`<form id="physicalAssessmentForm" class="assessment-form"><div class="assessment-form-intro"><div class="student-photo tiny-photo">${student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(student.name)}</strong><span>${ageFromBirth(student.birthDate)??'—'} anos • avaliação opcional</span></div></div><div class="notice">Preencha os dados disponíveis. Peso, altura, cintura e quadril sustentam os resultados automáticos. Objetivo e estágio são contextos profissionais e não alteram os cálculos.</div>
+      <section class="assessment-form-section"><div class="assessment-form-section-head"><span>01</span><div><strong>Dados da avaliação</strong><small>Contexto e indicadores</small></div></div><div class="form-grid two"><div class="field"><label>Data da avaliação *</label><input name="date" type="date" required value="${escapeHTML(existing?.date||isoToday())}" /></div><div class="field"><label>Sexo de referência para IRCQ</label><select name="referenceSex"><option value="" ${!defaultSex?'selected':''}>Não informar</option><option value="male" ${defaultSex==='male'?'selected':''}>Masculino</option><option value="female" ${defaultSex==='female'?'selected':''}>Feminino</option></select><small>Usado apenas para aplicar o ponto de corte adulto do IRCQ.</small></div><div class="field"><label>Objetivo atual</label><select name="objective">${assessmentSelectOptions(ASSESSMENT_OBJECTIVES,defaultObjective)}</select></div><div class="field"><label>Estágio atual</label><select name="stage">${assessmentSelectOptions(ASSESSMENT_STAGES,defaultStage)}</select><small>Definido pelo profissional; o app não classifica automaticamente.</small></div><div class="field"><label>Peso *</label><div class="assessment-input-wrap"><input name="weight" type="number" inputmode="decimal" min="10" max="400" step="0.1" required value="${existing?.weight??''}" placeholder="0,0" /><span>kg</span></div></div><div class="field"><label>Altura *</label><div class="assessment-input-wrap"><input name="heightCm" type="number" inputmode="decimal" min="80" max="250" step="0.1" required value="${existing?.heightCm??last?.heightCm??''}" placeholder="0,0" /><span>cm</span></div></div></div><div id="assessmentLiveResults" class="assessment-live-results"></div></section>
+      <section class="assessment-form-section"><div class="assessment-form-section-head"><span>02</span><div><strong>Tronco</strong><small>Perímetros em centímetros</small></div></div><div class="form-grid two">${assessmentInput('neck','Pescoço',m.neck)}${assessmentInput('chest','Peitoral',m.chest)}${assessmentInput('waist','Cintura *',m.waist,true)}${assessmentInput('abdomen','Abdômen',m.abdomen)}${assessmentInput('hip','Quadril *',m.hip,true)}</div></section>
+      <section class="assessment-form-section"><div class="assessment-form-section-head"><span>03</span><div><strong>Membros superiores</strong><small>Direito e esquerdo</small></div></div>${assessmentPair('Bíceps relaxado','bicepsRelaxedR','bicepsRelaxedL',m.bicepsRelaxedR,m.bicepsRelaxedL)}${assessmentPair('Bíceps contraído','bicepsContractedR','bicepsContractedL',m.bicepsContractedR,m.bicepsContractedL)}${assessmentPair('Punho','wristR','wristL',m.wristR,m.wristL)}</section>
+      <section class="assessment-form-section"><div class="assessment-form-section-head"><span>04</span><div><strong>Membros inferiores</strong><small>Direito e esquerdo</small></div></div>${assessmentPair('Coxa proximal','thighProximalR','thighProximalL',m.thighProximalR,m.thighProximalL)}${assessmentPair('Coxa medial','thighMedialR','thighMedialL',m.thighMedialR,m.thighMedialL)}${assessmentPair('Coxa distal','thighDistalR','thighDistalL',m.thighDistalR,m.thighDistalL)}${assessmentPair('Panturrilha','calfR','calfL',m.calfR,m.calfL)}</section>
+      <section class="assessment-form-section"><div class="field"><label>Observações da avaliação</label><textarea name="notes" rows="3" placeholder="Ex.: condições da avaliação, observações posturais ou contexto relevante">${escapeHTML(existing?.notes||'')}</textarea></div></section><div class="modal-actions assessment-save-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar avaliação'}</button></div></form>`);
+    const form=$('#physicalAssessmentForm');
+    const preview=()=>{const fd=new FormData(form),draft={date:String(fd.get('date')||isoToday()),referenceSex:String(fd.get('referenceSex')||''),weight:parseAssessmentNumber(fd.get('weight')),heightCm:parseAssessmentNumber(fd.get('heightCm')),measurements:{waist:parseAssessmentNumber(fd.get('waist')),hip:parseAssessmentNumber(fd.get('hip'))}},bmi=assessmentBMI(draft),ircq=assessmentIRCQ(draft),bc=bmiClassification(draft,student),rc=ircqClassification(draft,student);$('#assessmentLiveResults').innerHTML=`${assessmentMetric(bmi==null?'—':assessmentNumber(bmi,1),'IMC',bc.label,bc.tone)}${assessmentMetric(ircq==null?'—':assessmentNumber(ircq,2),'IRCQ',rc.label,rc.tone)}`;};
+    ['weight','heightCm','waist','hip','date','referenceSex'].forEach(name=>form.elements[name]?.addEventListener('input',preview));preview();
+    form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form);const num=n=>parseAssessmentNumber(fd.get(n));const record={id:existing?.id||uid('assess'),studentId:student.id,date:String(fd.get('date')),referenceSex:String(fd.get('referenceSex')||''),objective:String(fd.get('objective')||''),stage:String(fd.get('stage')||''),weight:num('weight'),heightCm:num('heightCm'),measurements:{neck:num('neck'),chest:num('chest'),waist:num('waist'),abdomen:num('abdomen'),hip:num('hip'),bicepsRelaxedR:num('bicepsRelaxedR'),bicepsRelaxedL:num('bicepsRelaxedL'),bicepsContractedR:num('bicepsContractedR'),bicepsContractedL:num('bicepsContractedL'),wristR:num('wristR'),wristL:num('wristL'),thighProximalR:num('thighProximalR'),thighProximalL:num('thighProximalL'),thighMedialR:num('thighMedialR'),thighMedialL:num('thighMedialL'),thighDistalR:num('thighDistalR'),thighDistalL:num('thighDistalL'),calfR:num('calfR'),calfL:num('calfL')},notes:String(fd.get('notes')||'').trim(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+      if(!(record.weight>0&&record.heightCm>0&&record.measurements.waist>0&&record.measurements.hip>0))return toast('Informe peso, altura, cintura e quadril para salvar a avaliação.');
+      state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();closeModal();render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');});
+  }
+  function assessmentMeasurementsHTML(a){
+    const m=a.measurements||{},single=[['Pescoço',m.neck],['Peitoral',m.chest],['Cintura',m.waist],['Abdômen',m.abdomen],['Quadril',m.hip]],pairs=[['Bíceps relaxado',m.bicepsRelaxedR,m.bicepsRelaxedL],['Bíceps contraído',m.bicepsContractedR,m.bicepsContractedL],['Punho',m.wristR,m.wristL],['Coxa proximal',m.thighProximalR,m.thighProximalL],['Coxa medial',m.thighMedialR,m.thighMedialL],['Coxa distal',m.thighDistalR,m.thighDistalL],['Panturrilha',m.calfR,m.calfL]];
+    return `<div class="assessment-detail-grid">${single.map(([l,v])=>`<div><span>${escapeHTML(l)}</span><strong>${v?`${assessmentNumber(v,1)} cm`:'—'}</strong></div>`).join('')}</div><div class="assessment-bilateral-table"><div class="assessment-bilateral-head"><span>Perímetro</span><span>Direito</span><span>Esquerdo</span></div>${pairs.map(([l,r,left])=>`<div><strong>${escapeHTML(l)}</strong><span>${r?`${assessmentNumber(r,1)} cm`:'—'}</span><span>${left?`${assessmentNumber(left,1)} cm`:'—'}</span></div>`).join('')}</div>`;
+  }
+  function openAssessmentHistory(studentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;const rows=assessmentsForStudent(studentId);
+    openModal(`Avaliações • ${student.name}`,`<div class="assessment-history-head"><div><span class="section-overline">HISTÓRICO</span><strong>${rows.length} ${rows.length===1?'avaliação':'avaliações'} registrada${rows.length===1?'':'s'}</strong><p>Os registros são independentes e preservam a evolução ao longo do tempo.</p></div><div class="assessment-history-top-actions"><button class="btn btn-primary btn-small" id="historyNewAssessment">${icon('plus')} Nova avaliação</button>${rows.length>1?`<button class="btn btn-secondary btn-small" id="historyEvolutionAssessment">${icon('chart')} Evolução</button>`:''}</div></div>${rows.length?`<div class="assessment-history-list">${rows.map(a=>{const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),bc=bmiClassification(a,student),rc=ircqClassification(a,student);return `<article class="assessment-history-card"><div class="assessment-history-date"><div><strong>${fmtDate(a.date)}</strong><span>${a.weight?`${assessmentNumber(a.weight,1)} kg`:''}${a.heightCm?` • ${assessmentNumber(a.heightCm,1)} cm`:''}</span></div><span class="pill">${ageOnDate(student.birthDate,a.date)??'—'} anos</span></div>${assessmentContextChips(a)}<div class="assessment-profile-metrics">${assessmentMetric(bmi==null?'—':assessmentNumber(bmi,1),'IMC',bc.label,bc.tone)}${assessmentMetric(ircq==null?'—':assessmentNumber(ircq,2),'IRCQ',rc.label,rc.tone)}</div><div class="assessment-history-actions"><button class="btn btn-secondary btn-small js-assessment-open" data-id="${a.id}">Abrir detalhes</button><button class="mini-icon js-assessment-edit" data-id="${a.id}" title="Editar">${icon('edit')}</button><button class="mini-icon danger js-assessment-delete" data-id="${a.id}" title="Excluir">${icon('trash')}</button></div></article>`}).join('')}</div>`:emptyState('Ainda sem avaliação','Crie a primeira avaliação física deste aluno.')}`);
+    $('#historyNewAssessment')?.addEventListener('click',()=>{closeModal();openAssessmentModal(studentId)});$('#historyEvolutionAssessment')?.addEventListener('click',()=>openAssessmentEvolution(studentId));$$('.js-assessment-open',modalRoot).forEach(b=>b.addEventListener('click',()=>openAssessmentDetails(studentId,b.dataset.id)));$$('.js-assessment-edit',modalRoot).forEach(b=>b.addEventListener('click',()=>openAssessmentModal(studentId,b.dataset.id)));$$('.js-assessment-delete',modalRoot).forEach(b=>b.addEventListener('click',()=>confirmDeleteAssessment(studentId,b.dataset.id)));
+  }
+  function openAssessmentDetails(studentId,assessmentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),bc=bmiClassification(a,student),rc=ircqClassification(a,student);
+    openModal(`Avaliação • ${student.name}`,`<div class="assessment-detail-head"><div><span class="section-overline">${fmtDate(a.date)}</span><strong>Resultados antropométricos</strong><p>${a.referenceSex==='male'?'Referência IRCQ masculina':a.referenceSex==='female'?'Referência IRCQ feminina':'IRCQ sem classificação por sexo'}</p></div><button class="btn btn-secondary btn-small" id="backAssessmentHistory">Voltar</button></div>${assessmentContextChips(a)}<div class="assessment-profile-metrics detail-results">${assessmentMetric(a.weight?`${assessmentNumber(a.weight,1)} kg`:'—','Peso')}${assessmentMetric(a.heightCm?`${assessmentNumber(a.heightCm,1)} cm`:'—','Altura')}${assessmentMetric(bmi==null?'—':assessmentNumber(bmi,1),'IMC',bc.label,bc.tone)}${assessmentMetric(ircq==null?'—':assessmentNumber(ircq,2),'IRCQ',rc.label,rc.tone)}</div><div class="assessment-scale-note"><strong>Leitura das escalas</strong><span>IMC: ${escapeHTML(bc.label)}. ${escapeHTML(bc.note)}<br>IRCQ: ${escapeHTML(rc.label)}. ${escapeHTML(rc.note)}</span></div><div class="section-head compact-head"><div><h3>Perímetros</h3><p>Valores registrados em centímetros</p></div></div>${assessmentMeasurementsHTML(a)}${a.notes?`<div class="assessment-notes"><span class="section-overline">OBSERVAÇÕES</span><p>${escapeHTML(a.notes)}</p></div>`:''}<div class="assessment-detail-actions"><button class="btn btn-primary btn-small" id="editAssessmentDetail">${icon('edit')} Editar avaliação</button>${assessmentsForStudent(studentId).length>1?`<button class="btn btn-secondary btn-small" id="detailAssessmentEvolution">${icon('chart')} Ver evolução</button>`:''}</div>`);
+    $('#backAssessmentHistory')?.addEventListener('click',()=>openAssessmentHistory(studentId));$('#editAssessmentDetail')?.addEventListener('click',()=>openAssessmentModal(studentId,assessmentId));$('#detailAssessmentEvolution')?.addEventListener('click',()=>openAssessmentEvolution(studentId));
+  }
+  function assessmentBilateralCard(label,right,left){
+    const r=Number(right),l=Number(left);if(!(r>0&&l>0))return '';
+    const diff=Math.abs(r-l),side=diff<.05?'equivalentes no registro':(r>l?'D maior':'E maior');
+    return `<article class="assessment-bilateral-card"><span>${escapeHTML(label)}</span><strong>D ${assessmentNumber(r,1)} <i>•</i> E ${assessmentNumber(l,1)}</strong><small>Diferença ${assessmentNumber(diff,1)} cm • ${escapeHTML(side)}</small></article>`;
+  }
+  function openAssessmentEvolution(studentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;const rowsDesc=assessmentsForStudent(studentId),rows=rowsDesc.slice().reverse();
+    if(rows.length<2){openModal(`Evolução • ${student.name}`,`<div class="assessment-chart-empty"><strong>A evolução aparece a partir da segunda avaliação</strong><span>Já existe ${rows.length} registro. Salve uma nova avaliação em outra data para liberar comparativos e gráficos.</span></div><div class="modal-actions"><button class="btn btn-secondary" id="evolutionBackHistory">Voltar</button><button class="btn btn-primary" id="evolutionNewAssessment">${icon('plus')} Nova avaliação</button></div>`);$('#evolutionBackHistory')?.addEventListener('click',()=>openAssessmentHistory(studentId));$('#evolutionNewAssessment')?.addEventListener('click',()=>openAssessmentModal(studentId));return;}
+    const first=rows[0],latest=rows[rows.length-1],previous=rows[rows.length-2],preferred=['waist','weight','abdomen','hip','bicepsContractedR'],defaultKey=preferred.find(k=>assessmentSeries(studentId,k).length>=2)||ASSESSMENT_EVOLUTION_METRICS.find(m=>assessmentSeries(studentId,m.key).length>=2)?.key||'weight';
+    const firstLatest=[['Peso','weight','kg',1],['IMC','bmi','',1],['IRCQ','ircq','',2],['Cintura','waist','cm',1],['Abdômen','abdomen','cm',1],['Quadril','hip','cm',1]];
+    const bilateral=[assessmentBilateralCard('Bíceps relaxado',latest.measurements?.bicepsRelaxedR,latest.measurements?.bicepsRelaxedL),assessmentBilateralCard('Bíceps contraído',latest.measurements?.bicepsContractedR,latest.measurements?.bicepsContractedL),assessmentBilateralCard('Punho',latest.measurements?.wristR,latest.measurements?.wristL),assessmentBilateralCard('Coxa proximal',latest.measurements?.thighProximalR,latest.measurements?.thighProximalL),assessmentBilateralCard('Coxa medial',latest.measurements?.thighMedialR,latest.measurements?.thighMedialL),assessmentBilateralCard('Coxa distal',latest.measurements?.thighDistalR,latest.measurements?.thighDistalL),assessmentBilateralCard('Panturrilha',latest.measurements?.calfR,latest.measurements?.calfL)].filter(Boolean).join('');
+    openModal(`Evolução • ${student.name}`,`<div class="assessment-evolution-head"><div><span class="section-overline">EVOLUÇÃO ANTROPOMÉTRICA</span><strong>${rows.length} avaliações • ${fmtDate(first.date)} → ${fmtDate(latest.date)}</strong><p>Comparativos históricos com leitura neutra da direção das medidas.</p></div><button class="btn btn-secondary btn-small" id="evolutionBackHistory">Voltar ao histórico</button></div>${assessmentContextChips(latest)}
+      <div class="assessment-evolution-note"><strong>Última × anterior</strong><span>As setas indicam apenas aumento, redução ou estabilidade numérica. A interpretação do resultado depende do objetivo e do contexto profissional.</span></div>
+      <div class="assessment-trend-grid">${assessmentTrendCard('Peso',latest.weight,previous.weight,'kg',1)}${assessmentTrendCard('Cintura',latest.measurements?.waist,previous.measurements?.waist,'cm',1)}${assessmentTrendCard('Abdômen',latest.measurements?.abdomen,previous.measurements?.abdomen,'cm',1)}${assessmentTrendCard('Quadril',latest.measurements?.hip,previous.measurements?.hip,'cm',1)}</div>
+      <section class="assessment-evolution-panel"><div class="assessment-evolution-panel-head"><div><span class="section-overline">GRÁFICO DE EVOLUÇÃO</span><h3 id="assessmentEvolutionChartTitle">Indicador</h3></div><div class="field assessment-metric-picker"><label>Indicador</label><select id="assessmentEvolutionMetric">${ASSESSMENT_EVOLUTION_METRICS.map(m=>`<option value="${m.key}" ${m.key===defaultKey?'selected':''}>${escapeHTML(m.label)}</option>`).join('')}</select></div></div><div id="assessmentEvolutionChart"></div><div id="assessmentEvolutionTable"></div></section>
+      <div class="section-head compact-head"><div><h3>Primeira × atual</h3><p>Variação acumulada entre o primeiro e o registro mais recente.</p></div></div><div class="assessment-trend-grid assessment-first-last">${firstLatest.map(([label,key,unit,digits])=>assessmentTrendCard(label,assessmentValue(latest,key),assessmentValue(first,key),unit,digits,'desde a primeira')).join('')}</div>
+      <div class="section-head compact-head"><div><h3>Comparativo bilateral atual</h3><p>Diferença registrada entre lado direito e esquerdo, sem classificação automática.</p></div></div>${bilateral?`<div class="assessment-bilateral-cards">${bilateral}</div>`:`<div class="assessment-chart-empty compact"><strong>Sem pares completos</strong><span>Preencha as medidas direita e esquerda para visualizar este comparativo.</span></div>`}
+      <div class="assessment-evolution-footer"><button class="btn btn-primary btn-small" id="evolutionNewAssessment">${icon('plus')} Nova avaliação</button><button class="btn btn-secondary btn-small" id="evolutionOpenLatest">Abrir última avaliação</button></div>`);
+    const renderChart=()=>{const key=$('#assessmentEvolutionMetric')?.value||defaultKey,config=assessmentMetricConfig(key),series=assessmentSeries(studentId,key);$('#assessmentEvolutionChartTitle').textContent=`${config.label}${config.unit?` • ${config.unit}`:''}`;$('#assessmentEvolutionChart').innerHTML=assessmentLineChart(series,config);$('#assessmentEvolutionTable').innerHTML=assessmentEvolutionTable(series,config);};
+    $('#assessmentEvolutionMetric')?.addEventListener('change',renderChart);$('#evolutionBackHistory')?.addEventListener('click',()=>openAssessmentHistory(studentId));$('#evolutionNewAssessment')?.addEventListener('click',()=>openAssessmentModal(studentId));$('#evolutionOpenLatest')?.addEventListener('click',()=>openAssessmentDetails(studentId,latest.id));renderChart();
+  }
+  function confirmDeleteAssessment(studentId,assessmentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;openModal('Excluir avaliação física',`<div class="notice">Confirma excluir a avaliação de <strong>${escapeHTML(student.name)}</strong> realizada em <strong>${fmtDate(a.date)}</strong>? Esta ação remove somente este registro de avaliação e não altera o cadastro do aluno.</div><div class="modal-actions"><button class="btn btn-secondary" id="cancelAssessmentDelete">Cancelar</button><button class="btn btn-danger" id="confirmAssessmentDelete">Excluir avaliação</button></div>`);$('#cancelAssessmentDelete').addEventListener('click',()=>openAssessmentHistory(studentId));$('#confirmAssessmentDelete').addEventListener('click',()=>{state.physicalAssessments=state.physicalAssessments.filter(x=>x.id!==assessmentId);addAudit('Avaliação física removida',`${student.name} • ${fmtDate(a.date)}`);saveState();closeModal();render();toast('Avaliação removida.');});
   }
 
   function openStudentModal(id=null) {
@@ -1768,7 +1992,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       const data=JSON.parse(await file.text()),incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');
       const sm=data.summary||backupSummaryFor(incoming),version=data.appVersion||incoming?.settings?.lastBackupVersion||'não informada',exportedAt=data.exportedAt||incoming?.settings?.lastBackupExportedAt||incoming?.settings?.lastBackupAt||null;
       openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice">Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);
-      $('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});addAudit('Backup restaurado',`V${version} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);saveState();closeModal();render();toast('Backup restaurado.');});
+      $('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],physicalAssessments:Array.isArray(incoming.physicalAssessments)?incoming.physicalAssessments:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});addAudit('Backup restaurado',`V${version} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);saveState();closeModal();render();toast('Backup restaurado.');});
     }catch(err){console.error(err);toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}
   }
 
