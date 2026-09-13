@@ -1,10 +1,13 @@
-// MB Gestor Luxury Pro V9.9.3 — Etapa 3A • Calibração Anatômica Validada
+// MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.9.3 — Etapa 3A • Calibração Anatômica Validada
+  // MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções
 
-  const APP_VERSION = '9.9.3';
+  const APP_VERSION = '9.9.4';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
+  // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
+  const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
+  const ASSESSMENT_GUIDE_STATE_KEY = `${STORAGE_KEY}_assessment_guide_state_v1`;
   const DEFAULT_STATE = {
     version: 1,
     students: [],
@@ -66,6 +69,9 @@
   // Privacidade persistente: o app lembra se os valores ficaram ocultos ou visíveis.
   let financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
   let financeUnlockedThisSession = false;
+  // Estado transitório da Avaliação Física: protege rascunho, descarte acidental e botão Voltar do Android/PWA.
+  let assessmentSession = null;
+  let assessmentHistoryIgnoreNextPop = false;
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -852,7 +858,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
 
 
-  // V9.9.3 — mapa visual realista recalibrado após conferência visual aprovada.
+  // Mapa visual realista recalibrado e preservado após conferência visual aprovada.
   // As coordenadas abaixo usam o
   // viewBox nativo (793 × 1983) dos modelos frontal/posterior e permanecem
   // proporcionais em qualquer tela, evitando deslocamento da faixa no celular.
@@ -875,6 +881,71 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     {key:'calf',group:'lower',label:'Panturrilha',short:'Panturrilha',defaultView:'back',bilateral:true,focus:{front:{R:{x:248,y:1535,rx:57,ry:11},L:{x:545,y:1535,rx:57,ry:11}},back:{R:{x:525,y:1535,rx:60,ry:11},L:{x:268,y:1535,rx:60,ry:11}}},point:'Maior circunferência da panturrilha.',tape:'Mova a fita até encontrar o maior perímetro e mantenha-a horizontal.',standard:'Apoio e distribuição de peso semelhantes em todas as coletas.'}
   ];
   const ASSESSMENT_GUIDE_GROUPS=[['trunk','Tronco'],['upper','Membros superiores'],['lower','Membros inferiores']];
+  function readLocalJSON(key){
+    try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):null}catch(err){console.warn('Falha ao ler estado temporário',err);return null}
+  }
+  function writeLocalJSON(key,value){
+    try{localStorage.setItem(key,JSON.stringify(value));return true}catch(err){console.warn('Falha ao salvar estado temporário',err);return false}
+  }
+  function assessmentDraftIdentity(studentId,assessmentId=null){return {studentId:String(studentId||''),assessmentId:assessmentId?String(assessmentId):''}}
+  function loadAssessmentDraft(studentId,assessmentId=null){
+    const draft=readLocalJSON(ASSESSMENT_DRAFT_KEY),id=assessmentDraftIdentity(studentId,assessmentId);
+    if(!draft||String(draft.studentId||'')!==id.studentId||String(draft.assessmentId||'')!==id.assessmentId||!draft.values||typeof draft.values!=='object')return null;
+    return draft;
+  }
+  function clearAssessmentDraft(studentId=null,assessmentId=null){
+    try{
+      const draft=readLocalJSON(ASSESSMENT_DRAFT_KEY);
+      if(!draft||studentId==null){localStorage.removeItem(ASSESSMENT_DRAFT_KEY);return}
+      const id=assessmentDraftIdentity(studentId,assessmentId);
+      if(String(draft.studentId||'')===id.studentId&&String(draft.assessmentId||'')===id.assessmentId)localStorage.removeItem(ASSESSMENT_DRAFT_KEY);
+    }catch(err){console.warn('Falha ao limpar rascunho temporário',err)}
+  }
+  function assessmentFormValues(form){
+    if(!form)return {};
+    const values={};new FormData(form).forEach((value,key)=>{values[key]=String(value??'')});return values;
+  }
+  function restoreAssessmentDraftToForm(form,draft){
+    if(!form||!draft?.values)return;
+    Object.entries(draft.values).forEach(([name,value])=>{const field=form.elements?.[name];if(field&&'value'in field)field.value=value??''});
+  }
+  function persistAssessmentDraftFromForm(form,{dirty=null}={}){
+    if(!form||!assessmentSession)return;
+    const isDirty=dirty==null?Boolean(assessmentSession.dirty):Boolean(dirty);
+    assessmentSession.dirty=isDirty;
+    writeLocalJSON(ASSESSMENT_DRAFT_KEY,{...assessmentDraftIdentity(assessmentSession.studentId,assessmentSession.assessmentId),values:assessmentFormValues(form),dirty:isDirty,updatedAt:new Date().toISOString()});
+  }
+  function readAssessmentGuideState(){
+    const saved=readLocalJSON(ASSESSMENT_GUIDE_STATE_KEY);if(!saved||!ASSESSMENT_ANATOMICAL_GUIDE.some(x=>x.key===saved.key))return null;return saved;
+  }
+  function saveAssessmentGuideState(item,view,side){
+    if(!item)return;writeLocalJSON(ASSESSMENT_GUIDE_STATE_KEY,{key:item.key,group:item.group,view:view==='back'?'back':'front',side:item.bilateral&&side==='L'?'L':'R',updatedAt:new Date().toISOString()});
+  }
+  function pushAssessmentHistoryGuard(){
+    if(!assessmentSession)return;
+    const token=assessmentSession.historyToken||uid('assessment_nav');assessmentSession.historyToken=token;
+    try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title)}catch(err){console.warn('Proteção de navegação indisponível',err)}
+  }
+  function finishAssessmentSession({clearDraft=true,fromPopstate=false}={}){
+    const session=assessmentSession;if(!session){closeModal();return}
+    if(clearDraft)clearAssessmentDraft(session.studentId,session.assessmentId);
+    assessmentSession=null;closeAnatomicalGuide();closeModal();
+    if(!fromPopstate&&session.historyToken&&history.state?.mbAssessmentGuard===session.historyToken){assessmentHistoryIgnoreNextPop=true;try{history.back()}catch{assessmentHistoryIgnoreNextPop=false}}
+  }
+  function confirmDiscardAssessment(){
+    if(!assessmentSession)return closeModal();
+    openPremiumConfirm({title:'Descartar alterações?',message:'Existem dados preenchidos nesta avaliação que ainda não foram salvos. Descartar apagará somente este rascunho; avaliações já salvas não serão alteradas.',confirmLabel:'Descartar rascunho',cancelLabel:'Continuar avaliação',tone:'danger',onConfirm:()=>finishAssessmentSession({clearDraft:true})});
+  }
+  function requestModalClose(){
+    const assessmentForm=$('#physicalAssessmentForm',modalRoot);
+    if(assessmentSession&&assessmentForm){
+      persistAssessmentDraftFromForm(assessmentForm,{dirty:assessmentSession.dirty});
+      if(assessmentSession.dirty){confirmDiscardAssessment();return}
+      finishAssessmentSession({clearDraft:true});return;
+    }
+    closeModal();
+  }
+
   function anatomicalGuideItem(key){return ASSESSMENT_ANATOMICAL_GUIDE.find(x=>x.key===String(key||''))||ASSESSMENT_ANATOMICAL_GUIDE.find(x=>x.key==='waist')}
   function anatomicalGuideFocus(item,view,side){
     const base=item?.focus?.[view]||item?.focus?.front;if(!base)return null;
@@ -897,8 +968,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const leftLetter=back?'E':'D',rightLetter=back?'D':'E';
     const activeLabel=item.bilateral?`Faixa ativa • lado ${side==='R'?'direito':'esquerdo'} do aluno.`:'Faixa ativa central • sem lateralidade.';
     return `<div class="anatomy-real-stage">
-      <div class="anatomy-side-label anatomy-side-left"><b>${leftLetter}</b><span>Lado do aluno</span></div>
-      <div class="anatomy-side-label anatomy-side-right"><b>${rightLetter}</b><span>Lado do aluno</span></div>
+      ${item.bilateral?`<div class="anatomy-side-label anatomy-side-left"><b>${leftLetter}</b><span>Lado do aluno</span></div><div class="anatomy-side-label anatomy-side-right"><b>${rightLetter}</b><span>Lado do aluno</span></div>`:''}
       <div class="anatomy-real-wrap">
         <img class="anatomy-real-model" src="${model}" alt="Modelo anatômico feminino em vista ${back?'posterior':'frontal'}" draggable="false"/>
         <svg class="anatomy-real-overlay" viewBox="0 0 ${ANATOMY_MODEL_SIZE.w} ${ANATOMY_MODEL_SIZE.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -911,13 +981,18 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     </div>`;
   }
   function closeAnatomicalGuide(){document.querySelector('#anatomicalGuideLayer')?.remove();document.body.classList.remove('anatomical-guide-open')}
-  function openAnatomicalGuide(initialKey='waist',initialSide='R'){
+  function openAnatomicalGuide(initialKey=null,initialSide=null){
     closeAnatomicalGuide();
-    const returnFocus=document.activeElement;
-    let item=anatomicalGuideItem(initialKey),group=item.group,view=item.defaultView||'front',side=item.bilateral&&(initialSide==='L'?'L':'R')||'R';
+    const returnFocus=document.activeElement,saved=readAssessmentGuideState();
+    const requestedKey=initialKey&&ASSESSMENT_ANATOMICAL_GUIDE.some(x=>x.key===String(initialKey))?String(initialKey):null;
+    let item=anatomicalGuideItem(requestedKey||saved?.key||'waist'),group=item.group;
+    const sameSavedItem=saved?.key===item.key;
+    let view=sameSavedItem&&['front','back'].includes(saved?.view)?saved.view:(item.defaultView||'front');
+    let side=item.bilateral?(initialSide==='L'?'L':initialSide==='R'?'R':sameSavedItem&&saved?.side==='L'?'L':'R'):'R';
     const layer=document.createElement('div');layer.id='anatomicalGuideLayer';layer.className='anatomical-guide-layer';layer.innerHTML=`<div class="anatomical-guide-shell" role="dialog" aria-modal="true" aria-labelledby="anatomicalGuideTitle"><header class="anatomical-guide-header"><div><span class="section-overline">ETAPA 3 • GUIA PREMIUM</span><h3 id="anatomicalGuideTitle">Guia anatômico de mensuração</h3><p>Pontos visuais para repetir a coleta com o mesmo padrão.</p></div><button type="button" class="anatomical-guide-close" aria-label="Fechar guia">${icon('x')}</button></header><div class="anatomical-guide-group-tabs" id="anatomicalGuideGroups"></div><div class="anatomical-guide-layout"><section class="anatomical-guide-visual"><div class="anatomical-guide-view-tabs"><button type="button" data-anatomy-view="front">Frente</button><button type="button" data-anatomy-view="back">Costas</button></div><div id="anatomicalGuideFigure"></div><div id="anatomicalGuideSide"></div></section><section class="anatomical-guide-content"><div class="anatomical-guide-picker"><span>Medida selecionada</span><div id="anatomicalGuideMeasures"></div></div><article class="anatomical-guide-info" id="anatomicalGuideInfo"></article><div class="anatomical-guide-protocol"><strong>Padronização acima de tudo</strong><span>Protocolos antropométricos podem adotar referências diferentes. Escolha o padrão do Studio e repita exatamente o mesmo ponto, postura e condição nas reavaliações.</span></div></section></div></div>`;
     document.body.appendChild(layer);document.body.classList.add('anatomical-guide-open');
     const render=()=>{
+      saveAssessmentGuideState(item,view,side);
       const groups=$('#anatomicalGuideGroups',layer),fig=$('#anatomicalGuideFigure',layer),measures=$('#anatomicalGuideMeasures',layer),info=$('#anatomicalGuideInfo',layer),sideBox=$('#anatomicalGuideSide',layer);
       groups.innerHTML=ASSESSMENT_GUIDE_GROUPS.map(([key,label])=>`<button type="button" class="${group===key?'active':''}" data-anatomy-group="${key}">${escapeHTML(label)}</button>`).join('');
       measures.innerHTML=ASSESSMENT_ANATOMICAL_GUIDE.filter(x=>x.group===group).map(x=>`<button type="button" class="${item.key===x.key?'active':''}" data-anatomy-measure="${x.key}">${escapeHTML(x.short||x.label)}</button>`).join('');
@@ -926,7 +1001,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       sideBox.innerHTML=item.bilateral?`<div class="anatomical-guide-side-toggle"><span>LADO</span><button type="button" class="${side==='R'?'active':''}" data-anatomy-side="R">Direito</button><button type="button" class="${side==='L'?'active':''}" data-anatomy-side="L">Esquerdo</button></div>`:`<div class="anatomical-guide-side-note"><span>Circunferência central • sem lateralidade</span></div>`;
       info.innerHTML=`<div class="anatomical-guide-info-head"><span class="anatomical-guide-index">${String(ASSESSMENT_ANATOMICAL_GUIDE.findIndex(x=>x.key===item.key)+1).padStart(2,'0')}</span><div><span>${escapeHTML(ASSESSMENT_GUIDE_GROUPS.find(([k])=>k===item.group)?.[1]||'Mensuração')}</span><strong>${escapeHTML(item.label)}${item.bilateral?` • ${side==='R'?'Direito':'Esquerdo'}`:''}</strong></div></div><div class="anatomical-guide-rule"><span>PONTO</span><p>${escapeHTML(item.point)}</p></div><div class="anatomical-guide-rule"><span>FITA</span><p>${escapeHTML(item.tape)}</p></div><div class="anatomical-guide-rule"><span>REPETIÇÃO</span><p>${escapeHTML(item.standard)}</p></div>`;
       $$('[data-anatomy-group]',layer).forEach(b=>b.onclick=()=>{group=b.dataset.anatomyGroup;item=ASSESSMENT_ANATOMICAL_GUIDE.find(x=>x.group===group)||item;view=item.defaultView||'front';side='R';render()});
-      $$('[data-anatomy-measure]',layer).forEach(b=>b.onclick=()=>{item=anatomicalGuideItem(b.dataset.anatomyMeasure);group=item.group;view=item.defaultView||view;side='R';render()});
+      $$('[data-anatomy-measure]',layer).forEach(b=>b.onclick=()=>{const next=anatomicalGuideItem(b.dataset.anatomyMeasure);const savedNow=readAssessmentGuideState();item=next;group=item.group;view=savedNow?.key===item.key&&['front','back'].includes(savedNow?.view)?savedNow.view:(item.defaultView||view);side=item.bilateral&&savedNow?.key===item.key&&savedNow?.side==='L'?'L':'R';render()});
       $$('[data-anatomy-view]',layer).forEach(b=>b.onclick=()=>{view=b.dataset.anatomyView;render()});
       $$('[data-anatomy-side]',layer).forEach(b=>b.onclick=()=>{side=b.dataset.anatomySide;render()});
     };
@@ -1044,7 +1119,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section id="assessmentStudentList" class="cards assessment-student-list"></section>`;
     let filter='all';
     const draw=()=>{const q=String($('#assessmentSearch')?.value||'').trim().toLocaleLowerCase('pt-BR');const list=students.filter(s=>{const rows=assessmentsForStudent(s.id),has=Boolean(rows.length);if(filter==='done'&&!has)return false;if(filter==='evolution'&&rows.length<2)return false;if(filter==='pending'&&has)return false;return !q||String(s.name||'').toLocaleLowerCase('pt-BR').includes(q)});$('#assessmentStudentList').innerHTML=list.length?list.map(s=>{const rows=assessmentsForStudent(s.id),a=rows[0],bmi=a?assessmentBMI(a):null,ircq=a?assessmentIRCQ(a):null,bc=a?bmiClassification(a,s):null,rc=a?ircqClassification(a,s):null;return `<article class="card assessment-student-card"><div class="assessment-student-main"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(s.name)}</strong><span>${a?`Última avaliação: ${fmtDate(a.date)} • ${rows.length} ${rows.length===1?'registro':'registros'}`:'Nenhuma avaliação registrada'}${s.active===false?' • aluno inativo':''}</span>${a?`${assessmentContextChips(a)}<div class="assessment-inline-status"><span>IMC <b>${bmi==null?'—':assessmentNumber(bmi,1)}</b> ${assessmentStatusPill(bc)}</span><span>IRCQ <b>${ircq==null?'—':assessmentNumber(ircq,2)}</b> ${assessmentStatusPill(rc)}</span></div>`:''}</div></div><div class="assessment-student-actions"><button class="btn ${a?'btn-secondary':'btn-primary'} btn-small js-assessment-new" data-id="${s.id}">${icon('plus')} ${a?'Nova':'Avaliar'}</button>${a?`<button class="btn btn-secondary btn-small js-assessment-history" data-id="${s.id}">Histórico</button>`:''}${rows.length>1?`<button class="btn btn-secondary btn-small js-assessment-evolution" data-id="${s.id}">${icon('chart')} Evolução</button>`:''}</div></article>`}).join(''):emptyState('Nenhum aluno neste filtro','Ajuste a busca ou escolha outro filtro.');$$('.js-assessment-new',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentModal(b.dataset.id)));$$('.js-assessment-history',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentHistory(b.dataset.id)));$$('.js-assessment-evolution',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentEvolution(b.dataset.id)));};
-    $('#assessmentGuideEntry')?.addEventListener('click',()=>openAnatomicalGuide('waist'));
+    $('#assessmentGuideEntry')?.addEventListener('click',()=>openAnatomicalGuide());
     $('#assessmentSearch')?.addEventListener('input',draw);$$('[data-assessment-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.assessmentFilter;$$('[data-assessment-filter]',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw()}));draw();
   }
   function assessmentInput(name,label,value='',required=false,guideKey='',guideSide=''){
@@ -1065,12 +1140,18 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="assessment-form-section"><div class="assessment-form-section-head"><span>04</span><div><strong>Membros inferiores</strong><small>Direito e esquerdo</small></div></div>${assessmentPair('Coxa proximal','thighProximal','thighProximalR','thighProximalL',m.thighProximalR,m.thighProximalL)}${assessmentPair('Coxa medial','thighMedial','thighMedialR','thighMedialL',m.thighMedialR,m.thighMedialL)}${assessmentPair('Coxa distal','thighDistal','thighDistalR','thighDistalL',m.thighDistalR,m.thighDistalL)}${assessmentPair('Panturrilha','calf','calfR','calfL',m.calfR,m.calfL)}</section>
       <section class="assessment-form-section"><div class="field"><label>Observações da avaliação</label><textarea name="notes" rows="3" placeholder="Ex.: condições da avaliação, observações posturais ou contexto relevante">${escapeHTML(existing?.notes||'')}</textarea></div></section><div class="modal-actions assessment-save-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar avaliação'}</button></div></form>`);
     const form=$('#physicalAssessmentForm');
-    $$('[data-anatomical-key]',form).forEach(b=>b.addEventListener('click',()=>openAnatomicalGuide(b.dataset.anatomicalKey||'waist',b.dataset.anatomicalSide||'R')));
+    const restoredDraft=loadAssessmentDraft(student.id,existing?.id||null);
+    assessmentSession={studentId:String(student.id),assessmentId:existing?.id?String(existing.id):'',dirty:Boolean(restoredDraft?.dirty),historyToken:null};
+    if(restoredDraft)restoreAssessmentDraftToForm(form,restoredDraft);
+    pushAssessmentHistoryGuard();
+    const trackAssessmentDraft=()=>{if(!assessmentSession)return;assessmentSession.dirty=true;persistAssessmentDraftFromForm(form,{dirty:true})};
+    form.addEventListener('input',trackAssessmentDraft);form.addEventListener('change',trackAssessmentDraft);
+    $$('[data-anatomical-key]',form).forEach(b=>b.addEventListener('click',()=>{persistAssessmentDraftFromForm(form,{dirty:assessmentSession?.dirty});const generic=b.classList.contains('assessment-guide-main');openAnatomicalGuide(generic?null:(b.dataset.anatomicalKey||'waist'),generic?null:(b.dataset.anatomicalSide||null))}));
     const preview=()=>{const fd=new FormData(form),draft={date:String(fd.get('date')||isoToday()),referenceSex:String(fd.get('referenceSex')||''),weight:parseAssessmentNumber(fd.get('weight')),heightCm:parseAssessmentNumber(fd.get('heightCm')),measurements:{waist:parseAssessmentNumber(fd.get('waist')),hip:parseAssessmentNumber(fd.get('hip'))}},bmi=assessmentBMI(draft),ircq=assessmentIRCQ(draft),bc=bmiClassification(draft,student),rc=ircqClassification(draft,student);$('#assessmentLiveResults').innerHTML=`${assessmentMetric(bmi==null?'—':assessmentNumber(bmi,1),'IMC',bc.label,bc.tone)}${assessmentMetric(ircq==null?'—':assessmentNumber(ircq,2),'IRCQ',rc.label,rc.tone)}`;};
-    ['weight','heightCm','waist','hip','date','referenceSex'].forEach(name=>form.elements[name]?.addEventListener('input',preview));preview();
+    ['weight','heightCm','waist','hip','date','referenceSex'].forEach(name=>form.elements[name]?.addEventListener('input',preview));preview();if(restoredDraft?.dirty)setTimeout(()=>toast('Rascunho da avaliação restaurado.'),0);
     form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form);const num=n=>parseAssessmentNumber(fd.get(n));const record={id:existing?.id||uid('assess'),studentId:student.id,date:String(fd.get('date')),referenceSex:String(fd.get('referenceSex')||''),objective:String(fd.get('objective')||''),stage:String(fd.get('stage')||''),weight:num('weight'),heightCm:num('heightCm'),measurements:{neck:num('neck'),chest:num('chest'),waist:num('waist'),abdomen:num('abdomen'),hip:num('hip'),bicepsRelaxedR:num('bicepsRelaxedR'),bicepsRelaxedL:num('bicepsRelaxedL'),bicepsContractedR:num('bicepsContractedR'),bicepsContractedL:num('bicepsContractedL'),wristR:num('wristR'),wristL:num('wristL'),thighProximalR:num('thighProximalR'),thighProximalL:num('thighProximalL'),thighMedialR:num('thighMedialR'),thighMedialL:num('thighMedialL'),thighDistalR:num('thighDistalR'),thighDistalL:num('thighDistalL'),calfR:num('calfR'),calfL:num('calfL')},notes:String(fd.get('notes')||'').trim(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
       if(!(record.weight>0&&record.heightCm>0&&record.measurements.waist>0&&record.measurements.hip>0))return toast('Informe peso, altura, cintura e quadril para salvar a avaliação.');
-      const commitAssessment=()=>{state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();closeModal();render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');};
+      const commitAssessment=()=>{state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();if(assessmentSession)assessmentSession.dirty=false;finishAssessmentSession({clearDraft:true});render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');};
       if(record.date>isoToday()){openPremiumConfirm({title:'Data futura na avaliação',message:`A avaliação está marcada para ${fmtDate(record.date)}. Confirme somente se essa data estiver correta.`,confirmLabel:'Salvar mesmo assim',cancelLabel:'Revisar data',onConfirm:commitAssessment});return;}
       commitAssessment();});
   }
@@ -1110,7 +1191,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#assessmentEvolutionMetric')?.addEventListener('change',renderChart);$('#evolutionBackHistory')?.addEventListener('click',()=>openAssessmentHistory(studentId));$('#evolutionNewAssessment')?.addEventListener('click',()=>openAssessmentModal(studentId));$('#evolutionOpenLatest')?.addEventListener('click',()=>openAssessmentDetails(studentId,latest.id));renderChart();
   }
   function confirmDeleteAssessment(studentId,assessmentId){
-    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;openModal('Excluir avaliação física',`<div class="notice">Confirma excluir a avaliação de <strong>${escapeHTML(student.name)}</strong> realizada em <strong>${fmtDate(a.date)}</strong>? Esta ação remove somente este registro de avaliação e não altera o cadastro do aluno.</div><div class="modal-actions"><button class="btn btn-secondary" id="cancelAssessmentDelete">Cancelar</button><button class="btn btn-danger" id="confirmAssessmentDelete">Excluir avaliação</button></div>`);$('#cancelAssessmentDelete').addEventListener('click',()=>openAssessmentHistory(studentId));$('#confirmAssessmentDelete').addEventListener('click',()=>{state.physicalAssessments=state.physicalAssessments.filter(x=>x.id!==assessmentId);addAudit('Avaliação física removida',`${student.name} • ${fmtDate(a.date)}`);saveState();closeModal();render();toast('Avaliação removida.');});
+    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;
+    openPremiumConfirm({title:'Excluir avaliação física?',message:`A avaliação de ${student.name} realizada em ${fmtDate(a.date)} será removida. Esta ação não pode ser desfeita e não altera o cadastro do aluno.`,confirmLabel:'Excluir avaliação',cancelLabel:'Manter avaliação',tone:'danger',onConfirm:()=>{state.physicalAssessments=state.physicalAssessments.filter(x=>x.id!==assessmentId);addAudit('Avaliação física removida',`${student.name} • ${fmtDate(a.date)}`);saveState();openAssessmentHistory(studentId);toast('Avaliação removida.')}});
   }
 
   function openStudentModal(id=null) {
@@ -2035,7 +2117,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Calibração Anatômica Final</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Persistência & Proteções</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -2116,9 +2198,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function openModal(title, bodyHTML) {
     const openedAt=Date.now();
     modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-head"><h3>${escapeHTML(title)}</h3><button class="mini-icon" data-close-modal>${icon('x')}</button></div><div class="modal-body">${bodyHTML}</div></div></div>`;
-    $$('[data-close-modal]',modalRoot).forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();closeModal();}));
+    $$('[data-close-modal]',modalRoot).forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();requestModalClose();}));
     enhanceDateInputs(modalRoot);
-    $('.modal-backdrop',modalRoot).addEventListener('click',e=>{if(Date.now()-openedAt<400)return;if(e.target.classList.contains('modal-backdrop'))closeModal();});
+    $('.modal-backdrop',modalRoot).addEventListener('click',e=>{if(Date.now()-openedAt<400)return;if(e.target.classList.contains('modal-backdrop'))requestModalClose();});
   }
   function closeModal(){modalRoot.innerHTML='';}
   function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;toastRoot.appendChild(t);setTimeout(()=>t.remove(),3200);}
@@ -2132,6 +2214,19 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     openModal('Instalar aplicativo',`<div class="notice">Se o botão automático de instalação não aparecer, abra este endereço no Chrome, toque no menu ⋮ e escolha <strong>“Adicionar à tela inicial”</strong> ou <strong>“Instalar app”</strong>. Para instalação completa, o aplicativo precisa estar publicado em um endereço HTTPS.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Entendi</button></div>`);
   }
   function updateInstallButtons(){const can=Boolean(deferredInstallPrompt);$('#installBtnTop')?.classList.toggle('hidden',!can);$('#installBtnSide')?.classList.toggle('hidden',!can);}
+
+  window.addEventListener('popstate',()=>{
+    if(assessmentHistoryIgnoreNextPop){assessmentHistoryIgnoreNextPop=false;return}
+    if(!assessmentSession)return;
+    const token=assessmentSession.historyToken;
+    const restoreGuard=()=>{if(!assessmentSession)return;try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title)}catch{}};
+    const guide=document.querySelector('#anatomicalGuideLayer');if(guide){closeAnatomicalGuide();restoreGuard();return}
+    const confirmLayer=$('.modal-confirm-layer',modalRoot);if(confirmLayer){confirmLayer.remove();restoreGuard();return}
+    const form=$('#physicalAssessmentForm',modalRoot);if(!form){assessmentSession=null;return}
+    persistAssessmentDraftFromForm(form,{dirty:assessmentSession.dirty});
+    if(assessmentSession.dirty){restoreGuard();confirmDiscardAssessment();return}
+    finishAssessmentSession({clearDraft:true,fromPopstate:true});
+  });
 
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;updateInstallButtons();});
   window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;updateInstallButtons();toast('Aplicativo instalado.');});

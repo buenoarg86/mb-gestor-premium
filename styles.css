@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V9.9.3 — Etapa 3A • Calibração Anatômica Validada */
+/* MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -417,7 +417,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .modal-confirm-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:9px;margin-top:18px}.modal-confirm-actions .btn{min-height:46px}
 @media(max-width:430px){.modal-confirm-layer{padding:14px}.modal-confirm-card{padding:17px}.modal-confirm-actions{grid-template-columns:1fr}}
 
-/* MB Gestor Luxury Pro V9.9.3 — Etapa 3A • Calibração Anatômica Validada */
+/* MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções */
 .assessment-guide-entry{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:0 0 16px;padding:13px 14px;border:1px solid rgba(233,198,110,.18);border-radius:17px;background:radial-gradient(circle at 8% 10%,rgba(215,163,61,.12),transparent 31%),linear-gradient(145deg,#17191d,#101115);color:#f1f1f2;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.025);cursor:pointer;transition:.18s ease}
 .assessment-guide-entry:hover,.assessment-guide-entry:focus-visible{border-color:rgba(233,198,110,.34);transform:translateY(-1px)}
 .assessment-guide-entry>span:nth-child(2){min-width:0}.assessment-guide-entry b,.assessment-guide-entry small{display:block}.assessment-guide-entry b{font-size:12px;letter-spacing:.01em}.assessment-guide-entry small{margin-top:3px;color:#888c93;font-size:10px;line-height:1.4}.assessment-guide-entry-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;color:#e4c36d;background:rgba(233,198,110,.08);border:1px solid rgba(233,198,110,.15)}.assessment-guide-entry-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}.assessment-guide-entry>i{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;color:#8f8a7e;background:rgba(255,255,255,.025)}.assessment-guide-entry>i svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}
