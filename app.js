@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.8.2 — Avaliação Física Polish Premium
+// MB Gestor Luxury Pro V9.8.3 — Avaliação Physical Polish Hotfix
 (() => {
   'use strict';
   // MB Gestor Luxury Pro V9.8.1 — Avaliação Física + Evolução
 
-  const APP_VERSION = '9.8.2';
+  const APP_VERSION = '9.8.3';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -801,7 +801,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#historyAssessmentEvolution')?.addEventListener('click',()=>{closeModal();openAssessmentEvolution(id)});
   }
 
-  // === V9.8.2 • Avaliação Física Polish Premium ================================
+  // === V9.8.3 • Avaliação Física Polish Hotfix ================================
   // A avaliação permanece opcional e independente das rotinas operacionais.
   // Objetivo e estágio são definidos pelo profissional. Tendências mostram variação numérica,
   // nunca uma interpretação automática de "bom" ou "ruim".
@@ -933,7 +933,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const every=Math.max(1,Math.ceil(series.length/5)),labels=series.map((p,i)=>((i%every===0||i===series.length-1)?`<text x="${x(i).toFixed(1)}" y="${height-15}" text-anchor="middle" class="assessment-chart-xlabel">${escapeHTML(assessmentShortDate(p.date))}</text>`:'')).join('');
     const dots=series.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="5" class="assessment-chart-dot"><title>${escapeHTML(fmtDate(p.date))}: ${escapeHTML(assessmentNumber(p.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</title></circle>`).join('');
     const pointLabels=series.length<=4?series.map((p,i)=>`<text x="${x(i).toFixed(1)}" y="${(y(p.value)-11).toFixed(1)}" text-anchor="middle" class="assessment-chart-point-label">${escapeHTML(assessmentNumber(p.value,config.digits))}</text>`).join(''):'';
-    return `<div class="assessment-chart-scroll"><svg class="assessment-line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolução de ${escapeHTML(config.label)}">${grid}<polyline points="${points}" class="assessment-chart-line"/>${dots}${pointLabels}${labels}</svg></div>`;
+    const compactSeries=series.length<=4;
+    return `<div class="assessment-chart-scroll ${compactSeries?'is-compact':''}"><svg class="assessment-line-chart ${compactSeries?'compact-series':''}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolução de ${escapeHTML(config.label)}">${grid}<polyline points="${points}" class="assessment-chart-line"/>${dots}${pointLabels}${labels}</svg></div>`;
   }
   function assessmentEvolutionTable(series,config){
     return `<div class="assessment-evolution-table">${series.map((p,i)=>{const prev=series[i-1]?.value,d=assessmentDelta(p.value,prev,config.digits,config.unit),isFirst=i===0,isCurrent=i===series.length-1;const note=isFirst?'Primeiro registro':isCurrent?`${escapeHTML(d.text)} • Registro atual`:escapeHTML(d.text);return `<div class="${isFirst?'is-first':''} ${isCurrent?'is-current':''}"><span>${escapeHTML(fmtDate(p.date))}</span><strong>${escapeHTML(assessmentNumber(p.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</strong><small class="${isFirst?'flat':d.dir}">${note}</small></div>`}).join('')}</div>`;
@@ -977,8 +978,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     ['weight','heightCm','waist','hip','date','referenceSex'].forEach(name=>form.elements[name]?.addEventListener('input',preview));preview();
     form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form);const num=n=>parseAssessmentNumber(fd.get(n));const record={id:existing?.id||uid('assess'),studentId:student.id,date:String(fd.get('date')),referenceSex:String(fd.get('referenceSex')||''),objective:String(fd.get('objective')||''),stage:String(fd.get('stage')||''),weight:num('weight'),heightCm:num('heightCm'),measurements:{neck:num('neck'),chest:num('chest'),waist:num('waist'),abdomen:num('abdomen'),hip:num('hip'),bicepsRelaxedR:num('bicepsRelaxedR'),bicepsRelaxedL:num('bicepsRelaxedL'),bicepsContractedR:num('bicepsContractedR'),bicepsContractedL:num('bicepsContractedL'),wristR:num('wristR'),wristL:num('wristL'),thighProximalR:num('thighProximalR'),thighProximalL:num('thighProximalL'),thighMedialR:num('thighMedialR'),thighMedialL:num('thighMedialL'),thighDistalR:num('thighDistalR'),thighDistalL:num('thighDistalL'),calfR:num('calfR'),calfL:num('calfL')},notes:String(fd.get('notes')||'').trim(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
       if(!(record.weight>0&&record.heightCm>0&&record.measurements.waist>0&&record.measurements.hip>0))return toast('Informe peso, altura, cintura e quadril para salvar a avaliação.');
-      if(record.date>isoToday()&&!window.confirm('A data da avaliação está no futuro. Deseja salvar mesmo assim?'))return;
-      state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();closeModal();render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');});
+      const commitAssessment=()=>{state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();closeModal();render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');};
+      if(record.date>isoToday()){openPremiumConfirm({title:'Data futura na avaliação',message:`A avaliação está marcada para ${fmtDate(record.date)}. Confirme somente se essa data estiver correta.`,confirmLabel:'Salvar mesmo assim',cancelLabel:'Revisar data',onConfirm:commitAssessment});return;}
+      commitAssessment();});
   }
   function assessmentMeasurementsHTML(a){
     const m=a.measurements||{},single=[['Pescoço',m.neck],['Peitoral',m.chest],['Cintura',m.waist],['Abdômen',m.abdomen],['Quadril',m.hip]],pairs=[['Bíceps relaxado',m.bicepsRelaxedR,m.bicepsRelaxedL],['Bíceps contraído',m.bicepsContractedR,m.bicepsContractedL],['Punho',m.wristR,m.wristL],['Coxa proximal',m.thighProximalR,m.thighProximalL],['Coxa medial',m.thighMedialR,m.thighMedialL],['Coxa distal',m.thighDistalR,m.thighDistalL],['Panturrilha',m.calfR,m.calfL]];
@@ -1941,7 +1943,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Polish Premium</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Polish Hotfix</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -2007,6 +2009,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       input.addEventListener('change',()=>{if(input.value)monthInput.value=input.value.slice(0,7)});
       input.insertAdjacentElement('afterend',nav);
     });
+  }
+
+  function openPremiumConfirm({title='Confirmar ação',message='',confirmLabel='Confirmar',cancelLabel='Cancelar',tone='gold',onConfirm=null}={}) {
+    const existing=$('.modal-confirm-layer',modalRoot);if(existing)existing.remove();
+    const layer=document.createElement('div');layer.className='modal-confirm-layer';layer.innerHTML=`<div class="modal-confirm-card ${tone==='danger'?'danger':''}" role="alertdialog" aria-modal="true" aria-label="${escapeHTML(title)}"><div class="modal-confirm-icon">${icon(tone==='danger'?'alert':'calendar')}</div><div class="modal-confirm-copy"><span class="section-overline">CONFIRMAÇÃO</span><strong>${escapeHTML(title)}</strong><p>${escapeHTML(message)}</p></div><div class="modal-confirm-actions"><button type="button" class="btn btn-secondary" data-premium-cancel>${escapeHTML(cancelLabel)}</button><button type="button" class="btn ${tone==='danger'?'btn-danger':'btn-primary'}" data-premium-confirm>${escapeHTML(confirmLabel)}</button></div></div>`;
+    modalRoot.appendChild(layer);
+    const close=()=>layer.remove();
+    $('[data-premium-cancel]',layer)?.addEventListener('click',close);
+    $('[data-premium-confirm]',layer)?.addEventListener('click',()=>{close();if(typeof onConfirm==='function')onConfirm();});
+    layer.addEventListener('click',e=>{if(e.target===layer)close()});
   }
 
   function openModal(title, bodyHTML) {
