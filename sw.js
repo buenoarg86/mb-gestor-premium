@@ -1,4 +1,4 @@
-// MB Gestor Luxury Pro V9.9.3 — Etapa 3A • Silhueta Clínica Premium 4D
+// MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Modelo Clínico Premium
 const CACHE='mb-gestor-luxury-pro-v9-9-1-anatomical-polish';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
