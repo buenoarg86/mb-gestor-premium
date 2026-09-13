@@ -354,3 +354,13 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 @media(max-width:560px){.backup-restore-summary{grid-template-columns:1fr}.pause-edit-action{align-items:stretch;flex-direction:column}.pause-edit-action .btn{width:100%}}
 .audit-row.audit-backup .audit-dot{background:#d9b862;box-shadow:0 0 0 5px rgba(217,184,98,.08)}
 .audit-row.audit-money .audit-dot{background:#79c997;box-shadow:0 0 0 5px rgba(121,201,151,.07)}
+
+
+/* MB Gestor Luxury Pro V9.7.6 — Audit Closure & Final Corrective */
+.makeup-confirmation-notice{display:grid;gap:4px}
+.makeup-confirmation-notice>strong,.makeup-confirmation-notice>span{display:block}
+.manual-booking-note{color:#c7a85a;font-weight:800}
+.makeup-no-credit-hint{grid-column:1/-1;margin-top:3px;padding-top:7px;border-top:1px solid rgba(233,198,110,.08);color:#c9aa5c!important;font-weight:800}
+.reminder-review-info{margin-top:5px;padding:8px 10px;border-radius:10px;border:1px solid rgba(233,198,110,.18);background:rgba(233,198,110,.06);color:#d9bd75;font-size:9px;font-weight:800;line-height:1.35}
+.photo-preview .photo-placeholder{display:grid;place-items:center;width:100%;height:100%;color:#8e9198}
+.photo-preview .photo-placeholder svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
