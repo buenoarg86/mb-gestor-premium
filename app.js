@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções
+// MB Gestor Luxury Pro V9.9.5 — Etapa 3A • Android Back Guard Hotfix
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções
+  // MB Gestor Luxury Pro V9.9.5 — Etapa 3A • Android Back Guard Hotfix
 
-  const APP_VERSION = '9.9.4';
+  const APP_VERSION = '9.9.5';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -72,6 +72,7 @@
   // Estado transitório da Avaliação Física: protege rascunho, descarte acidental e botão Voltar do Android/PWA.
   let assessmentSession = null;
   let assessmentHistoryIgnoreNextPop = false;
+  let assessmentBackHandling = false;
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -924,7 +925,31 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function pushAssessmentHistoryGuard(){
     if(!assessmentSession)return;
     const token=assessmentSession.historyToken||uid('assessment_nav');assessmentSession.historyToken=token;
-    try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title)}catch(err){console.warn('Proteção de navegação indisponível',err)}
+    try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title,location.href)}catch(err){console.warn('Proteção de navegação indisponível',err)}
+  }
+  function restoreAssessmentHistoryGuard(){
+    if(!assessmentSession)return;
+    const token=assessmentSession.historyToken;
+    try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title,location.href)}catch(err){console.warn('Não foi possível rearmar a proteção de navegação',err)}
+  }
+  function handleAssessmentBackAttempt({restoreGuard=false}={}){
+    if(!assessmentSession)return false;
+    if(assessmentBackHandling)return true;
+    assessmentBackHandling=true;
+    try{
+      const guide=document.querySelector('#anatomicalGuideLayer');
+      if(guide){closeAnatomicalGuide();if(restoreGuard)restoreAssessmentHistoryGuard();return true}
+      const confirmLayer=$('.modal-confirm-layer',modalRoot);
+      if(confirmLayer){confirmLayer.remove();if(restoreGuard)restoreAssessmentHistoryGuard();return true}
+      const form=$('#physicalAssessmentForm',modalRoot);
+      if(!form){assessmentSession=null;return false}
+      persistAssessmentDraftFromForm(form,{dirty:assessmentSession.dirty});
+      if(assessmentSession.dirty){if(restoreGuard)restoreAssessmentHistoryGuard();confirmDiscardAssessment();return true}
+      finishAssessmentSession({clearDraft:true,fromPopstate:restoreGuard});
+      return true;
+    }finally{
+      setTimeout(()=>{assessmentBackHandling=false},120);
+    }
   }
   function finishAssessmentSession({clearDraft=true,fromPopstate=false}={}){
     const session=assessmentSession;if(!session){closeModal();return}
@@ -2117,7 +2142,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Persistência & Proteções</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Android Back Guard Hotfix</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -2215,17 +2240,34 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function updateInstallButtons(){const can=Boolean(deferredInstallPrompt);$('#installBtnTop')?.classList.toggle('hidden',!can);$('#installBtnSide')?.classList.toggle('hidden',!can);}
 
+  // Android/PWA: três camadas complementares para que o gesto/botão Voltar nunca descarte silenciosamente o rascunho.
   window.addEventListener('popstate',()=>{
     if(assessmentHistoryIgnoreNextPop){assessmentHistoryIgnoreNextPop=false;return}
+    handleAssessmentBackAttempt({restoreGuard:true});
+  });
+
+  // Navigation API (Chrome/Android moderno). O traverse cobre Back/Forward e complementa o fallback popstate.
+  if(window.navigation?.addEventListener){
+    window.navigation.addEventListener('navigate',event=>{
+      if(!assessmentSession||event.navigationType!=='traverse'||!event.userInitiated||!event.canIntercept)return;
+      try{
+        event.intercept({handler:async()=>{handleAssessmentBackAttempt({restoreGuard:true})}});
+      }catch(err){console.warn('Interceptação moderna do botão Voltar indisponível',err)}
+    });
+  }
+
+  // Fallback para shells Android/WebView que expõem o evento nativo backbutton.
+  document.addEventListener('backbutton',event=>{
     if(!assessmentSession)return;
-    const token=assessmentSession.historyToken;
-    const restoreGuard=()=>{if(!assessmentSession)return;try{const base=history.state&&typeof history.state==='object'?history.state:{};history.pushState({...base,mbAssessmentGuard:token},document.title)}catch{}};
-    const guide=document.querySelector('#anatomicalGuideLayer');if(guide){closeAnatomicalGuide();restoreGuard();return}
-    const confirmLayer=$('.modal-confirm-layer',modalRoot);if(confirmLayer){confirmLayer.remove();restoreGuard();return}
-    const form=$('#physicalAssessmentForm',modalRoot);if(!form){assessmentSession=null;return}
-    persistAssessmentDraftFromForm(form,{dirty:assessmentSession.dirty});
-    if(assessmentSession.dirty){restoreGuard();confirmDiscardAssessment();return}
-    finishAssessmentSession({clearDraft:true,fromPopstate:true});
+    event.preventDefault?.();
+    handleAssessmentBackAttempt({restoreGuard:false});
+  },false);
+
+  // Última barreira: se o sistema tentar descarregar a página com rascunho sujo, preserve os dados e peça confirmação nativa.
+  window.addEventListener('beforeunload',event=>{
+    if(!assessmentSession?.dirty)return;
+    const form=$('#physicalAssessmentForm',modalRoot);if(form)persistAssessmentDraftFromForm(form,{dirty:true});
+    event.preventDefault();event.returnValue='';
   });
 
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;updateInstallButtons();});
