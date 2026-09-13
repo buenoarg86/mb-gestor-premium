@@ -483,3 +483,17 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .anatomy-photo-caption{color:#7f838a;font-size:9px;font-weight:900;letter-spacing:.24em;text-align:center}
 @media(max-width:720px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:430px}.anatomy-photo-figure{width:min(100%,296px)}.anatomy-photo-badge{top:72px}.anatomy-photo-badge strong{width:38px;height:38px;font-size:17px}.anatomy-photo-badge span{font-size:7.5px;max-width:62px}.anatomy-photo-badge.is-left{left:-6px}.anatomy-photo-badge.is-right{right:-6px}}
 @media(max-width:430px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:390px}.anatomy-photo-figure{width:min(100%,274px)}.anatomy-photo-stage{border-radius:22px}.anatomy-photo-fade{width:34px}.anatomy-photo-badge{top:66px}.anatomy-photo-badge strong{width:35px;height:35px;font-size:16px}.anatomy-photo-active-side{font-size:8px;padding:7px 10px}.anatomy-photo-caption{font-size:8px}}
+
+/* V9.9.5 — mostrar somente a faixa ativa */
+.anatomical-guide-visual>#anatomicalGuideFigure{display:grid;place-items:center;min-height:400px}
+.anatomy-photo-figure{width:min(100%,286px);gap:8px}
+.anatomy-photo-stage{position:relative;width:100%;display:grid;place-items:center;border-radius:26px;background:radial-gradient(circle at 50% 14%,rgba(233,198,110,.10),rgba(233,198,110,.03) 34%,transparent 68%);overflow:hidden;isolation:isolate}
+.anatomy-photo-base{display:block;width:100%;height:auto;opacity:.58;filter:saturate(.82) brightness(.56) contrast(1.03) drop-shadow(0 14px 24px rgba(0,0,0,.28))}
+.anatomy-photo-matte{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,8,10,.06),rgba(7,8,10,.14));pointer-events:none}
+.anatomy-photo-focus-ring{position:absolute;display:block;border-radius:999px;border:2px solid rgba(244,208,111,.97);background:linear-gradient(180deg,rgba(244,208,111,.11),rgba(244,208,111,.05));box-shadow:0 0 0 1px rgba(244,208,111,.12),0 0 16px rgba(244,208,111,.35),0 0 28px rgba(244,208,111,.18),inset 0 0 12px rgba(255,234,169,.12);pointer-events:none;z-index:2}
+.anatomy-photo-badge{top:84px}.anatomy-photo-badge strong{width:42px;height:42px;font-size:19px}.anatomy-photo-badge span{max-width:68px}
+.anatomy-photo-active-side{margin-top:0;padding:8px 12px;border-radius:12px;border:1px solid rgba(233,198,110,.16);background:rgba(233,198,110,.045);color:#e0e4eb;font-size:9px;font-weight:700;text-align:center;line-height:1.35}
+.anatomy-photo-active-side.is-neutral{color:#d9dde3}
+.anatomy-photo-caption{margin-top:-1px;color:#7d8188;font-size:9px;font-weight:900;letter-spacing:.24em;text-align:center}
+@media(max-width:720px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:355px}.anatomy-photo-figure{width:min(100%,248px)}.anatomy-photo-badge{top:68px}.anatomy-photo-badge strong{width:36px;height:36px;font-size:16px}.anatomy-photo-badge span{font-size:7px;max-width:56px}.anatomy-photo-badge.is-left{left:-4px}.anatomy-photo-badge.is-right{right:-4px}}
+@media(max-width:430px){.anatomical-guide-visual>#anatomicalGuideFigure{min-height:332px}.anatomy-photo-figure{width:min(100%,232px)}.anatomy-photo-stage{border-radius:22px}.anatomy-photo-fade{width:30px}.anatomy-photo-badge{top:61px}.anatomy-photo-badge strong{width:33px;height:33px;font-size:15px}.anatomy-photo-active-side{font-size:8px;padding:7px 9px}.anatomy-photo-caption{font-size:8px}}

@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Modelo Clínico Premium
+// MB Gestor Luxury Pro V9.9.5 — Etapa 3A • Faixa Ativa Premium
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Modelo Clínico Premium
+  // MB Gestor Luxury Pro V9.9.5 — Etapa 3A • Faixa Ativa Premium
 
-  const APP_VERSION = '9.9.4';
+  const APP_VERSION = '9.9.5';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -801,7 +801,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#historyAssessmentEvolution')?.addEventListener('click',()=>{closeModal();openAssessmentEvolution(id)});
   }
 
-  // === V9.9.4 • Etapa 3A — Modelo Clínico Premium =============================
+  // === V9.9.5 • Etapa 3A — Faixa Ativa Premium =============================
   // A avaliação permanece opcional e independente das rotinas operacionais.
   // Objetivo e estágio são definidos pelo profissional. Tendências mostram variação numérica,
   // nunca uma interpretação automática de "bom" ou "ruim".
@@ -881,15 +881,22 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const leftCode=back?'E':'D';
     const rightCode=back?'D':'E';
     const src=back?ANATOMICAL_GUIDE_MODEL_BACK:ANATOMICAL_GUIDE_MODEL_FRONT;
-    return `<figure class="anatomy-photo-figure ${back?'is-back':'is-front'}" role="img" aria-label="Modelo clínico premium ${back?'posterior':'frontal'} com faixas anatômicas de mensuração para ${escapeHTML(item.label)}">
+    const focus=anatomicalGuideFocus(item,view,side)||{x:150,y:176,w:76,h:12};
+    const left=Math.max(4,((focus.x-focus.w/2-8)/300)*100);
+    const top=Math.max(3,((focus.y-focus.h/2-8)/470)*100);
+    const width=Math.min(92,((focus.w+16)/300)*100);
+    const height=Math.min(26,((focus.h+16)/470)*100);
+    return `<figure class="anatomy-photo-figure ${back?'is-back':'is-front'}" role="img" aria-label="Modelo clínico premium ${back?'posterior':'frontal'} com destaque ativo da medida ${escapeHTML(item.label)}${item.bilateral?` no lado ${side==='L'?'esquerdo':'direito'} do aluno`:''}">
       <div class="anatomy-photo-stage">
-        <img class="anatomy-photo" src="${src}" alt="${back?'Vista posterior':'Vista frontal'} do guia anatômico"/>
+        <img class="anatomy-photo anatomy-photo-base" src="${src}" alt="${back?'Vista posterior':'Vista frontal'} do guia anatômico"/>
+        <span class="anatomy-photo-matte" aria-hidden="true"></span>
+        <span class="anatomy-photo-focus-ring" style="left:${left.toFixed(2)}%;top:${top.toFixed(2)}%;width:${width.toFixed(2)}%;height:${height.toFixed(2)}%" aria-hidden="true"></span>
         <span class="anatomy-photo-fade anatomy-photo-fade-left" aria-hidden="true"></span>
         <span class="anatomy-photo-fade anatomy-photo-fade-right" aria-hidden="true"></span>
       </div>
       <div class="anatomy-photo-badge is-left" aria-hidden="true"><strong>${leftCode}</strong><span>Lado do aluno</span></div>
       <div class="anatomy-photo-badge is-right" aria-hidden="true"><strong>${rightCode}</strong><span>Lado do aluno</span></div>
-      ${item.bilateral?`<div class="anatomy-photo-active-side">Coleta bilateral • foco no lado ${side==='L'?'esquerdo':'direito'} do aluno.</div>`:'<div class="anatomy-photo-active-side is-neutral">Sem lateralidade • medida central.</div>'}
+      <div class="anatomy-photo-active-side ${item.bilateral?'':'is-neutral'}">${item.bilateral?`Faixa ativa: ${escapeHTML(item.label)} • lado ${side==='L'?'esquerdo':'direito'} do aluno.`:`Faixa ativa: ${escapeHTML(item.label)} • medida central.`}</div>
       <figcaption class="anatomy-photo-caption">${label}</figcaption>
     </figure>`;
   }
@@ -2018,7 +2025,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Modelo Clínico Premium</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Faixa Ativa Premium</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
