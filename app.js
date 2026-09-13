@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V9.7.4 — Settings Interaction Hotfix
+// MB Gestor Luxury Pro V9.7.5 — Consolidation & Commercial Hardening
 (() => {
   'use strict';
   // MB Gestor Luxury Pro V9.7.1 — Excellence Corrective Rebuild Release
 
-  const APP_VERSION = '9.7.4';
+  const APP_VERSION = '9.7.5';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DEFAULT_STATE = {
     version: 1,
@@ -31,7 +31,10 @@
       financialValuesVisible: false,
       financePinHash: '',
       financePinEnabled: false,
-      lastBackupAt: null
+      lastBackupAt: null,
+      lastBackupSummary: null,
+      lastBackupVersion: '',
+      lastBackupExportedAt: null
     }
   };
 
@@ -104,7 +107,14 @@
   }
 
   function saveState() {
+    // Persistência simples e previsível: não substituímos o objeto `state` aqui,
+    // pois modais abertos podem manter referências válidas durante fluxos em várias etapas.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function refreshStateFromStorage(){
+    state = loadState();
+    financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
   }
 
   function escapeHTML(value='') {
@@ -167,6 +177,12 @@
     return out.sort((a,b)=>a.dayIndex-b.dayIndex||a.time.localeCompare(b.time));
   }
   function fixedScheduleText(studentId){const rows=fixedScheduleEntries(studentId);return rows.length?rows.map(x=>`${x.label} ${x.time}`).join(' • '):'Nenhum horário fixo'}
+  function fixedScheduleMessage(studentId){
+    const rows=fixedScheduleEntries(studentId);
+    if(!rows.length)return 'nenhum horário fixo cadastrado';
+    const parts=rows.map(x=>`${x.label.toLowerCase()} às ${x.time}`);
+    return parts.length===1?parts[0]:`${parts.slice(0,-1).join(', ')} e ${parts.at(-1)}`;
+  }
 
 
   function ageFromBirth(value) {
@@ -186,19 +202,17 @@
 function addAudit(action, detail=''){
   state.auditLog=state.auditLog||[];
   state.auditLog.unshift({id:uid('log'),at:new Date().toISOString(),action:String(action||'Ação'),detail:String(detail||'')});
-  state.auditLog=state.auditLog.slice(0,300);
+  state.auditLog=state.auditLog.slice(0,500);
 }
 function waitlistFor(day,time){return (state.waitlist||[]).filter(w=>w.day===day&&w.time===time)}
 function trialsFor(date,day,time){return (state.trials||[]).filter(t=>t.date===date&&t.day===day&&t.time===time&&t.status!=='cancelled')}
 function prospectsOpen(){return (state.prospects||[]).filter(p=>!['matriculado','perdido'].includes(p.status||'novo'))}
 function snapshotMonth(mk=monthKey()){
-  const [y,m]=mk.split('-').map(Number), students=activeStudents();
+  const students=activeStudents(), billing=billingStudents(), freq=attendanceSummary(mk);
   const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
   const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
-  let present=0,absent=0,makeups=0;
-  Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;const date=k.slice(0,10);Object.entries(map||{}).forEach(([id,v])=>{const student=state.students.find(x=>String(x.id)===String(id));if(!student||studentPauseAt(student,date)||plannedAbsenceFor(id,date))return;if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});
   const occ=occupancyStats();
-  return {mk,label:monthLabel(mk),closedAt:new Date().toISOString(),students:students.length,expected:students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0),received,expenses,net:received-expenses,present,absent,makeups,occupancy:occ.percent};
+  return {mk,label:monthLabel(mk),closedAt:new Date().toISOString(),students:students.length,expected:billing.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0),received,expenses,net:received-expenses,present:freq.present,absent:freq.absent,makeups:freq.makeups,occupancy:occ.percent};
 }
 function closedMonth(mk){return (state.monthClosures||[]).find(x=>x.mk===mk)||null}
 function previousMonthKey(mk=monthKey()){const [y,m]=mk.split('-').map(Number),d=new Date(y,m-2,1,12);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
@@ -206,9 +220,9 @@ function deltaText(current,previous,suffix=''){if(previous==null)return 'Sem com
 function formatDateTimeBR(v){try{return new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return '—'}}
 
 function openOccupationMap(){
-  const o=occupancyStats();
-  const rows=SCHEDULE_DAYS.map(d=>`<div class="occupancy-day"><strong>${d.label}</strong><div class="occupancy-slots">${scheduleHours(d.id).map(time=>{const n=slotStudents(d.id,time).length,p=Math.round(n/4*100),cls=n>=4?'full':n>=3?'high':n>=2?'mid':n?'low':'empty';return `<button class="occupancy-chip ${cls}" data-occ-day="${d.id}" data-occ-time="${time}"><span>${time}</span><strong>${n}/4</strong><small>${p}%</small></button>`}).join('')}</div></div>`).join('');
-  openModal('Mapa de ocupação',`<div class="luxury-modal-hero"><span class="luxury-orb">◈</span><div><strong>Ocupação semanal</strong><small>${o.used}/${o.totalCapacity} vagas fixas • ${o.percent}% de ocupação</small></div></div><div class="occupancy-map">${rows}</div><div class="notice compact">Toque em um horário para abrir a Agenda exatamente naquela turma.</div>`);
+  const o=occupancyStats(),slotMap=new Map(o.slots.map(x=>[`${x.day}_${x.time}`,x]));
+  const rows=SCHEDULE_DAYS.map(d=>`<div class="occupancy-day"><strong>${d.label}</strong><div class="occupancy-slots">${scheduleHours(d.id).map(time=>{const slot=slotMap.get(`${d.id}_${time}`)||{count:0,vacancies:4},n=slot.count,p=Math.round(n/4*100),cls=n>=4?'full':n>=3?'high':n>=2?'mid':n?'low':'empty';return `<button class="occupancy-chip ${cls}" data-occ-day="${d.id}" data-occ-time="${time}"><span>${time}</span><strong>${n}/4</strong><small>${slot.vacancies} vaga${slot.vacancies===1?'':'s'} • ${p}%</small></button>`}).join('')}</div></div>`).join('');
+  openModal('Mapa de ocupação',`<div class="luxury-modal-hero"><span class="luxury-orb">◈</span><div><strong>Ocupação semanal</strong><small>${o.used}/${o.totalCapacity} vagas ocupadas • ${o.free} livres • ${o.percent}% de ocupação</small></div></div><div class="occupancy-map">${rows}</div><div class="notice compact">Pausas vigentes liberam a vaga operacional. Toque em um horário para abrir a Agenda exatamente naquela turma.</div>`);
   $$('[data-occ-day]',modalRoot).forEach(b=>b.addEventListener('click',()=>{const targetDay=b.dataset.occDay,targetTime=b.dataset.occTime;closeModal();navigate('schedule');selectedScheduleDay=targetDay;scheduleViewMode='day';renderSchedule();setTimeout(()=>document.querySelector(`[data-day="${targetDay}"][data-time="${targetTime}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}),120)}));
 }
 
@@ -248,9 +262,9 @@ function openHolidayQuick(){
   $('#holidayQuickForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),label=String(fd.get('label')||'Feriado').trim();state.studioClosures.push({id:uid('close'),startDate:date,endDate:date,type:'Feriado',label});addAudit('Feriado marcado',`${label} • ${fmtDate(date)}`);saveState();closeModal();toast('Feriado marcado no calendário.');if(currentView==='schedule')renderSchedule();});
 }
 
-function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,120);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')?'money':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
+function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,160);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')||a.includes('gasto')?'money':a.includes('backup')?'backup':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
 function trashTypeLabel(type){return type==='student'?'Aluno':type==='prospect'?'Interessado':type==='payment'?'Receita':type==='expense'?'Gasto':'Item'}
-function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||trashTypeLabel(x.type))}</strong><span>${escapeHTML(trashTypeLabel(x.type))} removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar aluno</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado com sucesso.');render()}))}
+function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||trashTypeLabel(x.type))}</strong><span>${x.type==='student'?'Cadastro':escapeHTML(trashTypeLabel(x.type))} removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar aluno</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado com sucesso.');render()}))}
 
   function studioTime(value) {
     const start=parseLocalDate(value); if(!start) return '—';
@@ -274,7 +288,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function birthdayStudents(maxDays=7){
-    return activeStudents().map(s=>({s,info:birthdayInfo(s)}))
+    return activeStudents({includePaused:true}).map(s=>({s,info:birthdayInfo(s)}))
       .filter(x=>x.info && x.info.days<=maxDays).sort((a,b)=>a.info.days-b.info.days);
   }
 
@@ -287,14 +301,26 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function plannedAbsencesOn(date){return (state.plannedAbsences||[]).filter(a=>a.date===date)}
   function lastPresenceDate(studentId){let last='';Object.entries(state.attendance||{}).forEach(([k,map])=>{if(map?.[studentId]==='present'){const d=k.slice(0,10);if(d>last)last=d}});return last}
   function daysSinceISO(date){const d=parseLocalDate(date);if(!d)return null;return Math.max(0,Math.floor((todayNoon()-d)/86400000))}
-  function inactivityInfo(s){const last=lastPresenceDate(s.id)||s.startDate;const days=daysSinceISO(last);return {last,days,attention:Number.isFinite(days)&&days>=10}}
-  function inactiveAttentionStudents(){return activeStudents().map(s=>({s,info:inactivityInfo(s)})).filter(x=>x.info.attention&&!studentPauseAt(x.s)).sort((a,b)=>b.info.days-a.info.days)}
-  function studentStatusBadge(s,date=isoToday()){const pause=studentPauseAt(s,date);if(pause)return `<span class="status pause">Pausado até ${fmtDate(pause.endDate)}</span>`;const inactivity=inactivityInfo(s);if(inactivity.attention)return `<span class="status warn">Sem treino há ${inactivity.days} dias</span>`;return ''}
+  function inactivityInfo(s){
+    const lastPresence=lastPresenceDate(s.id),start=s.startDate||'',base=lastPresence||start,days=daysSinceISO(base);
+    return {last:lastPresence,base,days,hasPresence:Boolean(lastPresence),attention:Number.isFinite(days)&&days>=10};
+  }
+  function inactivityLabel(info){if(!info?.attention)return '';return info.hasPresence?`Sem treino há ${info.days} dias`:'Nenhum treino registrado';}
+  function inactiveAttentionStudents(){return activeStudents().map(s=>({s,info:inactivityInfo(s)})).filter(x=>x.info.attention).sort((a,b)=>b.info.days-a.info.days)}
+  function studentStatusBadge(s,date=isoToday()){const pause=studentPauseAt(s,date);if(pause)return `<span class="status pause">Pausado até ${fmtDate(pause.endDate)}</span>`;const inactivity=inactivityInfo(s);if(inactivity.attention)return `<span class="status warn">${inactivityLabel(inactivity)}</span>`;return ''}
   function effectiveFixedStudentIds(day,time,date){return slotStudents(day,time).filter(id=>{const s=state.students.find(x=>String(x.id)===String(id));return s&&!studentPauseAt(s,date)&&!plannedAbsenceFor(id,date)})}
-  function sendBirthdayWhatsApp(id){const s=state.students.find(x=>x.id===id);if(!s)return;const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');const first=(s.name||'').split(' ')[0]||s.name;const text=`Parabéns, ${first}! 🎉 Que seu novo ciclo venha com muita saúde, energia e conquistas. Um grande abraço do Studio Márcio Bueno!`;window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer')}
+  function sendBirthdayWhatsApp(id){const s=state.students.find(x=>x.id===id);if(!s)return;const bi=birthdayInfo(s);if(!bi||bi.days!==0)return toast(bi?`O aniversário de ${firstName(s.name)} é em ${bi.days} dia${bi.days===1?'':'s'}. A felicitação fica disponível na data correta.`:'Data de nascimento não cadastrada.');const phone=cleanPhone(s.whatsapp);if(!phone)return toast('Cadastre um WhatsApp válido para este aluno.');const first=(s.name||'').split(' ')[0]||s.name;const text=`Parabéns, ${first}! 🎉 Que seu novo ciclo venha com muita saúde, energia e conquistas. Um grande abraço do Studio Márcio Bueno!`;window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer')}
   function currentYear(){return todayNoon().getFullYear()}
   function annualReportRows(year=currentYear()){
-    const out=[];for(let m=0;m<12;m++){const mk=`${year}-${String(m+1).padStart(2,'0')}`;const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);let present=0,absent=0,makeups=0;Object.entries(state.attendance||{}).forEach(([k,map])=>{if(!k.startsWith(mk))return;const date=k.slice(0,10);if(closureForDate(date))return;Object.entries(map||{}).forEach(([id,v])=>{const st=state.students.find(x=>String(x.id)===String(id));if(!st||studentPauseAt(st,date)||plannedAbsenceFor(id,date))return;if(v==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++}if(v==='absent')absent++})});out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(new Date(year,m,1,12)).replace('.',''),received,expenses,net:received-expenses,present,absent,makeups})}return out;
+    const out=[];
+    for(let m=0;m<12;m++){
+      const mk=`${year}-${String(m+1).padStart(2,'0')}`;
+      const received=state.payments.filter(p=>monthKey(p.date)===mk).reduce((a,p)=>a+(Number(p.amount)||0),0);
+      const expenses=state.expenses.filter(e=>monthKey(e.date)===mk).reduce((a,e)=>a+(Number(e.amount)||0),0);
+      const freq=attendanceSummary(mk);
+      out.push({mk,label:new Intl.DateTimeFormat('pt-BR',{month:'short'}).format(new Date(year,m,1,12)).replace('.',''),received,expenses,net:received-expenses,present:freq.present,absent:freq.absent,makeups:freq.makeups});
+    }
+    return out;
   }
   function annualReportHTML(year=currentYear()){
     const rows=annualReportRows(year),sum=k=>rows.reduce((a,r)=>a+(Number(r[k])||0),0),max=Math.max(1,...rows.map(r=>r.received));
@@ -322,7 +348,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function attendanceKey(date,day,time){return `${date}__${slotKey(day,time)}`}
   function attendanceMap(date,day,time){return state.attendance?.[attendanceKey(date,day,time)]||{}}
   function attendanceStatus(date,day,time,studentId){return attendanceMap(date,day,time)[studentId]||''}
-  function setAttendance(date,day,time,studentId,status){state.attendance=state.attendance||{};const k=attendanceKey(date,day,time);state.attendance[k]=state.attendance[k]||{};if(status)state.attendance[k][studentId]=status;else delete state.attendance[k][studentId];saveState()}
+  function setAttendance(date,day,time,studentId,status){
+    state.attendance=state.attendance||{};const k=attendanceKey(date,day,time),sid=String(studentId);
+    state.attendance[k]=state.attendance[k]||{};
+    if(status)state.attendance[k][sid]=status;else delete state.attendance[k][sid];
+    if(!Object.keys(state.attendance[k]).length)delete state.attendance[k];
+    saveState();
+  }
 
   // V9: uma aula pode receber várias reposições. Dados antigos (1 ID em string)
   // são convertidos de forma compatível para uma lista de IDs.
@@ -330,6 +362,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const raw=state.makeups?.[attendanceKey(date,day,time)];
     if(Array.isArray(raw)) return [...new Set(raw.filter(Boolean).map(String))];
     return raw ? [String(raw)] : [];
+  }
+  function effectiveMakeupStudentIds(date,day,time){
+    return makeupStudentIds(date,day,time).filter(id=>{
+      const st=state.students.find(x=>String(x.id)===String(id));
+      return st&&st.active!==false&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date);
+    });
   }
   function isMakeupStudentAtKey(key,studentId){
     const raw=state.makeups?.[key];
@@ -347,13 +385,22 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {absences,completed,scheduled,available:Math.max(0,absences-completed-scheduled)};
   }
   function monthLabel(key){if(!/^\d{4}-\d{2}$/.test(key))return key;const [y,m]=key.split('-').map(Number);return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1,12))}
-  function monthlyAttendanceCount(studentId,mk=monthKey()){let count=0;const student=state.students.find(x=>String(x.id)===String(studentId));Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(date.startsWith(mk)&&map&&map[studentId]==='present'&&student&&!closureForDate(date)&&!studentPauseAt(student,date)&&!plannedAbsenceFor(studentId,date))count++});return count}
-
-  function monthlyAttendanceStats(studentId,mk=monthKey()){
-    let present=0, absent=0, makeups=0;const student=state.students.find(x=>String(x.id)===String(studentId));
-    Object.entries(state.attendance||{}).forEach(([k,map])=>{const date=k.slice(0,10);if(!date.startsWith(mk)||!map||!student||closureForDate(date)||studentPauseAt(student,date)||plannedAbsenceFor(studentId,date))return;if(map[studentId]==='present')present++;if(map[studentId]==='absent')absent++;if(isMakeupStudentAtKey(k,studentId)&&map[studentId]==='present')makeups++;});
+  function attendanceSummary(mk=monthKey(),studentId=''){
+    let present=0,absent=0,makeups=0;const target=studentId?String(studentId):'';
+    Object.entries(state.attendance||{}).forEach(([k,map])=>{
+      const date=k.slice(0,10);if(!date.startsWith(mk)||!map||closureForDate(date))return;
+      Object.entries(map).forEach(([id,status])=>{
+        if(target&&String(id)!==target)return;
+        const student=state.students.find(x=>String(x.id)===String(id));
+        if(!student||studentPauseAt(student,date)||plannedAbsenceFor(id,date))return;
+        if(status==='present'){present++;if(isMakeupStudentAtKey(k,id))makeups++;}
+        if(status==='absent')absent++;
+      });
+    });
     return {present,absent,makeups};
   }
+  function monthlyAttendanceCount(studentId,mk=monthKey()){return attendanceSummary(mk,studentId).present}
+  function monthlyAttendanceStats(studentId,mk=monthKey()){return attendanceSummary(mk,studentId)}
 
   function attendanceHistory(studentId){
     const rows=[],student=state.students.find(x=>String(x.id)===String(studentId));
@@ -371,10 +418,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return state.students.filter(s=>{const b=parseLocalDate(s.birthDate);return b&&b.getMonth()===m;}).sort((a,b)=>parseLocalDate(a.birthDate).getDate()-parseLocalDate(b.birthDate).getDate());
   }
 
-  function occupancyStats(){
-    const slots=[];SCHEDULE_DAYS.forEach(d=>scheduleHours(d.id).forEach(time=>{const ids=slotStudents(d.id,time);slots.push({day:d.id,label:d.label,time,count:ids.length});}));
+  function occupancyStats(anchor=mondayOf()){
+    const slots=[];
+    SCHEDULE_DAYS.forEach((d,index)=>{const date=isoDate(addDays(anchor,index));scheduleHours(d.id).forEach(time=>{const count=effectiveFixedStudentIds(d.id,time,date).length;slots.push({day:d.id,label:d.label,time,date,count,vacancies:Math.max(0,4-count)});});});
     const totalCapacity=slots.length*4,used=slots.reduce((a,x)=>a+x.count,0),full=slots.filter(x=>x.count>=4).length,empty=slots.filter(x=>x.count===0).length,percent=totalCapacity?Math.round(used/totalCapacity*100):0;
-    return {slots,totalCapacity,used,full,empty,percent,busiest:[...slots].sort((a,b)=>b.count-a.count||a.time.localeCompare(b.time)).slice(0,5)};
+    return {slots,totalCapacity,used,free:Math.max(0,totalCapacity-used),full,empty,percent,busiest:[...slots].sort((a,b)=>b.count-a.count||a.time.localeCompare(b.time)).slice(0,5)};
   }
 
   function makeupSummary(){
@@ -411,7 +459,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {key:'ok', cls:'ok', text:`Em dia • ${fmtDate(student.dueDate)}`, days};
   }
 
-  function activeStudents() {
+  function activeStudents(options={}) {
+    const includePaused=Boolean(options.includePaused),date=options.date||isoToday();
+    return state.students.filter(s => s.active !== false && (includePaused || !studentPauseAt(s,date)));
+  }
+
+  // Base financeira/cadastral: uma pausa operacional não apaga obrigações ou histórico financeiro.
+  // Isso mantém o faturamento estável mesmo em pausas curtas, enquanto as telas operacionais
+  // (Agenda, Ativos, Retorno, Confirmação de horário) continuam excluindo pausas vigentes.
+  function billingStudents(){
     return state.students.filter(s => s.active !== false);
   }
 
@@ -422,7 +478,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function metrics() {
-    const students = activeStudents();
+    const operationalStudents = activeStudents();
+    const students = billingStudents();
     const expected = students.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
     const mk = monthKey();
     const monthPayments = state.payments.filter(p=>monthKey(p.date)===mk);
@@ -462,7 +519,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const overdueValue = overdueStudents.reduce((a,s)=>a+(Number(s.monthlyFee)||0),0);
     const soon = students.filter(s=>['today','soon'].includes(dueInfo(s).key)).length;
     const makeups = makeupSummary();
-    return {students:students.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, overdueValue, soon, makeups};
+    return {students:students.length, activeStudents:operationalStudents.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, overdueValue, soon, makeups};
   }
 
   const MOBILE_NAV_IDS=['dashboard','schedule','students','finance'];
@@ -534,8 +591,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     renderer();
   }
 
-  function metricCard(iconName, value, label, cls='') {
-    return `<article class="metric ${cls}"><div class="metric-icon">${icon(iconName)}</div><div class="value">${value}</div><div class="label">${label}</div></article>`;
+  function metricCard(iconName, value, label, cls='', attrs='') {
+    return `<article class="metric ${cls} ${attrs?'actionable':''}" ${attrs}><div class="metric-icon">${icon(iconName)}</div><div class="value">${value}</div><div class="label">${label}</div></article>`;
   }
 
   function greetingText(){
@@ -550,9 +607,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     let classes=0, fixedStudents=0, makeups=0, present=0, absent=0;
     if(dayId){
       scheduleHours(dayId).forEach(time=>{
-        const fixed=slotStudents(dayId,time);
+        const fixed=effectiveFixedStudentIds(dayId,time,date);
         const k=attendanceKey(date,dayId,time);
-        const makeupIds=makeupStudentIds(date,dayId,time);
+        const makeupIds=effectiveMakeupStudentIds(date,dayId,time);
         if(fixed.length||makeupIds.length) classes++;
         fixedStudents+=fixed.length;
         makeups+=makeupIds.length;
@@ -561,14 +618,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         absent+=eligibleIds.filter(id=>map[id]==='absent').length;
       });
     }
-    const attention=activeStudents().filter(s=>dueInfo(s).days<=Number(state.settings.chargeDaysBefore||3)).length;
+    const attention=billingStudents().filter(s=>dueInfo(s).days<=Number(state.settings.chargeDaysBefore||3)).length;
     return {dayId,classes,fixedStudents,makeups,present,absent,attention};
   }
 
   function renderDashboard() {
     const m=metrics(), today=todayStudioSummary(), occ=occupancyStats(), mk=monthKey();
-    const monthPresence=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(mk)).reduce((n,[,map])=>n+Object.values(map||{}).filter(v=>v==='present').length,0);
-    const upcoming=activeStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
+    const monthPresence=attendanceSummary(mk).present;
+    const upcoming=billingStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
     const firstName=(state.settings.trainerName||'Márcio').trim().split(/\s+/)[0];
     const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,bday7=birthdayStudents(7);
     viewEl.innerHTML=`
@@ -594,15 +651,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
       </section>
 
-      ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>${today.makeups===1?'reposição':'reposições'} hoje</span></button>`:''}${bday7.length?`<button data-nav="students"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-student-attention="1"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
+      ${(today.attention||today.makeups||bday7.length||todayPlanned||inactiveAlerts||todayClosure)?`<section class="attention-hub attention-hub-v93"><div class="attention-hub-head"><span>${icon('bell')}</span><div><strong>Central Hoje</strong><small>Agenda inteligente • prioridades e oportunidades</small></div></div><div class="attention-hub-items">${todayClosure?`<button data-nav="schedule" class="hub-closure"><strong>FERIADO</strong><span>${escapeHTML(todayClosure.label||todayClosure.type||'Studio fechado')}</span></button>`:''}${todayPlanned?`<button data-nav="schedule"><strong>${todayPlanned}</strong><span>ausência${todayPlanned===1?'':'s'} programada${todayPlanned===1?'':'s'} hoje</span></button>`:''}${today.attention?`<button data-nav="charges"><strong>${today.attention}</strong><span>mensalidade${today.attention===1?'':'s'} para acompanhar</span></button>`:''}${today.makeups?`<button data-nav="schedule"><strong>${today.makeups}</strong><span>${today.makeups===1?'reposição':'reposições'} hoje</span></button>`:''}${bday7.length?`<button data-student-birthday="1"><strong>${bday7.length}</strong><span>aniversário${bday7.length===1?'':'s'} em até 7 dias</span></button>`:''}${inactiveAlerts?`<button data-student-attention="1"><strong>${inactiveAlerts}</strong><span>aluno${inactiveAlerts===1?'':'s'} sem treinar há 10+ dias</span></button>`:''}</div></section>`:''}
 
       <section class="metrics luxury-metrics management-cockpit">
-        ${metricCard('users',m.students,'Alunos ativos')}
-        ${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}
-        ${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}
-        ${metricCard('calendar',monthPresence,'Presenças no mês','good')}
-        ${metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'')}
-        ${metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good')}
+        ${metricCard('users',m.activeStudents,'Alunos ativos','','data-dashboard-kpi="students"')}
+        ${metricCard('wallet',privateMoney(m.expected),'Receita prevista','','data-dashboard-kpi="expected"')}
+        ${metricCard('chart',privateMoney(m.received),'Recebido no mês','good','data-dashboard-kpi="received"')}
+        ${metricCard('calendar',monthPresence,'Presenças no mês','good','data-dashboard-kpi="attendance"')}
+        ${metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'','data-dashboard-kpi="occupancy"')}
+        ${metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good','data-dashboard-kpi="overdue"')}
       </section>
       <section class="executive-actions"><button class="executive-card" id="openAnnualReport"><span class="executive-icon">✦</span><div><strong>Relatório anual</strong><small>Financeiro, frequência e evolução mês a mês</small></div><span class="executive-arrow">›</span></button>${bday7.length?`<div class="birthday-luxury-list">${bday7.slice(0,3).map(({s,info})=>`<button class="birthday-luxury-item js-birthday-whatsapp" data-id="${s.id}"><span>🎂</span><div><strong>${escapeHTML(s.name)}</strong><small>${info.days===0?'Aniversário hoje':`Em ${info.days} dia${info.days===1?'':'s'}`}</small></div><em>${icon('message')}</em></button>`).join('')}</div>`:''}</section>
 
@@ -632,6 +689,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#toggleFinancePrivacy')?.addEventListener('click',toggleFinancialVisibility);
     $$('[data-nav]',viewEl).forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
     $('[data-student-attention]',viewEl)?.addEventListener('click',()=>{studentFilter='attention';navigate('students');});
+    $('[data-student-birthday]',viewEl)?.addEventListener('click',()=>{studentFilter='birthday';navigate('students');});
+    $$('[data-dashboard-kpi]',viewEl).forEach(card=>card.addEventListener('click',()=>{
+      const k=card.dataset.dashboardKpi;
+      if(k==='students'){studentFilter='active';navigate('students');}
+      else if(k==='expected'){financeTab='summary';navigate('finance');}
+      else if(k==='received'){financeTab='payments';navigate('finance');}
+      else if(k==='attendance'){scheduleViewMode='month';navigate('schedule');}
+      else if(k==='occupancy')openOccupationMap();
+      else if(k==='overdue'){chargeTab='overdue';navigate('charges');}
+    }));
     $$('.js-charge-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendChargeWhatsApp(b.dataset.id)));
   }
 
@@ -645,14 +712,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function renderStudents() {
     const students=[...state.students].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-    const activeCount=students.filter(s=>s.active!==false).length,inactiveCount=students.length-activeCount,monthBirthdays=birthdaysThisMonth(),pausedCount=students.filter(s=>studentPauseAt(s)).length,attentionCount=inactiveAttentionStudents().length;
+    const pausedCount=students.filter(s=>s.active!==false&&studentPauseAt(s)).length,activeCount=students.filter(s=>s.active!==false&&!studentPauseAt(s)).length,inactiveCount=students.filter(s=>s.active===false).length,monthBirthdays=birthdaysThisMonth(),attentionCount=inactiveAttentionStudents().length,birthdaySoon=birthdayStudents(7),birthdaySoonIds=new Set(birthdaySoon.map(x=>String(x.s.id)));
     viewEl.innerHTML=`
       <div class="section-head"><div><h3>Cadastro de alunos</h3><p>${activeCount} ativo${activeCount===1?'':'s'} • ${inactiveCount} inativo${inactiveCount===1?'':'s'}</p></div><button class="btn btn-primary" id="addStudent">${icon('plus')} Novo aluno</button></div>
-      <div class="student-toolbar"><div class="search-wrap">${icon('search')}<input id="studentSearch" type="search" placeholder="Buscar por nome, WhatsApp ou e-mail" autocomplete="off" /></div><div class="tabs student-filter-tabs"><button class="tab ${studentFilter==='all'?'active':''}" data-student-filter="all">Todos (${students.length})</button><button class="tab ${studentFilter==='active'?'active':''}" data-student-filter="active">Ativos (${activeCount})</button><button class="tab ${studentFilter==='inactive'?'active':''}" data-student-filter="inactive">Inativos (${inactiveCount})</button><button class="tab ${studentFilter==='paused'?'active':''}" data-student-filter="paused">Pausados (${pausedCount})</button><button class="tab ${studentFilter==='attention'?'active':''}" data-student-filter="attention">Atenção (${attentionCount})</button></div></div>
+      <div class="student-toolbar"><div class="search-wrap">${icon('search')}<input id="studentSearch" type="search" placeholder="Buscar por nome, WhatsApp ou e-mail" autocomplete="off" /></div><div class="tabs student-filter-tabs"><button class="tab ${studentFilter==='all'?'active':''}" data-student-filter="all">Todos (${students.length})</button><button class="tab ${studentFilter==='active'?'active':''}" data-student-filter="active">Ativos (${activeCount})</button><button class="tab ${studentFilter==='inactive'?'active':''}" data-student-filter="inactive">Inativos (${inactiveCount})</button><button class="tab ${studentFilter==='paused'?'active':''}" data-student-filter="paused">Pausados (${pausedCount})</button><button class="tab ${studentFilter==='attention'?'active':''}" data-student-filter="attention">Atenção (${attentionCount})</button><button class="tab ${studentFilter==='birthday'?'active':''}" data-student-filter="birthday">Aniversários próximos (${birthdaySoon.length})</button></div></div>
       ${monthBirthdays.length?`<div class="birthday-month-strip"><strong>🎂 Aniversariantes do mês</strong><span>${monthBirthdays.map(s=>`${escapeHTML(s.name)} • ${String(parseLocalDate(s.birthDate).getDate()).padStart(2,'0')}/${String(parseLocalDate(s.birthDate).getMonth()+1).padStart(2,'0')}`).join(' &nbsp; • &nbsp; ')}</span></div>`:''}
       <section id="studentsList" class="cards"></section>`;
     const list=$('#studentsList');
-    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase(),qDigits=q.replace(/\D/g,'');const filtered=students.filter(s=>{const text=[s.name,s.email].some(v=>String(v||'').toLowerCase().includes(q))||String(s.whatsapp||'').toLowerCase().includes(q)||(qDigits&&phoneDigits(s.whatsapp).includes(qDigits));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false)||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&Boolean(studentPauseAt(s)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
+    const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase(),qDigits=q.replace(/\D/g,'');const filtered=students.filter(s=>{const text=[s.name,s.email].some(v=>String(v||'').toLowerCase().includes(q))||String(s.whatsapp||'').toLowerCase().includes(q)||(qDigits&&phoneDigits(s.whatsapp).includes(qDigits));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false&&!studentPauseAt(s))||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&s.active!==false&&Boolean(studentPauseAt(s)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s))||(studentFilter==='birthday'&&birthdaySoonIds.has(String(s.id)));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
     draw();$('#studentSearch').addEventListener('input',draw);$$('[data-student-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{studentFilter=b.dataset.studentFilter;$$('[data-student-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.studentFilter===studentFilter));draw();}));$('#addStudent').addEventListener('click',()=>openStudentModal());
   }
 
@@ -700,7 +767,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const payments=state.payments.filter(p=>String(p.studentId)===String(id)).sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
     const paidThisMonth=payments.some(p=>monthKey(p.date)===mk),trend=studentMonthTrend(id,6),maxTrend=Math.max(1,...trend.map(x=>x.present));
     const phone=cleanPhone(s.whatsapp),pause=studentPauseAt(s),planned=(state.plannedAbsences||[]).filter(a=>String(a.studentId)===String(id)&&a.date>=isoToday()).sort((a,b)=>a.date.localeCompare(b.date)),fixedText=fixedScheduleText(id);
-    openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':'Aluno ativo'}</span></div></div></section>
+    openModal(`Ficha Premium • ${s.name}`,`<section class="student-premium-summary"><div class="student-photo premium-profile-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><h4>${escapeHTML(s.name)}</h4><p>${ageFromBirth(s.birthDate)??'—'} anos • no Studio há ${studioTime(s.startDate)}</p><div class="profile-pills"><span>${s.paymentMethod==='cash'?'Dinheiro':'PIX'}</span><span class="${paidThisMonth?'profile-paid':'profile-pending'}">${paidThisMonth?'Mensalidade registrada':'Pagamento pendente no mês'}</span><span>${s.active===false?'Inativo':pause?'Pausado':'Aluno ativo'}</span></div></div></section>
       <section class="metrics history-metrics">${metricCard('check',monthStats.present,'Treinos no mês','good')}${metricCard('x',monthStats.absent,'Faltas no mês',monthStats.absent?'danger':'')}${metricCard('calendar',credits.available,'Créditos disponíveis',credits.available?'warn':'')}${metricCard('users',credits.scheduled,'Reposições agendadas')}</section>
       <div class="profile-detail-grid"><div><span>WhatsApp</span><strong>${escapeHTML(formatPhoneBR(s.whatsapp))}</strong></div><div><span>Vencimento</span><strong>${fmtDate(s.dueDate)}</strong></div><div><span>Mensalidade</span><strong>${privateMoney(s.monthlyFee)}</strong></div><div><span>Total de reposições feitas</span><strong>${makeups}</strong></div><div class="profile-detail-wide"><span>Horários fixos sincronizados com a Agenda</span><strong>${escapeHTML(fixedText)}</strong></div></div>${pause?`<div class="student-pause-banner"><strong>⏸ Aluno em pausa</strong><span>${fmtDate(pause.startDate)} a ${fmtDate(pause.endDate)} • ${escapeHTML(pause.reason)}</span><button type="button" class="btn btn-secondary btn-small" id="historyResume">Retomar treinos</button></div>`:''}${planned.length?`<div class="planned-absence-strip"><strong>Ausências programadas</strong><span>${planned.slice(0,3).map(a=>`${fmtDate(a.date)}${a.reason?` • ${escapeHTML(a.reason)}`:''}`).join(' &nbsp; | &nbsp; ')}</span></div>`:''}${s.privateNotes?`<div class="private-notes-card"><span class="section-overline">PRIVADO</span><strong>Observações internas</strong><p>${escapeHTML(s.privateNotes)}</p></div>`:''}
       <div class="student-quick-actions">${phone?`<button class="btn btn-primary btn-small" id="historyWhatsapp">${icon('message')} WhatsApp</button>`:''}<button class="btn btn-secondary btn-small" id="historyMonthly">${icon('calendar')} Resumo do mês</button><button class="btn btn-secondary btn-small" id="historyAbsence">${icon('calendar')} Programar ausência</button><button class="btn btn-secondary btn-small" id="historyEdit">${icon('edit')} Editar cadastro</button></div>
@@ -733,6 +800,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="field"><label>Pausa / férias do aluno • início</label><input name="pauseStart" type="date" value="${escapeHTML(s?.pauseStart||'')}" /></div>
         <div class="field"><label>Pausa / férias do aluno • fim</label><input name="pauseEnd" type="date" value="${escapeHTML(s?.pauseEnd||'')}" /></div>
         <div class="field" style="grid-column:1/-1"><label>Motivo da pausa</label><input name="pauseReason" value="${escapeHTML(s?.pauseReason||'')}" placeholder="Ex.: férias, viagem, afastamento" /></div>
+        ${s&&studentPauseAt(s)?`<div class="pause-edit-action" style="grid-column:1/-1"><div><strong>Pausa ativa até ${fmtDate(s.pauseEnd)}</strong><span>A data original de início será preservada.</span></div><button type="button" class="btn btn-secondary btn-small" id="resumeFromEdit">Encerrar pausa agora</button></div>`:''}
         <div class="field" style="grid-column:1/-1"><label>Observações privadas</label><textarea name="privateNotes" rows="4" placeholder="Anotações administrativas visíveis somente neste app">${escapeHTML(s?.privateNotes||'')}</textarea><small>Use para combinações de horário, pagamento ou observações internas.</small></div>
         <div class="modal-actions" style="grid-column:1/-1"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${s?'Salvar alterações':'Criar aluno'}</button></div>
       </form>
@@ -747,6 +815,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     photoInput.addEventListener('change',async()=>{const file=photoInput.files?.[0];if(!file)return;try{photoData=await compressPhoto(file);photoPreview.innerHTML=`<img src="${photoData}" alt="Foto do aluno" />`;removePhoto.classList.remove('hidden');if(photoFileLabel)photoFileLabel.textContent='Alterar foto'}catch(e){toast('Não foi possível carregar essa foto.')}});
     removePhoto.addEventListener('click',()=>{photoData='';photoInput.value='';const initial=(form.elements.name.value||'').trim().charAt(0).toUpperCase()||'•';photoPreview.innerHTML=`<span>${escapeHTML(initial)}</span>`;removePhoto.classList.add('hidden');if(photoFileLabel)photoFileLabel.textContent='Adicionar foto'});
     form.birthDate.addEventListener('change',()=>{$('#agePreview').value = form.birthDate.value ? `${ageFromBirth(form.birthDate.value)} anos` : 'Calculada automaticamente';});
+    $('#resumeFromEdit')?.addEventListener('click',()=>{form.elements.pauseStart.value='';form.elements.pauseEnd.value='';form.elements.pauseReason.value='';toast('Pausa marcada para encerramento. Salve as alterações para confirmar.');});
     form.addEventListener('submit', e=>{
       e.preventDefault();
       const fd = new FormData(form);
@@ -775,7 +844,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         createdAt: s?.createdAt || new Date().toISOString()
       };
       if (s) state.students = state.students.map(x=>x.id===s.id?record:x); else state.students.push(record);
-      addAudit(s?'Aluno atualizado':'Aluno criado',record.name); saveState(); closeModal(); toast(s?'Aluno atualizado.':'Aluno criado com sucesso.'); render();
+      if(!s)addAudit('Aluno criado',record.name);
+      else {
+        const hadPause=Boolean(s.pauseStart&&s.pauseEnd),hasPause=Boolean(record.pauseStart&&record.pauseEnd);
+        if(!hadPause&&hasPause)addAudit('Pausa iniciada',`${record.name} • ${fmtDate(record.pauseStart)} a ${fmtDate(record.pauseEnd)}${record.pauseReason?` • ${record.pauseReason}`:''}`);
+        else if(hadPause&&!hasPause)addAudit('Pausa encerrada',record.name);
+        else if(hadPause&&hasPause&&(s.pauseStart!==record.pauseStart||s.pauseEnd!==record.pauseEnd||s.pauseReason!==record.pauseReason))addAudit('Pausa atualizada',`${record.name} • ${fmtDate(record.pauseStart)} a ${fmtDate(record.pauseEnd)}`);
+        else addAudit('Aluno atualizado',record.name);
+      }
+      saveState(); closeModal(); toast(s?'Aluno atualizado.':'Aluno criado com sucesso.'); render();
     });
   }
 
@@ -795,7 +872,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function confirmDeleteStudent(id) {
     const s = state.students.find(x=>x.id===id); if (!s) return;
-    openModal('Excluir aluno', `<div class="notice"><strong>${escapeHTML(s.name)}</strong> será removido da lista de alunos e enviado para a <strong>Lixeira</strong>, de onde poderá ser restaurado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDelete">${icon('trash')} Mover para lixeira</button></div>`);
+    openModal('Excluir aluno', `<div class="notice">O cadastro de <strong>${escapeHTML(s.name)}</strong> será removido da lista de alunos e enviado para a <strong>Lixeira</strong>, de onde poderá ser restaurado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDelete">${icon('trash')} Mover para lixeira</button></div>`);
     $('#confirmDelete').addEventListener('click',()=>{state.trash=state.trash||[];state.trash.unshift({id:uid('trash'),type:'student',deletedAt:new Date().toISOString(),data:structuredClone(s)});state.students=state.students.filter(x=>x.id!==id);addAudit('Aluno enviado à lixeira',s.name);saveState(); closeModal(); toast('Aluno movido para a lixeira.'); render();});
   }
 
@@ -837,7 +914,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial via PIX</strong><span>Todos os alunos ativos cadastrados como PIX</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido via PIX</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.pix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>PIX</span></div><strong>${privateMoney(m.remainingPix)}</strong></div></article>
           <article class="card"><div class="list-row"><div class="list-main"><strong>Potencial em dinheiro</strong><span>Todos os alunos ativos cadastrados como Dinheiro</span></div><strong>${privateMoney(m.potentialCash)}</strong></div><div class="list-row"><div class="list-main"><strong>Já recebido em dinheiro</strong><span>Mês atual</span></div><strong class="money-positive">${privateMoney(m.cash)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial ainda a receber</strong><span>Dinheiro</span></div><strong>${privateMoney(m.remainingCash)}</strong></div></article>
         </section>
-        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Alunos ativos</strong><span>Base de mensalidades</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por aluno ativo</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>${m.overdue} aluno${m.overdue===1?'':'s'} • valor pendente</span></div><strong>${privateMoney(m.overdueValue)}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
+        <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Cadastros faturáveis</strong><span>Base de mensalidades, inclusive pausas vigentes</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por cadastro faturável</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>${m.overdue} aluno${m.overdue===1?'':'s'} • valor pendente</span></div><strong>${privateMoney(m.overdueValue)}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
     } else if (financeTab==='payments') renderPayments(c);
     else renderExpenses(c);
   }
@@ -845,7 +922,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderPayments(c) {
     const groups = paymentsByMonth();
     const current = monthKey();
-    const students = activeStudents();
+    const students = billingStudents();
     const currentPaidIds = new Set(
       state.payments.filter(p => monthKey(p.date) === current).map(p => String(p.studentId))
     );
@@ -880,7 +957,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           const filtered = payments.filter(p => {
             const st = state.students.find(x => String(x.id) === String(p.studentId));
             const pm = p.paymentMethod || st?.paymentMethod || 'pix';
-            const matchesText = !q || [st?.name,p.description,p.type].some(v => String(v||'').toLowerCase().includes(q));
+            const matchesText = !q || [st?.name,p.description,p.reference,p.type].some(v => String(v||'').toLowerCase().includes(q));
             const matchesMethod = method === 'all' || pm === method;
             return matchesText && matchesMethod;
           });
@@ -903,7 +980,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
                 <div class="list-row">
                   <div class="list-main">
                     <strong>${escapeHTML(st?.name||p.description||'Receita')}</strong>
-                    <span>${fmtDate(p.date)} • ${escapeHTML(p.type||'Mensalidade')} • ${pm==='cash'?'Dinheiro':'PIX'}</span>
+                    <span>${fmtDate(p.date)} • ${escapeHTML(p.reference||p.type||'Mensalidade')} • ${pm==='cash'?'Dinheiro':'PIX'}</span>
                   </div>
                   <div class="finance-row-actions">
                     <strong class="money-positive">${privateMoney(p.amount)}</strong>
@@ -925,6 +1002,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         `);
         $('#confirmDeletePayment').addEventListener('click', () => {
           state.payments = state.payments.filter(x => x.id !== b.dataset.id);
+          addAudit('Receita excluída',`${payment?.studentName||state.students.find(x=>String(x.id)===String(payment?.studentId))?.name||'Aluno'} • ${fmtDate(payment?.date)} • ${fmtMoney(payment?.amount)}`);
           saveState(); closeModal(); renderFinance(); toast('Receita excluída.');
         });
       }));
@@ -939,14 +1017,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openPaymentModal(preselectedId='') {
     if(!financialValuesVisible){toast('Mostre os valores antes de registrar uma receita.');return;}
-    const students = activeStudents();
-    if (!students.length) return toast('Cadastre um aluno antes de registrar uma mensalidade.');
-    openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(s=>`<option value="${s.id}" ${s.id===preselectedId?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod" required><option value="pix">PIX</option><option value="cash">Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
+    const students = billingStudents();
+    if (!students.length) return toast('Cadastre um aluno ativo antes de registrar uma mensalidade.');
+    const hasPreselected=students.some(x=>String(x.id)===String(preselectedId));
+    openModal('Registrar receita', `<form id="paymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required><option value="" ${hasPreselected?'':'selected'} disabled>Selecionar aluno</option>${students.map(s=>`<option value="${s.id}" ${String(s.id)===String(preselectedId)?'selected':''}>${escapeHTML(s.name)}</option>`).join('')}</select></div><div class="form-grid two"><div class="field"><label>Data *</label><input type="date" name="date" required value="${isoToday()}" /></div><div class="field"><label>Valor *</label><input type="number" name="amount" step="0.01" min="0" required /></div></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod" required><option value="pix">PIX</option><option value="cash">Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="Mensalidade" /></div><div class="field"><label><input id="advanceDue" type="checkbox" checked style="width:auto;margin-right:8px" /> Avançar vencimento do aluno em 1 mês</label></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Registrar</button></div></form>`);
     const form=$('#paymentForm');
-    const syncAmount=()=>{const s=state.students.find(x=>x.id===form.studentId.value); if(s) form.amount.value=Number(s.monthlyFee||0).toFixed(2);};
-    const syncPaymentMethod=()=>{const s=state.students.find(x=>x.id===form.studentId.value); if(s) form.paymentMethod.value=s.paymentMethod||'pix';};
-    form.studentId.addEventListener('change',()=>{syncAmount();syncPaymentMethod();}); syncAmount(); syncPaymentMethod();
-    form.addEventListener('submit',e=>{e.preventDefault(); const fd=new FormData(form); const sid=String(fd.get('studentId')); const s=state.students.find(x=>x.id===sid); const payment={id:uid('pay'),studentId:sid,studentName:s?.name||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,paymentMethod:String(fd.get('paymentMethod')||'pix'),reference:String(fd.get('reference')).trim(),createdAt:new Date().toISOString()}; state.payments.push(payment); if($('#advanceDue').checked && s){s.dueDate=addMonthsISO(s.dueDate||isoToday(),1);} saveState(); closeModal(); toast('Receita registrada.'); render();});
+    const syncAmount=()=>{const st=state.students.find(x=>String(x.id)===String(form.studentId.value));form.amount.value=st?Number(st.monthlyFee||0).toFixed(2):'';};
+    const syncPaymentMethod=()=>{const st=state.students.find(x=>String(x.id)===String(form.studentId.value));if(st)form.paymentMethod.value=st.paymentMethod||'pix';};
+    form.studentId.addEventListener('change',()=>{syncAmount();syncPaymentMethod();});
+    if(hasPreselected){syncAmount();syncPaymentMethod();}
+    form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),sid=String(fd.get('studentId')||'');if(!sid)return toast('Selecione um aluno.');const st=state.students.find(x=>String(x.id)===sid);const payment={id:uid('pay'),studentId:sid,studentName:st?.name||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,paymentMethod:String(fd.get('paymentMethod')||'pix'),reference:String(fd.get('reference')||'Mensalidade').trim(),type:String(fd.get('reference')||'Mensalidade').trim()||'Mensalidade',createdAt:new Date().toISOString()};state.payments.push(payment);if($('#advanceDue').checked&&st)st.dueDate=addMonthsISO(st.dueDate||isoToday(),1);addAudit('Receita registrada',`${st?.name||'Aluno'} • ${fmtDate(payment.date)} • ${fmtMoney(payment.amount)} • ${payment.paymentMethod==='cash'?'Dinheiro':'PIX'}`);saveState();closeModal();toast('Receita registrada.');render();});
   }
 
   function addMonthsISO(value, months) {
@@ -961,9 +1041,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openPaymentEditModal(id){
     if(!financialValuesVisible){toast('Mostre os valores antes de editar uma receita.');return;}
-    const p=state.payments.find(x=>x.id===id);if(!p)return;
-    openModal('Editar receita',`<form id="editPaymentForm" class="form-grid"><div class="field"><label>Data</label><input name="date" type="date" required value="${escapeHTML(p.date||isoToday())}" /></div><div class="field"><label>Valor</label><input name="amount" type="number" min="0" step="0.01" required value="${Number(p.amount)||0}" /></div><div class="field"><label>Forma de pagamento</label><select name="paymentMethod"><option value="pix" ${(p.paymentMethod||'pix')==='pix'?'selected':''}>PIX</option><option value="cash" ${p.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);
-    $('#editPaymentForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget);p.date=String(fd.get('date'));p.amount=Number(fd.get('amount'))||0;p.paymentMethod=String(fd.get('paymentMethod')||'pix');saveState();closeModal();renderFinance();toast('Receita atualizada.');});
+    const p=state.payments.find(x=>String(x.id)===String(id));if(!p)return;
+    const students=[...state.students].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')),original=structuredClone(p);
+    openModal('Editar receita',`<form id="editPaymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(st=>`<option value="${st.id}" ${String(st.id)===String(p.studentId)?'selected':''}>${escapeHTML(st.name)}</option>`).join('')}</select></div><div class="field"><label>Data *</label><input name="date" type="date" required value="${escapeHTML(p.date||isoToday())}" /></div><div class="field"><label>Valor *</label><input name="amount" type="number" min="0" step="0.01" required value="${Number(p.amount)||0}" /></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod"><option value="pix" ${(p.paymentMethod||'pix')==='pix'?'selected':''}>PIX</option><option value="cash" ${p.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="${escapeHTML(p.reference||p.type||'Mensalidade')}" /></div><label class="toggle-row"><input id="editAdvanceDue" type="checkbox"><span>Avançar vencimento do aluno em 1 mês <small>Somente se você quiser executar esta ação agora.</small></span></label><div class="notice compact">A edição altera este lançamento existente. Nenhuma nova receita será criada.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar alterações</button></div></form>`);
+    $('#editPaymentForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),sid=String(fd.get('studentId')),st=state.students.find(x=>String(x.id)===sid),updated={...p,studentId:sid,studentName:st?.name||p.studentName||'',date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,paymentMethod:String(fd.get('paymentMethod')||'pix'),reference:String(fd.get('reference')||'Mensalidade').trim(),type:String(fd.get('reference')||'Mensalidade').trim()||'Mensalidade',updatedAt:new Date().toISOString()};state.payments=state.payments.map(x=>String(x.id)===String(id)?updated:x);if($('#editAdvanceDue').checked&&st)st.dueDate=addMonthsISO(st.dueDate||isoToday(),1);const changes=[];if(String(original.studentId)!==sid)changes.push(`aluno: ${original.studentName||'—'} → ${st?.name||'—'}`);if(original.date!==updated.date)changes.push(`data: ${fmtDate(original.date)} → ${fmtDate(updated.date)}`);if(Number(original.amount)!==Number(updated.amount))changes.push(`valor: ${fmtMoney(original.amount)} → ${fmtMoney(updated.amount)}`);if((original.paymentMethod||'pix')!==updated.paymentMethod)changes.push(`forma: ${(original.paymentMethod||'pix')==='cash'?'Dinheiro':'PIX'} → ${updated.paymentMethod==='cash'?'Dinheiro':'PIX'}`);if((original.reference||original.type||'')!==updated.reference)changes.push(`referência: ${original.reference||original.type||'—'} → ${updated.reference}`);addAudit('Receita editada',`${st?.name||updated.studentName||'Aluno'} • ${changes.join(' • ')||'dados conferidos sem alteração estrutural'}`);saveState();closeModal();renderFinance();toast('Alterações salvas na receita existente.');});
   }
 
   function renderExpenses(c) {
@@ -971,18 +1052,18 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     c.innerHTML=`<div class="section-head"><div><h3>Gastos</h3><p>Despesas do studio</p></div><button class="btn btn-primary" id="addExpense">${icon('plus')} Novo gasto</button></div><section class="cards">${expenses.length?expenses.map(e=>`<article class="card"><div class="list-row"><div class="list-main"><strong>${escapeHTML(e.description)}</strong><span>${fmtDate(e.date)} • ${escapeHTML(e.category||'Outros')}${e.recurring?' • Recorrente':''}</span></div><div class="finance-row-actions"><strong class="money-negative">${privateMoney(e.amount)}</strong><button class="mini-icon js-edit-expense" data-id="${e.id}" title="Editar">${icon('edit')}</button><button class="mini-icon danger js-del-expense" data-id="${e.id}" title="Excluir">${icon('trash')}</button></div></div></article>`).join(''):emptyState('Nenhum gasto cadastrado','Cadastre equipamentos, manutenção, impostos, serviços e outras despesas.')}</section>`;
     $('#addExpense').addEventListener('click',()=>openExpenseModal());
     $$('.js-edit-expense',c).forEach(b=>b.addEventListener('click',()=>{if(!financialValuesVisible)return toast('Mostre os valores antes de editar um gasto.');openExpenseModal(b.dataset.id)}));
-    $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{const e=state.expenses.find(x=>x.id===b.dataset.id);openModal('Excluir gasto',`<div class="notice">Confirma excluir <strong>${escapeHTML(e?.description||'este gasto')}</strong>? O saldo do mês será recalculado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeleteExpense">Excluir</button></div>`);$('#confirmDeleteExpense').addEventListener('click',()=>{state.expenses=state.expenses.filter(x=>x.id!==b.dataset.id);saveState();closeModal();renderFinance();toast('Gasto excluído.');});}));
+    $$('.js-del-expense',c).forEach(b=>b.addEventListener('click',()=>{const e=state.expenses.find(x=>x.id===b.dataset.id);openModal('Excluir gasto',`<div class="notice">Confirma excluir <strong>${escapeHTML(e?.description||'este gasto')}</strong>? O saldo do mês será recalculado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeleteExpense">Excluir</button></div>`);$('#confirmDeleteExpense').addEventListener('click',()=>{state.expenses=state.expenses.filter(x=>x.id!==b.dataset.id);addAudit('Gasto excluído',`${e?.description||'Gasto'} • ${fmtDate(e?.date)} • ${fmtMoney(e?.amount)}`);saveState();closeModal();renderFinance();toast('Gasto excluído.');});}));
   }
 
   function openExpenseModal(id=null) {
     const existing=id?state.expenses.find(x=>x.id===id):null;
     if(existing&&!financialValuesVisible)return toast('Mostre os valores antes de editar um gasto.');
     openModal(existing?'Editar gasto':'Novo gasto',`<form id="expenseForm" class="form-grid"><div class="field"><label>Descrição *</label><input name="description" required value="${escapeHTML(existing?.description||'')}" placeholder="Ex.: Manutenção de equipamento" /></div><div class="form-grid two"><div class="field"><label>Categoria</label><select name="category">${['Equipamentos','Manutenção','Impostos','Serviços','Materiais','Estrutura','Energia','Água','Marketing','Outros'].map(x=>`<option ${existing?.category===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label>Data *</label><input type="date" name="date" required value="${escapeHTML(existing?.date||isoToday())}" /></div></div><div class="field"><label>Valor *</label><input type="number" name="amount" min="0" step="0.01" required value="${existing?.amount??''}" /></div><label class="toggle-row"><input type="checkbox" name="recurring" ${existing?.recurring?'checked':''}><span>Gasto recorrente mensal</span></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar gasto'}</button></div></form>`);
-    $('#expenseForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),record={id:existing?.id||uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')||'Outros'),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,recurring:fd.get('recurring')==='on',createdAt:existing?.createdAt||new Date().toISOString()};if(existing)state.expenses=state.expenses.map(x=>x.id===existing.id?record:x);else state.expenses.push(record);saveState();closeModal();renderFinance();toast(existing?'Gasto atualizado.':'Gasto registrado.');});
+    $('#expenseForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),record={id:existing?.id||uid('exp'),description:String(fd.get('description')).trim(),category:String(fd.get('category')||'Outros'),date:String(fd.get('date')),amount:Number(fd.get('amount'))||0,recurring:fd.get('recurring')==='on',createdAt:existing?.createdAt||new Date().toISOString()};if(existing){state.expenses=state.expenses.map(x=>x.id===existing.id?record:x);addAudit('Gasto editado',`${record.description} • ${fmtDate(record.date)} • ${fmtMoney(record.amount)}`);}else{state.expenses.push(record);addAudit('Gasto registrado',`${record.description} • ${fmtDate(record.date)} • ${fmtMoney(record.amount)}`);}saveState();closeModal();renderFinance();toast(existing?'Gasto atualizado.':'Gasto registrado.');});
   }
 
   function renderCharges() {
-    const students=activeStudents().map(s=>({s,info:dueInfo(s)})).sort((a,b)=>a.info.days-b.info.days);
+    const students=billingStudents().map(s=>({s,info:dueInfo(s)})).sort((a,b)=>a.info.days-b.info.days);
     const tabs=[['all','Todos'],['overdue','Vencidos'],['soon','Vencendo']];
     const filtered=students.filter(x=>chargeTab==='all'||(chargeTab==='overdue'?x.info.key==='overdue':['today','soon'].includes(x.info.key)));
     viewEl.innerHTML=`<div class="tabs">${tabs.map(([id,l])=>`<button class="tab ${chargeTab===id?'active':''}" data-charge-tab="${id}">${l}</button>`).join('')}</div><div class="notice">O botão de WhatsApp abre uma mensagem pronta. O envio só acontece quando você confirma no WhatsApp.</div><div class="section-head"><div><h3>Lembretes de mensalidade</h3><p>Vencimentos e cobranças</p></div></div><section class="cards">${filtered.length?filtered.map(({s,info})=>`<article class="card"><div class="student-card"><div><div class="student-name">${escapeHTML(s.name)}</div><div class="student-meta"><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${privateMoney(s.monthlyFee)}</strong></span></div><div style="margin-top:9px"><span class="status ${info.cls}">${info.text}</span></div></div><div class="student-actions"><button class="mini-icon js-charge-whatsapp" data-id="${s.id}" title="WhatsApp">${icon('message')}</button><button class="mini-icon js-mark-paid" data-id="${s.id}" title="Registrar pagamento">${icon('check')}</button></div></div></article>`).join(''):emptyState('Nenhum aluno nessa situação','As cobranças aparecerão aqui conforme as datas de vencimento.')}</section>`;
@@ -1045,8 +1126,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       charge:'Olá, [nome]! Tudo bem? Passando para lembrar que sua mensalidade do Studio Márcio Bueno, no valor de [valor], [status_vencimento]. Quando puder, me confirme o pagamento. Obrigado!',
       birthday:'Olá, [nome]! 🎉 Passando para desejar um feliz aniversário! Que seu novo ciclo seja cheio de saúde, conquistas e bons momentos. Um abraço do Studio Márcio Bueno!',
       absence:'Olá, [nome]! Tudo bem? Sentimos sua falta nos últimos treinos. Quando puder, me avise para organizarmos sua rotina e mantermos a frequência. 💪',
-      confirmation:'Olá, [nome]! Tudo bem? Passando para confirmar seu horário de treino no Studio Márcio Bueno. Se precisar ajustar, me avise por aqui. 👍',
-      makeup:'Olá, [nome]! Tudo bem? Surgiu uma possibilidade de reposição no Studio Márcio Bueno. Se tiver interesse, me responda por aqui para combinarmos o melhor horário.',
+      confirmation:'Olá, [nome]! Tudo bem? Passando para confirmar seu horário de treino no Studio Márcio Bueno: [horarios]. Se precisar ajustar, me avise por aqui. 👍',
+      makeup:'Olá, [nome]! Tudo bem? Você possui [saldo_reposicoes_texto] no Studio Márcio Bueno. Se tiver interesse, me responda por aqui para combinarmos o melhor horário.',
       general:'Olá, [nome]! Tudo bem? Passando para deixar um lembrete do Studio Márcio Bueno.'
     };
     return templates[type]||templates.general;
@@ -1070,7 +1151,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       .replaceAll('[valor]',fmtMoney(student.monthlyFee))
       .replaceAll('[vencimento]',fmtDate(student.dueDate))
       .replaceAll('[forma_pagamento]',student.paymentMethod==='cash'?'Dinheiro':'PIX')
-      .replaceAll('[status_vencimento]',billingStatusText(student));
+      .replaceAll('[status_vencimento]',billingStatusText(student))
+      .replaceAll('[horarios]',fixedScheduleMessage(student.id))
+      .replaceAll('[saldo_reposicoes_texto]',(()=>{const n=makeupCreditBalance(student.id).available;return `${n} ${n===1?'reposição disponível':'reposições disponíveis'}`})());
     out=out.replace(/\b1 treino\(s\)/gi,'1 treino').replace(/\b(\d+) treino\(s\)/gi,'$1 treinos')
       .replace(/\b1 falta\(s\)/gi,'1 falta').replace(/\b(\d+) falta\(s\)/gi,'$1 faltas')
       .replace(/\b1 reposição\(ões\)/gi,'1 reposição').replace(/\b(\d+) reposição\(ões\)/gi,'$1 reposições');
@@ -1080,7 +1163,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderReminders(){
     const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),mk=monthKey();
     const overdueIds=new Set(students.filter(s=>dueInfo(s).key==='overdue').map(s=>String(s.id)));
-    const birthdayIds=new Set(birthdayStudents(7).map(x=>String(x.s.id)));
+    const birthdayTodayIds=new Set(birthdayStudents(0).map(x=>String(x.s.id)));
+    const birthdayUpcomingIds=new Set(birthdayStudents(7).filter(x=>x.info.days>0).map(x=>String(x.s.id)));
     const absentIds=new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).absent>0).map(s=>String(s.id)));
     const frequencySets={
       zero:new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present===0).map(s=>String(s.id))),
@@ -1088,10 +1172,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       mid:new Set(students.filter(s=>{const n=monthlyAttendanceStats(s.id,mk).present;return n>=5&&n<=8}).map(s=>String(s.id))),
       high:new Set(students.filter(s=>monthlyAttendanceStats(s.id,mk).present>=9).map(s=>String(s.id)))
     };
-    let activeFilter='none',frequencyFilter='all',sendMode='group',searchQuery='';
+    let activeFilter='none',frequencyFilter='all',sendMode='group',searchQuery='',currentTemplate='frequency';
     const selectedIds=new Set();
     const filterIds=()=>{
-      let base=activeFilter==='overdue'?overdueIds:activeFilter==='birthday'?birthdayIds:activeFilter==='absent'?absentIds:new Set(students.map(s=>String(s.id)));
+      let base=activeFilter==='overdue'?overdueIds:activeFilter==='birthday'?birthdayTodayIds:activeFilter==='birthdayUpcoming'?birthdayUpcomingIds:activeFilter==='absent'?absentIds:new Set(students.map(s=>String(s.id)));
       if(frequencyFilter!=='all')base=new Set([...base].filter(id=>frequencySets[frequencyFilter].has(id)));
       return base;
     };
@@ -1100,7 +1184,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="reminder-steps"><span class="active">1 <b>Mensagem</b></span><span>2 <b>Destinatários</b></span><span>3 <b>Revisar</b></span></section>
       <section class="card reminder-card">
         <div class="reminder-mode-switch"><button type="button" class="reminder-mode" data-mode="individual">${icon('users')} Individual</button><button type="button" class="reminder-mode active" data-mode="group">${icon('message')} Grupo de alunos</button></div>
-        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" class="auto-message reminder-auto-grow" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> <span class="token-help">(reposições)</span>, <strong>[mes]</strong>, <strong>[valor]</strong>, <strong>[vencimento]</strong>, <strong>[status_vencimento]</strong> e <strong>[forma_pagamento]</strong>.</small></div>
+        <div class="field"><label>Mensagem</label><textarea id="reminderMessage" class="auto-message reminder-auto-grow" placeholder="Escolha um modelo ou escreva sua mensagem."></textarea><small>Campos automáticos: <strong>[nome]</strong>, <strong>[treinos]</strong>, <strong>[faltas]</strong>, <strong>[reposicoes]</strong> <span class="token-help">(reposições)</span>, <strong>[mes]</strong>, <strong>[valor]</strong>, <strong>[vencimento]</strong>, <strong>[status_vencimento]</strong>, <strong>[forma_pagamento]</strong>, <strong>[horarios]</strong> e <strong>[saldo_reposicoes_texto]</strong>.</small></div>
         <div class="reminder-template-head"><strong>Mensagens prontas</strong><span>Personalizadas automaticamente</span></div>
         <div class="reminder-templates">${[['frequency','calendar','Frequência do mês'],['charge','bell','Cobrança'],['birthday','calendar','Aniversário'],['absence','users','Retorno'],['confirmation','check','Confirmar horário'],['makeup','calendar','Reposição disponível'],['general','message','Geral']].map(([k,i,l],idx)=>`<button type="button" class="btn ${idx===0?'btn-primary':'btn-secondary'} btn-small js-template" data-template="${k}">${icon(i)} ${l}</button>`).join('')}</div>
         <div class="reminder-stage-title"><span class="stage-number">2</span><div><strong>Selecionar destinatários</strong><small>Use busca ou filtro; a lista só aparece quando necessária.</small></div></div>
@@ -1108,7 +1192,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="recipient-filters">
           <button class="recipient-filter" data-filter="all">Todos <b>${students.length}</b></button>
           <button class="recipient-filter" data-filter="overdue">Vencidos <b>${overdueIds.size}</b></button>
-          <button class="recipient-filter" data-filter="birthday">Aniversários <b>${birthdayIds.size}</b></button>
+          <button class="recipient-filter" data-filter="birthday">Aniversário hoje <b>${birthdayTodayIds.size}</b></button><button class="recipient-filter" data-filter="birthdayUpcoming">Próximos 7 dias <b>${birthdayUpcomingIds.size}</b></button>
           <button class="recipient-filter" data-filter="absent">Com faltas <b>${absentIds.size}</b></button>
           <select id="frequencyFilter"><option value="all">Frequência: todas</option><option value="zero">0 treinos (${frequencySets.zero.size})</option><option value="low">1–4 treinos (${frequencySets.low.size})</option><option value="mid">5–8 treinos (${frequencySets.mid.size})</option><option value="high">9+ treinos (${frequencySets.high.size})</option></select>
         </div>
@@ -1118,7 +1202,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section><section id="reminderQueue" class="cards reminder-review" style="margin-top:12px"></section>`;
     const updateSummary=()=>{const n=selectedIds.size;$('#reminderSelectionSummary').innerHTML=n?`<strong>${n} aluno${n===1?'':'s'} selecionado${n===1?'':'s'}</strong><span class="selection-safety-note">Somente estes destinatários entrarão na revisão.</span>`:'<strong>Nenhum aluno selecionado</strong><span class="selection-safety-note">Selecione pelo menos um destinatário.</span>';$('#prepareReminder').disabled=!n;$('#prepareReminder').innerHTML=n?`${icon('check')} Revisar ${n} destinatário${n===1?'':'s'}`:'Revisar mensagens';};
     const resetReminderReview=()=>{const queue=$('#reminderQueue'),footer=$('.sticky-reminder-footer');if(queue)queue.innerHTML='';if(footer)footer.classList.remove('review-mode-hidden');};
-    const draw=()=>{const list=visibleStudents(),root=$('#reminderStudents'),visibleIds=new Set(list.map(s=>String(s.id))),hiddenSelected=[...selectedIds].filter(id=>!visibleIds.has(id)).length,collapsed=activeFilter==='none'&&!searchQuery;$('#recipientResultLabel').textContent=list.length?`${list.length} aluno${list.length===1?'':'s'} encontrado${list.length===1?'':'s'} • ${selectedIds.size} selecionado${selectedIds.size===1?'':'s'}${hiddenSelected?` • ${hiddenSelected} fora da lista atual`:''}`:(collapsed?`Lista recolhida • ${students.length} alunos disponíveis`:'Nenhum aluno encontrado');const selectVisibleBtn=$('#selectVisible');if(selectVisibleBtn)selectVisibleBtn.textContent=list.length?`Selecionar ${list.length} exibido${list.length===1?'':'s'}`:'Selecionar exibidos';root.innerHTML=list.length?list.map(s=>{const sid=String(s.id),checked=selectedIds.has(sid),info=dueInfo(s),st=monthlyAttendanceStats(s.id,mk);const tags=[`<span class="status neutral">${st.present} treino${st.present===1?'':'s'}</span>`];if(info.key==='overdue')tags.push('<span class="status danger">Vencido</span>');if(st.absent)tags.push(`<span class="status neutral">${st.absent} falta${st.absent===1?'':'s'}</span>`);return `<label class="reminder-student recipient-card ${checked?'selected':''}"><input class="recipient-native-control" type="${sendMode==='individual'?'radio':'checkbox'}" name="reminderStudent" value="${sid}" ${checked?'checked':''}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span class="reminder-student-info"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(formatPhoneBR(s.whatsapp))}</small><span class="reminder-tags">${tags.join('')}</span></span><span class="recipient-check" aria-hidden="true">${icon('check')}</span></label>`}).join(''):emptyState('Lista recolhida','Escolha um filtro ou pesquise para mostrar apenas os alunos necessários.');
+    const draw=()=>{const list=visibleStudents(),root=$('#reminderStudents'),visibleIds=new Set(list.map(s=>String(s.id))),hiddenSelected=[...selectedIds].filter(id=>!visibleIds.has(id)).length,collapsed=activeFilter==='none'&&!searchQuery;$('#recipientResultLabel').textContent=list.length?`${list.length} aluno${list.length===1?'':'s'} encontrado${list.length===1?'':'s'} • ${selectedIds.size} selecionado${selectedIds.size===1?'':'s'}${hiddenSelected?` • ${hiddenSelected} fora da lista atual`:''}`:(collapsed?`Lista recolhida • ${students.length} alunos disponíveis`:'Nenhum aluno encontrado');const selectVisibleBtn=$('#selectVisible'),validVisible=list.filter(st=>validateWhatsApp(st.whatsapp).valid).length;if(selectVisibleBtn)selectVisibleBtn.textContent=validVisible?`Selecionar ${validVisible} válido${validVisible===1?'':'s'}`:'Nenhum WhatsApp válido';root.innerHTML=list.length?list.map(s=>{const sid=String(s.id),checked=selectedIds.has(sid),info=dueInfo(s),st=monthlyAttendanceStats(s.id,mk);const tags=[`<span class="status neutral">${st.present} treino${st.present===1?'':'s'}</span>`];if(info.key==='overdue')tags.push('<span class="status danger">Vencido</span>');if(st.absent)tags.push(`<span class="status neutral">${st.absent} falta${st.absent===1?'':'s'}</span>`);const phoneOk=validateWhatsApp(s.whatsapp).valid;if(!phoneOk)tags.push('<span class="status danger">WhatsApp inválido</span>');return `<label class="reminder-student recipient-card ${checked?'selected':''} ${phoneOk?'':'recipient-disabled'}"><input class="recipient-native-control" type="${sendMode==='individual'?'radio':'checkbox'}" name="reminderStudent" value="${sid}" ${checked?'checked':''} ${phoneOk?'':'disabled'}><span class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span><span class="reminder-student-info"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(formatPhoneBR(s.whatsapp))}</small><span class="reminder-tags">${tags.join('')}</span></span><span class="recipient-check" aria-hidden="true">${phoneOk?icon('check'):'!'}</span></label>`}).join(''):emptyState('Lista recolhida','Escolha um filtro ou pesquise para mostrar apenas os alunos necessários.');
       $$('input[name="reminderStudent"]',root).forEach(x=>x.addEventListener('change',()=>{resetReminderReview();if(sendMode==='individual'){selectedIds.clear();if(x.checked)selectedIds.add(String(x.value));draw();return;}x.checked?selectedIds.add(String(x.value)):selectedIds.delete(String(x.value));draw();}));updateSummary();};
     const clearSelectionForContextChange=()=>{resetReminderReview();if(!selectedIds.size)return;selectedIds.clear();toast('Seleção limpa ao trocar o filtro.');};
     const applyFilter=k=>{if(k!==activeFilter)clearSelectionForContextChange();activeFilter=k;$$('.recipient-filter',viewEl).forEach(b=>b.classList.toggle('active',b.dataset.filter===k));draw();};
@@ -1127,8 +1211,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#frequencyFilter').addEventListener('change',e=>{clearSelectionForContextChange();frequencyFilter=e.target.value;if(activeFilter==='none')activeFilter='all';draw();});
     $('#reminderSearch').addEventListener('input',e=>{resetReminderReview();searchQuery=e.target.value.trim().toLowerCase();if(searchQuery&&activeFilter==='none')activeFilter='all';draw();});
     const messageBox=$('#reminderMessage');const growMessage=()=>{messageBox.style.height='auto';messageBox.style.height=`${Math.min(230,Math.max(110,messageBox.scrollHeight))}px`;};messageBox.addEventListener('input',growMessage);
-    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{messageBox.value=reminderTemplate(b.dataset.template);growMessage();$$('.js-template',viewEl).forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-secondary',x!==b)});}));
-    $('#selectVisible').addEventListener('click',()=>{const list=visibleStudents();if(!list.length)return;const applyVisibleSelection=()=>{resetReminderReview();if(sendMode==='individual'){selectedIds.clear();if(list[0])selectedIds.add(String(list[0].id));}else list.forEach(s=>selectedIds.add(String(s.id)));draw();};if(sendMode==='group'&&list.length>10){openModal('Selecionar destinatários',`<div class="notice">Você está prestes a selecionar <strong>${list.length} alunos</strong>. Isso pode preparar muitas conversas de WhatsApp. Confirme somente se essa é realmente a sua intenção.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmBulkRecipients">Selecionar ${list.length}</button></div>`);$('#confirmBulkRecipients').addEventListener('click',()=>{closeModal();applyVisibleSelection();toast(`${list.length} destinatários selecionados.`)});return;}applyVisibleSelection();});
+    $$('.js-template',viewEl).forEach(b=>b.addEventListener('click',()=>{currentTemplate=b.dataset.template;messageBox.value=reminderTemplate(currentTemplate);growMessage();$$('.js-template',viewEl).forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-secondary',x!==b)});if(currentTemplate==='birthday'){selectedIds.clear();applyFilter('birthday');toast(birthdayTodayIds.size?'Mostrando aniversariantes de hoje.':'Não há aniversariante hoje.');}}));
+    $('#selectVisible').addEventListener('click',()=>{const list=visibleStudents();if(!list.length)return;const applyVisibleSelection=()=>{resetReminderReview();const valid=list.filter(st=>validateWhatsApp(st.whatsapp).valid);if(sendMode==='individual'){selectedIds.clear();if(valid[0])selectedIds.add(String(valid[0].id));}else valid.forEach(st=>selectedIds.add(String(st.id)));if(valid.length<list.length)toast(`${list.length-valid.length} aluno${list.length-valid.length===1?'':'s'} com WhatsApp inválido ${list.length-valid.length===1?'foi ignorado':'foram ignorados'}.`);draw();};if(sendMode==='group'&&list.length>10){openModal('Selecionar destinatários',`<div class="notice">Você está prestes a selecionar <strong>${list.length} alunos</strong>. Isso pode preparar muitas conversas de WhatsApp. Confirme somente se essa é realmente a sua intenção.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmBulkRecipients">Selecionar ${list.length}</button></div>`);$('#confirmBulkRecipients').addEventListener('click',()=>{closeModal();applyVisibleSelection();toast(`${list.length} destinatários selecionados.`)});return;}applyVisibleSelection();});
     $('#clearReminder').addEventListener('click',()=>{selectedIds.clear();resetReminderReview();draw();});
     let reminderReviewOpening=false;
     const openReminderReview=()=>{
@@ -1140,7 +1224,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(financeTokens&&!financialValuesVisible)return toast('Para revisar uma cobrança com valor, primeiro escolha “Mostrar valores” no Financeiro.');
       const reviewCards=selected.map(s=>{
         const phoneCheck=validateWhatsApp(s.whatsapp),missingFinance=financeTokens&&(!(Number(s.monthlyFee)>0)||!parseLocalDate(s.dueDate)),msgFinal=personalizeReminder(msg,s,mk);
-        const issues=[];if(!phoneCheck.valid)issues.push(phoneCheck.reason);if(missingFinance)issues.push(!(Number(s.monthlyFee)>0)?'Valor da mensalidade não cadastrado.':'Vencimento da mensalidade não cadastrado.');
+        const issues=[];if(!phoneCheck.valid)issues.push(phoneCheck.reason);if(missingFinance)issues.push(!(Number(s.monthlyFee)>0)?'Valor da mensalidade não cadastrado.':'Vencimento da mensalidade não cadastrado.');if(currentTemplate==='birthday'){const bi=birthdayInfo(s);if(!bi||bi.days!==0)issues.push(`Aniversário ${bi?`em ${bi.days} dia${bi.days===1?'':'s'}`:'fora da data atual'}. Use a felicitação no dia correto.`);}if(currentTemplate==='confirmation'&&!fixedScheduleEntries(s.id).length)issues.push('Nenhum horário fixo cadastrado para confirmar.');if(currentTemplate==='absence'&&studentPauseAt(s))issues.push('Aluno em pausa ativa: use uma comunicação de retorno da pausa, não de ausência.');if(currentTemplate==='makeup'&&makeupCreditBalance(s.id).available<=0)issues.push('Este aluno não possui reposição disponível no momento.');
         const blocked=issues.length>0;
         return `<article class="card reminder-ready reminder-review-card ${blocked?'review-blocked':''}"><div class="list-main"><strong>${escapeHTML(s.name)}</strong><span>${escapeHTML(formatPhoneBR(s.whatsapp))}</span>${blocked?`<div class="reminder-review-warning">${issues.map(escapeHTML).join(' ')}</div>`:''}<small>${escapeHTML(msgFinal)}</small></div>${!blocked?`<button type="button" class="btn btn-primary js-open-reminder-modal" data-url="https://wa.me/${phoneCheck.international}?text=${encodeURIComponent(msgFinal)}">${icon('message')} <span>Abrir WhatsApp</span></button>`:'<span class="status danger">Revisar dados</span>'}</article>`;
       }).join('');
@@ -1209,9 +1293,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return `<div class="schedule-week-overview">${SCHEDULE_DAYS.map(d=>{
       const date=scheduleDateForDay(d.id),closure=closureForDate(date);
       if(closure)return `<article class="card week-overview-day is-closed"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><div class="week-closure"><strong>${escapeHTML(closure.type)} — aulas canceladas</strong><span>${escapeHTML(closure.label||'Studio fechado')} • ninguém recebe falta</span></div></article>`;
-      const activeSlots=scheduleHours(d.id).filter(t=>slotStudents(d.id,t).length||makeupStudentIds(date,d.id,t).length);
-      const fixed=activeSlots.reduce((n,t)=>n+slotStudents(d.id,t).length,0),reps=activeSlots.reduce((n,t)=>n+makeupStudentIds(date,d.id,t).length,0);
-      return `<article class="card week-overview-day"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><p>${activeSlots.length} aula${activeSlots.length===1?'':'s'} • ${fixed} fixo${fixed===1?'':'s'} • ${reps} reposição${reps===1?'':'ões'}</p><div class="week-overview-times">${activeSlots.length?activeSlots.map(t=>`<button type="button" class="week-slot-chip" data-week-day="${d.id}" data-week-time="${t}">${t} <span>${slotStudents(d.id,t).length}+${makeupStudentIds(date,d.id,t).length}R</span></button>`).join(''):'<span class="muted-inline">Sem alunos neste dia</span>'}</div></article>`
+      const activeSlots=scheduleHours(d.id).filter(t=>effectiveFixedStudentIds(d.id,t,date).length||effectiveMakeupStudentIds(date,d.id,t).length||trialsFor(date,d.id,t).length);
+      const fixed=activeSlots.reduce((n,t)=>n+effectiveFixedStudentIds(d.id,t,date).length,0),reps=activeSlots.reduce((n,t)=>n+effectiveMakeupStudentIds(date,d.id,t).length,0);
+      return `<article class="card week-overview-day"><div class="premium-card-title"><span>${d.label}</span><strong>${fmtDate(date).slice(0,5)}</strong></div><p>${activeSlots.length} aula${activeSlots.length===1?'':'s'} • ${fixed} fixo${fixed===1?'':'s'} • ${reps} reposição${reps===1?'':'ões'}</p><div class="week-overview-times">${activeSlots.length?activeSlots.map(t=>`<button type="button" class="week-slot-chip" data-week-day="${d.id}" data-week-time="${t}">${t} <span>${effectiveFixedStudentIds(d.id,t,date).length}+${effectiveMakeupStudentIds(date,d.id,t).length}R</span></button>`).join(''):'<span class="muted-inline">Sem alunos neste dia</span>'}</div></article>`
     }).join('')}</div>`;
   }
   function monthlyScheduleOverviewHTML(){
@@ -1220,8 +1304,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     for(let n=1;n<=last;n++){
       const d=new Date(y,m,n,12),dayId=dayIdFromDate(d),date=isoDate(d),closure=closureForDate(date);
       if(!dayId){cells.push(`<div class="month-day weekend"><strong>${n}</strong></div>`);continue;}
-      const slots=scheduleHours(dayId),classes=slots.filter(tm=>slotStudents(dayId,tm).length||makeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).length,reps=slots.reduce((a,tm)=>a+makeupStudentIds(date,dayId,tm).length,0),planned=plannedAbsencesOn(date).length;
-      const vacancies=slots.filter(tm=>slotStudents(dayId,tm).length||makeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).reduce((a,tm)=>{const occupied=effectiveFixedStudentIds(dayId,tm,date).length+makeupStudentIds(date,dayId,tm).length+trialsFor(date,dayId,tm).length;return a+Math.max(0,4-occupied)},0);
+      const slots=scheduleHours(dayId),classes=slots.filter(tm=>effectiveFixedStudentIds(dayId,tm,date).length||effectiveMakeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).length,reps=slots.reduce((a,tm)=>a+effectiveMakeupStudentIds(date,dayId,tm).length,0),planned=plannedAbsencesOn(date).length;
+      const vacancies=slots.filter(tm=>effectiveFixedStudentIds(dayId,tm,date).length||effectiveMakeupStudentIds(date,dayId,tm).length||trialsFor(date,dayId,tm).length).reduce((a,tm)=>{const occupied=effectiveFixedStudentIds(dayId,tm,date).length+effectiveMakeupStudentIds(date,dayId,tm).length+trialsFor(date,dayId,tm).length;return a+Math.max(0,4-occupied)},0);
       const mapCount=Object.entries(state.attendance||{}).filter(([k])=>k.startsWith(date+'__')).reduce((a,[k,map])=>{const slot=k.split('__')[1]||'',idx=slot.indexOf('_'),tm=slot.slice(idx+1),dId=slot.slice(0,idx);return a+Object.entries(map||{}).filter(([id,v])=>{const st=state.students.find(x=>String(x.id)===String(id));return v==='present'&&st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)&&dId===dayId&&tm}).length},0);
       cells.push(`<button type="button" class="month-day ${date===isoToday()?'today':''} ${closure?'is-closed':''}" data-month-date="${date}"><strong>${n}</strong>${closure?`<span class="month-closed">${escapeHTML(closure.type)}</span>`:`<span>${classes} aula${classes===1?'':'s'}</span>${reps?`<em>${reps}R</em>`:''}${planned?`<em class="month-absence">${planned}A</em>`:''}${vacancies?`<small>${vacancies} vaga${vacancies===1?'':'s'}</small>`:''}${mapCount?`<small>✓ ${mapCount}</small>`:''}`}</button>`);
     }
@@ -1229,12 +1313,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function renderSchedule(){
-    const isMonth=scheduleViewMode==='month',weekEnd=addDays(scheduleWeekStart,4),displayMk=isMonth?displayedScheduleMonthKey():monthKey(scheduleDateForDay(selectedScheduleDay)),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),occ=occupancyStats();
+    refreshStateFromStorage();
+    const isMonth=scheduleViewMode==='month',weekEnd=addDays(scheduleWeekStart,4),displayMk=isMonth?displayedScheduleMonthKey():monthKey(scheduleDateForDay(selectedScheduleDay)),students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),occ=occupancyStats(scheduleWeekStart);
     const day=SCHEDULE_DAYS.find(d=>d.id===selectedScheduleDay)||SCHEDULE_DAYS[0],date=scheduleDateForDay(day.id),slots=scheduleHours(day.id),dayClosure=closureForDate(date),dayPlanned=plannedAbsencesOn(date).length;
     const dayStats=slots.reduce((acc,time)=>{
-      const ids=slotStudents(day.id,time),makeupIds=makeupStudentIds(date,day.id,time),map=attendanceMap(date,day.id,time),eligible=[...new Set([...ids,...makeupIds])].filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
-      if(ids.length||makeupIds.length)acc.classes++;
-      acc.fixed+=ids.length;acc.makeups+=makeupIds.length;
+      const ids=slotStudents(day.id,time),effectiveFixed=effectiveFixedStudentIds(day.id,time,date),makeupIds=effectiveMakeupStudentIds(date,day.id,time),map=attendanceMap(date,day.id,time),eligible=[...new Set([...effectiveFixed,...makeupIds])].filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
+      if(effectiveFixed.length||makeupIds.length)acc.classes++;
+      acc.fixed+=effectiveFixed.length;acc.makeups+=makeupIds.length;
       eligible.forEach(id=>{if(map[id]==='present')acc.present++;if(map[id]==='absent')acc.absent++;});
       return acc;
     },{classes:0,fixed:0,makeups:0,present:0,absent:0});
@@ -1288,7 +1373,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     SCHEDULE_DAYS.forEach(day=>{
       const date=scheduleDateForDay(day.id);if(date<today||closureForDate(date))return;
       scheduleHours(day.id).forEach(time=>{
-        const fixed=effectiveFixedStudentIds(day.id,time,date),makeups=makeupStudentIds(date,day.id,time),trials=trialsFor(date,day.id,time),occupied=fixed.length+makeups.length+trials.length;
+        const fixed=effectiveFixedStudentIds(day.id,time,date),makeups=effectiveMakeupStudentIds(date,day.id,time),trials=trialsFor(date,day.id,time),occupied=fixed.length+makeups.length+trials.length;
         if(!slotStudents(day.id,time).length||occupied>=4)return;
         if(studentId&&(fixed.map(String).includes(String(studentId))||makeups.map(String).includes(String(studentId))))return;
         out.push({date,day:day.id,dayLabel:day.label,time,vacancies:4-occupied});
@@ -1330,12 +1415,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const makeupIds=makeupStudentIds(date,day,time), makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
     const allIds=[...new Set([...ids,...makeupIds])],eligibleIds=allIds.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return st&&!studentPauseAt(st,date)&&!plannedAbsenceFor(id,date)});
     const present=eligibleIds.filter(id=>map[id]==='present').length, absent=eligibleIds.filter(id=>map[id]==='absent').length;
-    const effectiveIds=effectiveFixedStudentIds(day,time,date),plannedIds=ids.filter(id=>plannedAbsenceFor(id,date)),pausedIds=ids.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return Boolean(studentPauseAt(st,date))}),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time),vacancies=Math.max(0,4-(effectiveIds.length+makeupIds.length+trials.length));
-    const countClass=ids.length>=4?'full':ids.length>=3?'busy':ids.length?'active':'empty';
+    const effectiveIds=effectiveFixedStudentIds(day,time,date),effectiveMakeupIds=effectiveMakeupStudentIds(date,day,time),plannedIds=ids.filter(id=>plannedAbsenceFor(id,date)),pausedIds=ids.filter(id=>{const st=state.students.find(x=>String(x.id)===String(id));return Boolean(studentPauseAt(st,date))}),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time),vacancies=Math.max(0,4-(effectiveIds.length+effectiveMakeupIds.length+trials.length));
+    const countClass=effectiveIds.length>=4?'full':effectiveIds.length>=3?'busy':effectiveIds.length?'active':'empty';
     return `<button type="button" class="schedule-slot schedule-slot-pro ${countClass} ${makeups.length?'has-makeup':''}" data-day="${day}" data-time="${time}">
       <span class="schedule-time-rail"><strong>${time}</strong><small>PERSONAL</small></span>
       <span class="schedule-slot-body">
-        <span class="schedule-slot-top"><strong>Personal</strong><span class="schedule-pills"><span class="schedule-capacity">${ids.length}/4${makeups.length?` + ${makeups.length}R`:''}</span><span class="schedule-vacancy">${vacancies} vaga${vacancies===1?'':'s'}</span></span></span>
+        <span class="schedule-slot-top"><strong>Personal</strong><span class="schedule-pills"><span class="schedule-capacity">${effectiveIds.length}/4${makeups.length?` + ${makeups.length}R`:''}</span><span class="schedule-vacancy">${vacancies} vaga${vacancies===1?'':'s'}</span></span></span>
         <span class="schedule-people">${enrolled.length?enrolled.map(s=>{const st=attendanceStatus(date,day,time,s.id);const planned=plannedAbsenceFor(s.id,date),paused=studentPauseAt(s,date);return `<span class="schedule-person ${planned?'is-planned-absence':''} ${paused?'is-paused-student':''}"><span class="schedule-initial ${st==='present'?'is-present':st==='absent'?'is-absent':''}" style="${st==='present'?'background:#2e9b63;border-color:#49bd7d;color:#fff;box-shadow:0 0 0 1px rgba(73,189,125,.18),0 4px 14px rgba(46,155,99,.22);':st==='absent'?'background:#c94b55;border-color:#e46a73;color:#fff;box-shadow:0 0 0 1px rgba(228,106,115,.16),0 4px 14px rgba(201,75,85,.20);':''}">${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span><span>${escapeHTML(s.name)}${planned?'<small>Ausência avisada</small>':paused?'<small>Pausado</small>':''}</span></span>`}).join(''):`<span class="schedule-empty-line">${icon('users')} Vagas disponíveis</span>`}</span>
         ${(plannedIds.length||pausedIds.length)?`<span class="schedule-availability-note">${plannedIds.length?`${plannedIds.length} ausência${plannedIds.length===1?'':'s'} avisada${plannedIds.length===1?'':'s'}`:''}${plannedIds.length&&pausedIds.length?' • ':''}${pausedIds.length?`${pausedIds.length} em pausa`:''} • vaga liberada</span>`:''}${makeups.length?`<span class="schedule-makeup-group">${makeups.map(m=>`<span class="schedule-makeup-line"><span class="makeup-square">R</span><strong>${escapeHTML(m.name)}</strong><em>Reposição</em></span>`).join('')}</span>`:''}
         ${trials.length?`<span class="trial-lines">${trials.map(t=>`<span class="trial-line"><span class="trial-cube">E</span><strong>${escapeHTML(t.name)}</strong><em>Experimental</em></span>`).join('')}</span>`:''}${waiters.length?`<span class="waitlist-badge">${waiters.length} na lista de espera</span>`:''}${(present||absent)?`<span class="attendance-mini"><span>✓ ${present} presença${present===1?'':'s'}</span><span>✕ ${absent} falta${absent===1?'':'s'}</span></span>`:''}
@@ -1394,7 +1479,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       const presentNow=$$('.luxury-attendance-card .attendance-btn.present.active',root).length,absentNow=$$('.luxury-attendance-card .attendance-btn.absent.active',root).length,totalEligible=$$('.luxury-attendance-card .attendance-actions',root).length,pendingNow=Math.max(0,totalEligible-presentNow-absentNow);
       const presentChip=$('.lesson-status-strip .is-present',root),absentChip=$('.lesson-status-strip .is-absent',root),pendingChip=$('.lesson-status-strip .is-pending',root);
       if(presentChip)presentChip.textContent=`✓ ${presentNow} presente${presentNow===1?'':'s'}`;if(absentChip)absentChip.textContent=`✕ ${absentNow} falta${absentNow===1?'':'s'}`;if(pendingChip)pendingChip.textContent=`• ${pendingNow} aguardando`;
-      if(currentView==='schedule')renderSchedule();
+      if(currentView==='schedule'){renderSchedule();openScheduleSlot(day,time);}
       toast(next==='present'?'Presença registrada.':next==='absent'?'Falta registrada.':'Status voltou para Aguardando.');
     }));
   }
@@ -1404,8 +1489,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day);
     const ids=slotStudents(day,time).slice(0,4);
     const enrolled=ids.map(id=>state.students.find(s=>s.id===id)).filter(Boolean);
-    const makeupIds=makeupStudentIds(date,day,time),makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
-    const effectiveFixed=effectiveFixedStudentIds(day,time,date).length,vacancies=Math.max(0,4-(effectiveFixed+makeups.length+trials.length)),allStudents=[...enrolled,...makeups],eligibleStudents=allStudents.filter(st=>!studentPauseAt(st,date)&&!plannedAbsenceFor(st.id,date));
+    const makeupIds=makeupStudentIds(date,day,time),makeups=makeupIds.map(id=>state.students.find(s=>s.id===id)).filter(Boolean),effectiveMakeupIds=effectiveMakeupStudentIds(date,day,time),waiters=waitlistFor(day,time),trials=trialsFor(date,day,time);
+    const effectiveFixed=effectiveFixedStudentIds(day,time,date).length,vacancies=Math.max(0,4-(effectiveFixed+effectiveMakeupIds.length+trials.length)),allStudents=[...enrolled,...makeups],eligibleStudents=allStudents.filter(st=>!studentPauseAt(st,date)&&!plannedAbsenceFor(st.id,date));
     const present=eligibleStudents.filter(st=>attendanceStatus(date,day,time,st.id)==='present').length;
     const absent=eligibleStudents.filter(st=>attendanceStatus(date,day,time,st.id)==='absent').length;
     const pending=Math.max(0,eligibleStudents.length-present-absent);
@@ -1447,7 +1532,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openClassEditor(day,time){
     const dayLabel=SCHEDULE_DAYS.find(d=>d.id===day)?.label||day,date=scheduleDateForDay(day),selected=new Set(slotStudents(day,time));
-    const students=[...activeStudents()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+    const students=[...activeStudents({includePaused:true})].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
     const studentRow=(s)=>`<label class="class-picker-student ${selected.has(s.id)?'selected':''}" data-student-name="${escapeHTML((s.name||'').toLowerCase())}">
       <span class="student-photo tiny-photo class-picker-avatar">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</span>
       <span class="class-picker-name">${escapeHTML(s.name)}<small>${selected.has(s.id)?'Já faz parte desta turma':'Toque para adicionar à turma'}</small></span>
@@ -1536,7 +1621,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const getDelta=()=>{const selected=$$('input[name="makeupStudent"]:checked',form).map(x=>String(x.value)),added=selected.filter(id=>!current.has(id)),removed=currentIds.filter(id=>!selected.includes(String(id))),kept=selected.filter(id=>current.has(id));return {selected,added,removed,kept}};
     const update=()=>{const {selected,added,removed,kept}=getDelta(),q=(search.value||'').trim().toLowerCase(),changeCount=added.length+removed.length;$('#makeupPickerSelectedBadge').textContent=String(selected.length);$('#makeupExistingCount').textContent=String(kept.length);$('#makeupNewCount').textContent=String(added.length);$('#makeupRemoveCount').textContent=String(removed.length);summary.classList.toggle('hidden',changeCount===0);$('#makeupStep1').classList.toggle('active',changeCount===0);$('#makeupStep2').classList.toggle('active',changeCount>0);$$('.makeup-picker-student',list).forEach(row=>{const input=$('input[name="makeupStudent"]',row),isSelected=input.checked,isExisting=row.dataset.existing==='1',matches=(row.dataset.studentName||'').includes(q);row.classList.toggle('selected',isSelected);row.classList.toggle('existing-booking',isExisting&&isSelected);let visible=filter==='selected'?isSelected:(matches&&(q.length>0||showAll));row.classList.toggle('hidden',!visible)});const hasVisible=$$('.makeup-picker-student:not(.hidden)',list).length>0;empty.classList.toggle('hidden',hasVisible);if(!hasVisible){if(filter==='selected')empty.innerHTML='<strong>Nenhuma reposição nesta aula</strong>Busque um aluno elegível para adicionar.';else if(q)empty.innerHTML='<strong>Nenhum aluno elegível encontrado</strong>Confira o nome ou o saldo de créditos.';else empty.innerHTML='<strong>Lista recolhida</strong>Digite um nome ou toque em “Ver todos”.';}confirmBtn.disabled=changeCount===0;confirmBtn.innerHTML=changeCount?`${icon('check')} Confirmar alterações`:`${icon('check')} Nenhuma alteração`;$('#makeupChangeHint').textContent=changeCount?`${pluralCount(added.length,'nova reposição','novas reposições')} • ${pluralCount(removed.length,'remoção','remoções')}.`:'Nenhuma alteração pendente.';showAllBtn.textContent=showAll?'Ocultar lista':'Ver todos';};
     search.addEventListener('input',()=>{removalArmed=false;if(search.value.trim()){showAll=false;setFilter('all')}update()});showAllBtn.addEventListener('click',()=>{showAll=!showAll;setFilter('all');if(showAll)search.value='';update()});$$('.class-picker-tab',form).forEach(btn=>btn.addEventListener('click',()=>{setFilter(btn.dataset.makeupFilter);if(filter==='selected'){search.value='';showAll=false}update()}));form.addEventListener('change',e=>{if(e.target.name==='makeupStudent'){removalArmed=false;update()}});
-    form.addEventListener('submit',e=>{e.preventDefault();const {selected,added,removed}=getDelta();if(!added.length&&!removed.length)return;if(removed.length&&!removalArmed){removalArmed=true;summary.classList.remove('hidden');$('#makeupChangeHint').innerHTML=`<strong>Confirma remover ${pluralCount(removed.length,'reposição','reposições')}?</strong> O crédito agendado voltará a ficar disponível quando aplicável. Toque novamente em “Confirmar alterações”.`;confirmBtn.classList.add('confirm-warning');return;}const result=setMakeupStudents(date,day,time,selected),parts=[];if(result.added.length)parts.push(`+${result.added.length}`);if(result.removed.length)parts.push(`-${result.removed.length}`);addAudit('Reposições atualizadas',`${fmtDate(date)} ${time} • ${parts.join(' / ')||'sem alteração'}`);saveState();closeModal();renderSchedule();if(result.added.length)openMakeupConfirmationShare(result.added);else openScheduleSlot(day,time);toast(result.added.length&&result.removed.length?'Reposições atualizadas e saldos recalculados.':result.added.length?`${pluralCount(result.added.length,'nova reposição adicionada','novas reposições adicionadas')}.`:`${pluralCount(result.removed.length,'reposição removida','reposições removidas')}.`);});
+    form.addEventListener('submit',e=>{e.preventDefault();const {selected,added,removed}=getDelta();if(!added.length&&!removed.length)return;if(removed.length&&!removalArmed){removalArmed=true;summary.classList.remove('hidden');$('#makeupChangeHint').innerHTML=`<strong>Confirma remover ${pluralCount(removed.length,'reposição','reposições')}?</strong> O crédito agendado voltará a ficar disponível quando aplicável. Toque novamente em “Confirmar alterações”.`;confirmBtn.classList.add('confirm-warning');return;}const result=setMakeupStudents(date,day,time,selected),parts=[];if(result.added.length)parts.push(`+${result.added.length}`);if(result.removed.length)parts.push(`-${result.removed.length}`);addAudit('Reposições atualizadas',`${fmtDate(date)} ${time} • ${result.added.length?`adicionadas: ${result.added.map(id=>state.students.find(st=>String(st.id)===String(id))?.name||'Aluno').join(', ')}`:''}${result.added.length&&result.removed.length?' • ':''}${result.removed.length?`removidas: ${result.removed.map(id=>state.students.find(st=>String(st.id)===String(id))?.name||'Aluno').join(', ')}`:''}`);saveState();closeModal();renderSchedule();if(result.added.length)openMakeupConfirmationShare(result.added);else openScheduleSlot(day,time);toast(result.added.length&&result.removed.length?'Reposições atualizadas e saldos recalculados.':result.added.length?`${pluralCount(result.added.length,'nova reposição adicionada','novas reposições adicionadas')}.`:`${pluralCount(result.removed.length,'reposição removida','reposições removidas')}.`);});
     update();setTimeout(()=>search.focus({preventScroll:true}),50);
   }
 
@@ -1585,7 +1670,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
       <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados • ${state.settings.lastBackupAt?`último backup em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(state.settings.lastBackupAt))}`:'nenhum backup registrado neste aparelho'}</p></div></div>
       <section class="card backup-premium">
-        <div class="backup-health"><span class="backup-health-icon">${icon('download')}</span><div><strong>${state.settings.lastBackupAt?'Backup registrado':'Faça seu primeiro backup'}</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${Object.keys(state.attendance||{}).length} registros de aula</span></div></div>
+        <div class="backup-health"><span class="backup-health-icon">${icon('download')}</span><div><strong>${state.settings.lastBackupAt?'Backup registrado':'Faça seu primeiro backup'}</strong><span>${state.settings.lastBackupSummary?`${state.settings.lastBackupSummary.students} alunos • ${state.settings.lastBackupSummary.payments} receitas • ${state.settings.lastBackupSummary.attendanceRecords} registros de aula`:`${state.students.length} alunos • ${state.payments.length} receitas • ${Object.keys(state.attendance||{}).length} registros de aula atuais`}</span>${state.settings.lastBackupAt?`<small>Snapshot V${escapeHTML(state.settings.lastBackupVersion||APP_VERSION)} • ${formatDateTimeBR(state.settings.lastBackupExportedAt||state.settings.lastBackupAt)}</small>`:''}</div></div>
         <div class="settings-row"><div><strong>Exportar backup completo</strong><span>Salva alunos, agenda, presenças, reposições, financeiro e preferências em um único arquivo.</span></div><button class="btn btn-primary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
         <div class="settings-row"><div><strong>Importar / restaurar</strong><span>Valida o arquivo antes de substituir os dados atuais.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
       </section>
@@ -1594,7 +1679,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
       <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Excellence Corrective</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
-      <section class="metrics">${metricCard('users',m.students,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
+      <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
     $('#installSettings').addEventListener('click',installApp);
     $('#changeDays').addEventListener('click',changeChargeDays);
@@ -1624,9 +1709,30 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
-  function exportBackup(){const now=new Date();state.settings.lastBackupAt=now.toISOString();saveState();const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary:{students:state.students.length,payments:state.payments.length,expenses:state.expenses.length},state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(`Backup completo V${APP_VERSION} gerado.`);renderSettings();}
+  function backupSummaryFor(sourceState=state){
+    const attendanceRecords=Object.keys(sourceState.attendance||{}).length;let present=0,absent=0,makeups=0;
+    Object.entries(sourceState.attendance||{}).forEach(([k,map])=>Object.entries(map||{}).forEach(([id,status])=>{if(status==='present'){present++;const raw=sourceState.makeups?.[k];const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(ids.map(String).includes(String(id)))makeups++;}if(status==='absent')absent++;}));
+    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,expenses:(sourceState.expenses||[]).length,attendanceRecords,present,absent,makeups};
+  }
 
-  async function importBackup(e){const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');openModal('Restaurar backup',`<div class="notice">O backup contém ${incoming.students.length} aluno(s), ${incoming.payments.length} receita(s) e ${incoming.expenses.length} gasto(s). Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);$('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});saveState();closeModal();render();toast('Backup restaurado.');});}catch(err){toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}}
+  function exportBackup(){
+    const now=new Date(),summary=backupSummaryFor(state);
+    state.settings.lastBackupAt=now.toISOString();state.settings.lastBackupExportedAt=now.toISOString();state.settings.lastBackupVersion=APP_VERSION;state.settings.lastBackupSummary=summary;
+    addAudit('Backup gerado',`V${APP_VERSION} • ${summary.students} alunos • ${summary.payments} receitas • ${summary.attendanceRecords} registros de aula`);
+    saveState();
+    const payload={app:'MB Gestor Luxury Pro',appVersion:APP_VERSION,exportedAt:now.toISOString(),summary,state};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(`Backup completo V${APP_VERSION} gerado.`);renderSettings();
+  }
+
+  async function importBackup(e){
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const data=JSON.parse(await file.text()),incoming=data.state||data;if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');
+      const sm=data.summary||backupSummaryFor(incoming),version=data.appVersion||incoming?.settings?.lastBackupVersion||'não informada',exportedAt=data.exportedAt||incoming?.settings?.lastBackupExportedAt||incoming?.settings?.lastBackupAt||null;
+      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice">Ao continuar, os dados atuais serão substituídos. Faça um backup antes desta restauração.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" id="confirmImport">Restaurar</button></div>`);
+      $('#confirmImport').addEventListener('click',()=>{state={...structuredClone(DEFAULT_STATE),...incoming,schedule:(incoming.schedule&&typeof incoming.schedule==='object')?incoming.schedule:{},attendance:(incoming.attendance&&typeof incoming.attendance==='object')?incoming.attendance:{},makeups:(incoming.makeups&&typeof incoming.makeups==='object')?incoming.makeups:{},reminderDrafts:Array.isArray(incoming.reminderDrafts)?incoming.reminderDrafts:[],birthdayNotifications:(incoming.birthdayNotifications&&typeof incoming.birthdayNotifications==='object')?incoming.birthdayNotifications:{},studioClosures:Array.isArray(incoming.studioClosures)?incoming.studioClosures:[],plannedAbsences:Array.isArray(incoming.plannedAbsences)?incoming.plannedAbsences:[],waitlist:Array.isArray(incoming.waitlist)?incoming.waitlist:[],prospects:Array.isArray(incoming.prospects)?incoming.prospects:[],trials:Array.isArray(incoming.trials)?incoming.trials:[],monthClosures:Array.isArray(incoming.monthClosures)?incoming.monthClosures:[],auditLog:Array.isArray(incoming.auditLog)?incoming.auditLog:[],trash:Array.isArray(incoming.trash)?incoming.trash:[],settings:{...DEFAULT_STATE.settings,...(incoming.settings||{})}};Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});addAudit('Backup restaurado',`V${version} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);saveState();closeModal();render();toast('Backup restaurado.');});
+    }catch(err){console.error(err);toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}
+  }
 
   function enhanceDateInputs(root){
     $$('input[type="date"]',root).forEach(input=>{
@@ -1667,6 +1773,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker não registrado',err)));
   }
+
+  window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){refreshStateFromStorage();render();}});
 
   renderNav();
   render();

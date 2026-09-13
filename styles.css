@@ -334,4 +334,23 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 
 /* MB Gestor Luxury Pro V9.7.3 — Stabilization & Corrective Baseline */
 
-/* MB Gestor Luxury Pro V9.7.4 — Settings Interaction Hotfix */
+/* MB Gestor Luxury Pro V9.7.5 — Consolidation & Commercial Hardening */
+
+
+/* MB Gestor Luxury Pro V9.7.5 — commercial-grade corrective polish */
+.metric.actionable{cursor:pointer;position:relative;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.metric.actionable::after{content:'›';position:absolute;right:14px;top:12px;color:rgba(233,198,110,.55);font-size:22px;font-weight:700}
+.metric.actionable:active{transform:scale(.985)}
+@media(hover:hover){.metric.actionable:hover{border-color:rgba(233,198,110,.22);box-shadow:0 18px 42px rgba(0,0,0,.26),0 0 0 1px rgba(233,198,110,.045) inset}}
+.recipient-card.recipient-disabled{opacity:.58;cursor:not-allowed;border-color:rgba(213,91,99,.14)}
+.recipient-card.recipient-disabled .recipient-check{color:#df747b;border-color:rgba(213,91,99,.22);background:rgba(213,91,99,.08)}
+.pause-edit-action{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 15px;border:1px solid rgba(105,164,231,.16);border-radius:15px;background:linear-gradient(145deg,rgba(75,125,194,.09),rgba(255,255,255,.018))}
+.pause-edit-action>div{display:grid;gap:3px}.pause-edit-action strong{font-size:12px;color:#c7d9ef}.pause-edit-action span{font-size:10px;color:#858b94}
+.backup-restore-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.backup-restore-summary>div{display:grid;gap:3px;padding:11px 12px;border-radius:13px;border:1px solid rgba(233,198,110,.09);background:rgba(255,255,255,.018)}
+.backup-restore-summary span{font-size:9px;color:#858991;text-transform:uppercase;letter-spacing:.055em;font-weight:800}.backup-restore-summary strong{font-size:12px;color:#e6e8ec}
+.backup-health small{display:block;margin-top:4px;color:#797e87;font-size:9px}
+.toggle-row small{display:block;margin-top:3px;color:#7f848d;font-weight:500}
+@media(max-width:560px){.backup-restore-summary{grid-template-columns:1fr}.pause-edit-action{align-items:stretch;flex-direction:column}.pause-edit-action .btn{width:100%}}
+.audit-row.audit-backup .audit-dot{background:#d9b862;box-shadow:0 0 0 5px rgba(217,184,98,.08)}
+.audit-row.audit-money .audit-dot{background:#79c997;box-shadow:0 0 0 5px rgba(121,201,151,.07)}
