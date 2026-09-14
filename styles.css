@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V10.7.0 — Etapa 7A • Painel de Evolução 360° */
+/* MB Gestor Luxury Pro V10.7.1 — Etapa 7A • Polimento Final 360° */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -1141,7 +1141,7 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 
 
 /* ============================================================================
-   V10.7.0 — Etapa 7A • Painel de Evolução 360°
+   V10.7.1 — Etapa 7A • Polimento Final 360°
    Central de acompanhamento físico na Ficha Premium.
    ============================================================================ */
 .profile-assessment-360{position:relative;overflow:hidden}.profile-assessment-360:before{content:"";position:absolute;inset:0 auto auto 0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(233,198,110,.52),transparent);pointer-events:none}.profile-assessment-360 .assessment-360-compare-strip{margin-top:10px}.profile-assessment-360-actions{flex-wrap:wrap}.profile-assessment-360-actions .btn{flex:1 1 135px}
@@ -1150,3 +1150,24 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .assessment-360-section-head{margin-top:17px}.assessment-360-current-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.assessment-360-compare-strip{padding:11px 12px;border:1px solid rgba(233,198,110,.12);border-radius:15px;background:linear-gradient(145deg,rgba(233,198,110,.052),rgba(255,255,255,.012))}.assessment-360-compare-strip>strong{display:block;margin-bottom:8px;color:#b9a66d;font-size:9px;text-transform:uppercase;letter-spacing:.07em}.assessment-360-compare-strip>div{display:flex;flex-wrap:wrap;gap:6px}.assessment-360-delta-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid rgba(255,255,255,.065);border-radius:999px;background:#111318;white-space:nowrap}.assessment-360-delta-chip b{font-size:8px;color:#83868d;text-transform:uppercase;letter-spacing:.05em}.assessment-360-delta-chip i{font-style:normal;font-size:9px;color:#d4bf7c}.assessment-360-delta-chip.flat i{color:#91949b}.assessment-360-guard{margin-top:8px}.assessment-360-bilateral{margin-top:5px}.assessment-360-empty{display:grid;gap:4px;padding:13px 14px;margin:10px 0;border:1px dashed rgba(233,198,110,.16);border-radius:15px;background:rgba(255,255,255,.015)}.assessment-360-empty strong{font-size:11px}.assessment-360-empty span{font-size:9px;color:#858991;line-height:1.45}.assessment-360-empty.compact{margin-top:5px}.assessment-360-method-note{display:grid;gap:4px;margin-top:15px;padding:13px 14px;border:1px solid rgba(98,183,135,.12);border-radius:15px;background:linear-gradient(145deg,rgba(98,183,135,.045),rgba(255,255,255,.01))}.assessment-360-method-note strong{font-size:10px;color:#a9c8b4}.assessment-360-method-note span{font-size:9px;color:#858b88;line-height:1.5}.assessment-360-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:15px}.assessment-360-actions .btn{flex:1 1 145px}.assessment-360-actions .btn:first-child{flex:1.25 1 170px}
 @media(min-width:720px){.assessment-360-current-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:620px){.assessment-360-hero{padding:15px;align-items:flex-start}.assessment-360-hero h3{font-size:19px}.assessment-360-count{min-width:62px;height:62px;border-radius:19px}.assessment-360-count strong{font-size:21px}.assessment-360-meta{grid-template-columns:1fr}.assessment-360-current-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.assessment-360-actions{display:grid;grid-template-columns:1fr}.assessment-360-actions .btn{width:100%}.profile-assessment-360-actions{display:grid}.assessment-360-compare-strip>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.assessment-360-delta-chip{justify-content:space-between;min-width:0}}
+
+/* =========================================================
+   V10.7.1 — Etapa 7A • Polimento final curto do Painel 360°
+   Apenas refinamentos visuais e de comunicação; sem fórmulas ou regras novas.
+   ========================================================= */
+.assessment-360-hero p{color:#a0a4ac}
+.assessment-360-meta>span{color:#c3c6cc}
+.assessment-360-meta b{color:#8f949d}
+.assessment-360-section-head{margin-top:18px;margin-bottom:8px}
+.assessment-360-empty span{color:#9ca1a9}
+.assessment-360-method-note span{color:#9ba19e}
+.body-comp-evolution-guard.assessment-360-guard span{color:#969ba3}
+.profile-assessment-guard-pill{display:flex;align-items:center;gap:7px;margin-top:7px;padding:7px 9px;border:1px solid rgba(233,198,110,.11);border-radius:11px;background:rgba(233,198,110,.025);color:#9a9da4}
+.profile-assessment-guard-pill>span{color:#c7aa61;font-size:9px;line-height:1}
+.profile-assessment-guard-pill>strong{color:#bca86f;font-size:8px;letter-spacing:.02em}
+.profile-assessment-guard-pill>small{margin-left:auto;color:#858a92;font-size:7.5px;text-align:right}
+@media(max-width:620px){
+  .assessment-360-current-grid>:last-child:nth-child(odd){grid-column:1/-1}
+  .profile-assessment-guard-pill{display:grid;grid-template-columns:auto 1fr;gap:3px 7px}
+  .profile-assessment-guard-pill>small{grid-column:2;margin-left:0;text-align:left}
+}
