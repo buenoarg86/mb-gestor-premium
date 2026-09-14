@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.2.1 — Etapa 6A • Relatório Premium — Fase 1 • Hotfix de contexto
+// MB Gestor Luxury Pro V10.3.0 — Etapa 6A • Relatório Premium — Fase 2
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.2.1 — Etapa 6A • Relatório Premium — Fase 1 • Hotfix de contexto
+  // MB Gestor Luxury Pro V10.3.0 — Etapa 6A • Relatório Premium — Fase 2
 
-  const APP_VERSION = '10.2.1';
+  const APP_VERSION = '10.3.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1626,6 +1626,55 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const recordLabel=index>=0?`${index+1}º registro`:'Registro';
     return `${stageLabel} • ${recordLabel}`;
   }
+  function assessmentReportPrevious(studentId,assessmentId){
+    const chronological=assessmentsForStudent(studentId).slice().reverse(),index=chronological.findIndex(a=>String(a.id)===String(assessmentId));
+    return index>0?chronological[index-1]:null;
+  }
+  function assessmentReportCompositionHTML(a,student){
+    const bc=a?.bodyComposition||{};if(!bc.method)return '';
+    const result=bodyCompositionEstimate(a,student),sex=a?.referenceSex==='male'?'Masculina':a?.referenceSex==='female'?'Feminina':'Não definida',formula=String(bc.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION),metrics=[];
+    if(result.bodyFatPercent!=null)metrics.push(assessmentReportMetric('Gordura estimada',`${assessmentNumber(result.bodyFatPercent,1)}%`,'Percentual estimado'));
+    if(result.fatMassKg!=null)metrics.push(assessmentReportMetric('Massa gorda',`${assessmentNumber(result.fatMassKg,1)} kg`,'Estimativa em massa'));
+    if(result.fatFreeMassKg!=null)metrics.push(assessmentReportMetric('Massa livre',`${assessmentNumber(result.fatFreeMassKg,1)} kg`,'Massa livre de gordura'));
+    if(result.skinfoldSum!=null)metrics.push(assessmentReportMetric('Soma das dobras',`${assessmentNumber(result.skinfoldSum,1)} mm`,'Soma usada no protocolo'));
+    if(result.bodyDensity!=null)metrics.push(assessmentReportMetric('Densidade corporal',assessmentNumber(result.bodyDensity,4),'Resultado intermediário'));
+    const status=result.complete?'Resultado calculado':'Registro sem resultado completo';
+    const note=result.complete?String(result.note||'Estimativa antropométrica registrada.'):bodyCompositionPendingMessage(result,a,student);
+    return `<div class="assessment-report-composition"><div class="assessment-report-method-card"><div><span>PROTOCOLO REGISTRADO</span><strong>${escapeHTML(result.methodLabel||bodyCompositionMethodLabel(bc.method))}</strong><small>${escapeHTML(status)}</small></div><div class="assessment-report-method-meta"><span><b>Referência</b>${escapeHTML(sex)}</span><span><b>Fórmula</b>${escapeHTML(formula)}</span></div></div>${metrics.length?`<div class="assessment-report-composition-metrics">${metrics.join('')}</div>`:''}<div class="assessment-report-method-note ${result.complete?'is-ready':'is-pending'}"><strong>${escapeHTML(status)}</strong><span>${escapeHTML(note||'Confira os dados exigidos pelo protocolo.')}</span></div></div>`;
+  }
+  function assessmentReportSkinfoldsHTML(a){
+    const bc=a?.bodyComposition||{},sites=bodyCompositionSkinfoldSites(bc.method,a?.referenceSex||'');if(!sites.length)return '';
+    const sf=bc.skinfolds||{},rows=sites.map(key=>{const label=BODY_COMPOSITION_SKINFOLDS.find(([k])=>k===key)?.[1]||key,value=Number(sf[key]);return `<div class="assessment-report-skinfold-row"><span>${escapeHTML(label)}</span><strong>${value>0?`${assessmentNumber(value,1)} mm`:'—'}</strong></div>`}).join('');
+    return `<div class="assessment-report-skinfolds"><div class="assessment-report-skinfold-intro"><strong>Dobras usadas pelo protocolo</strong><span>${escapeHTML(bodyCompositionMethodLabel(bc.method))} • os pontos abaixo são os que participam desta estimativa.</span></div><div class="assessment-report-skinfold-grid">${rows}</div></div>`;
+  }
+  function assessmentReportComparisonRow(label,current,previous,unit='',digits=1){
+    const valid=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));if(!valid(current)||!valid(previous))return '';
+    const d=assessmentDelta(current,previous,digits,unit),fmt=v=>`${assessmentNumber(v,digits)}${unit?` ${unit}`:''}`;
+    return `<div class="assessment-report-compare-row"><span>${escapeHTML(label)}</span><div><small>Anterior</small><strong>${escapeHTML(fmt(previous))}</strong></div><div><small>Atual</small><strong>${escapeHTML(fmt(current))}</strong></div><em class="${d.dir}">${escapeHTML(d.text)}</em></div>`;
+  }
+  function assessmentReportComparisonHTML(a,previous,student){
+    if(!previous)return '';
+    const rows=[
+      assessmentReportComparisonRow('Peso',a.weight,previous.weight,'kg',1),
+      assessmentReportComparisonRow('IMC',assessmentBMI(a),assessmentBMI(previous),'',1),
+      assessmentReportComparisonRow('IRCQ',assessmentIRCQ(a),assessmentIRCQ(previous),'',2),
+      assessmentReportComparisonRow('Cintura',a.measurements?.waist,previous.measurements?.waist,'cm',1),
+      assessmentReportComparisonRow('Abdômen',a.measurements?.abdomen,previous.measurements?.abdomen,'cm',1),
+      assessmentReportComparisonRow('Quadril',a.measurements?.hip,previous.measurements?.hip,'cm',1)
+    ].filter(Boolean);
+    const method=String(a?.bodyComposition?.method||''),sameMethod=bodyCompositionMethodsMatch(a,previous),sameSex=!bodyCompositionMethodNeedsSex(method)||String(a?.referenceSex||'')===String(previous?.referenceSex||''),currentComp=bodyCompositionEstimate(a,student),previousComp=bodyCompositionEstimate(previous,student),canCompareComp=Boolean(method&&sameMethod&&sameSex&&currentComp.complete&&previousComp.complete),compRows=canCompareComp?[
+      assessmentReportComparisonRow('Gordura estimada',currentComp.bodyFatPercent,previousComp.bodyFatPercent,'%',1),
+      assessmentReportComparisonRow('Massa gorda',currentComp.fatMassKg,previousComp.fatMassKg,'kg',1),
+      assessmentReportComparisonRow('Massa livre',currentComp.fatFreeMassKg,previousComp.fatFreeMassKg,'kg',1)
+    ].filter(Boolean):[];
+    let compGuard='';
+    if(method&&previous?.bodyComposition?.method&&!canCompareComp){
+      const reason=!sameMethod?'protocolos diferentes':!sameSex?'referências de equação diferentes':'um dos registros não possui resultado completo';
+      compGuard=`<div class="assessment-report-compare-guard"><strong>Composição corporal protegida</strong><span>Não foi feita comparação de composição porque os registros têm ${escapeHTML(reason)}. O relatório não mistura resultados metodologicamente incompatíveis.</span></div>`;
+    }
+    if(!rows.length&&!compRows.length&&!compGuard)return `<div class="assessment-report-empty"><strong>Sem indicadores comuns</strong><span>A avaliação anterior existe, mas não há dados equivalentes suficientes para comparação.</span></div>`;
+    return `<div class="assessment-report-comparison"><div class="assessment-report-compare-head"><div><span>AVALIAÇÃO ANTERIOR</span><strong>${escapeHTML(fmtDate(previous.date))}</strong></div><small>As setas indicam apenas direção numérica, sem julgamento automático.</small></div>${rows.length?`<div class="assessment-report-compare-table">${rows.join('')}</div>`:''}${compRows.length?`<div class="assessment-report-compare-subhead"><strong>Composição corporal</strong><span>Mesmo protocolo: ${escapeHTML(currentComp.methodLabel)}</span></div><div class="assessment-report-compare-table is-composition">${compRows.join('')}</div>`:''}${compGuard}</div>`;
+  }
   function openAssessmentReport(studentId,assessmentId){
     const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;
     const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),comp=bodyCompositionEstimate(a,student),age=ageOnDate(student.birthDate,a.date),reportType=assessmentReportType(studentId,assessmentId),studio=String(state.settings?.studioName||'Studio Márcio Bueno');
@@ -1636,11 +1685,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(ircq!=null)summary.push(assessmentReportMetric('IRCQ',assessmentNumber(ircq,2),'Cintura ÷ quadril'));
     if(Number(a.measurements?.waist)>0)summary.push(assessmentReportMetric('Cintura',`${assessmentNumber(a.measurements.waist,1)} cm`,'Perímetro registrado'));
     if(comp?.bodyFatPercent!=null)summary.push(assessmentReportMetric('Gordura estimada',`${assessmentNumber(comp.bodyFatPercent,1)}%`,comp.methodLabel||bodyCompositionMethodLabel(a.bodyComposition?.method)));
-    const avatar=student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`;
+    const avatar=student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`,previous=assessmentReportPrevious(studentId,assessmentId),extraSections=[];let sectionNo=3;
+    const compositionHTML=assessmentReportCompositionHTML(a,student),skinfoldsHTML=assessmentReportSkinfoldsHTML(a),comparisonHTML=assessmentReportComparisonHTML(a,previous,student);
+    if(compositionHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Composição corporal</strong><small>Resultados congelados no protocolo desta avaliação</small></div></div>${compositionHTML}</section>`);
+    if(skinfoldsHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Dobras cutâneas</strong><small>Pontos utilizados no protocolo selecionado</small></div></div>${skinfoldsHTML}</section>`);
+    if(comparisonHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Comparativo com a avaliação anterior</strong><small>Anterior × atual × diferença numérica</small></div></div>${comparisonHTML}</section>`);
     openModal(`Relatório • ${student.name}`,`<div class="assessment-report"><section class="assessment-report-hero"><div class="assessment-report-brand"><span class="assessment-report-mark">MB</span><div><span>RELATÓRIO PREMIUM • AVALIAÇÃO FÍSICA</span><strong>${escapeHTML(studio)}</strong></div></div><div class="assessment-report-person"><div class="assessment-report-avatar">${avatar}</div><div class="assessment-report-person-copy"><span>${escapeHTML(reportType)}</span><h2>${escapeHTML(student.name)}</h2><p>${fmtDate(a.date)}${age!=null?` • ${age} anos`:''}</p></div><span class="assessment-report-seal">MB GESTOR<br>PREMIUM</span></div>${assessmentContextChips(a)}</section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>01</span><div><strong>Resumo executivo</strong><small>Indicadores disponíveis nesta avaliação</small></div></div><div class="assessment-report-summary">${summary.join('')}</div></section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>02</span><div><strong>Perímetros</strong><small>Medidas registradas em centímetros</small></div></div><div class="assessment-report-perimeters">${assessmentReportPerimetersHTML(a)}</div></section>
-      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados na avaliação sem atribuir julgamento automático à direção das medidas. Interprete os resultados considerando protocolo, contexto e objetivo do aluno.</span></div>
+      ${extraSections.join('')}
+      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados sem classificar automaticamente aumento ou redução como resultado positivo ou negativo. Composição corporal só é comparada quando os registros são metodologicamente compatíveis.</span></div>
       <div class="assessment-report-actions"><button class="btn btn-secondary" id="reportBackDetail">Voltar à avaliação</button><button class="btn btn-primary" id="reportClose">Concluir visualização</button></div></div>`);
     modalRoot.querySelector('.modal')?.classList.add('assessment-report-modal');
     $('#reportBackDetail')?.addEventListener('click',()=>openAssessmentDetails(studentId,assessmentId));
