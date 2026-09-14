@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V10.1.2 — Etapa 5B • Hotfix de Persistência da Aba do Guia
-const CACHE='mb-gestor-luxury-pro-v10-1-2-guide-mode-hotfix';
+// MB Gestor Luxury Pro V10.2.0 — Etapa 6A • Relatório Premium — Fase 1
+const CACHE='mb-gestor-luxury-pro-v10-2-0-assessment-report-phase1';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
