@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial
+// MB Gestor Luxury Pro V10.4.0 — Etapa 6A • Relatório Premium — Fase 3 • Evolução & Apresentação
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial
+  // MB Gestor Luxury Pro V10.4.0 — Etapa 6A • Relatório Premium — Fase 3 • Evolução & Apresentação
 
-  const APP_VERSION = '10.3.1';
+  const APP_VERSION = '10.4.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1552,7 +1552,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="body-comp-skinfold-block hidden" id="bodyCompositionSkinfoldBlock"><div class="body-comp-skinfold-head"><div><strong>Dobras cutâneas</strong><span>Registre a medida final de cada ponto em milímetros</span></div><div class="body-comp-skinfold-head-actions"><span class="body-comp-unit">mm</span><button type="button" class="body-comp-skinfold-guide-main" id="bodyCompositionSkinfoldGuide">${icon('body')} Guia</button></div></div><div class="form-grid two body-comp-skinfold-grid">${BODY_COMPOSITION_SKINFOLDS.map(([key])=>bodyCompositionSkinfoldInput(key,sfExisting[key])).join('')}</div><details class="body-comp-tech-note"><summary>Padronização da coleta</summary><span>Use o mesmo lado, adipômetro, técnica e condições de coleta nas reavaliações. Toque no ícone de cada dobra para abrir o ponto correspondente no Guia Anatômico Premium.</span></details></div>
         <div id="bodyCompositionLiveResults"></div>
       </section>
-      <section class="assessment-form-section assessment-notes-section"><div class="field"><label>Observações da avaliação</label><textarea name="notes" rows="2" placeholder="Condições da avaliação, observações posturais ou contexto relevante">${escapeHTML(existing?.notes||'')}</textarea></div></section><div class="modal-actions assessment-save-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar avaliação'}</button></div></form>`);
+      <section class="assessment-form-section assessment-notes-section"><div class="field"><label>Observações profissionais (opcional)</label><textarea name="notes" rows="2" placeholder="Contexto da coleta, observações profissionais ou fatores relevantes para interpretar esta avaliação">${escapeHTML(existing?.notes||'')}</textarea></div></section><div class="modal-actions assessment-save-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing?'Salvar alterações':'Salvar avaliação'}</button></div></form>`);
     const form=$('#physicalAssessmentForm');
     const restoredDraft=loadAssessmentDraft(student.id,existing?.id||null);
     assessmentSession={studentId:String(student.id),assessmentId:existing?.id?String(existing.id):'',dirty:Boolean(restoredDraft?.dirty),historyToken:null};
@@ -1676,6 +1676,64 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(!rows.length&&!compRows.length&&!compGuard)return `<div class="assessment-report-empty"><strong>Sem indicadores comuns</strong><span>A avaliação anterior existe, mas não há dados equivalentes suficientes para comparação.</span></div>`;
     return `<div class="assessment-report-comparison"><div class="assessment-report-compare-head"><div><span>AVALIAÇÃO ANTERIOR</span><strong>${escapeHTML(fmtDate(previous.date))}</strong></div><small>As setas indicam apenas direção numérica, sem julgamento automático.</small></div>${rows.length?`<div class="assessment-report-compare-table">${rows.join('')}</div>`:''}${compRows.length?`<div class="assessment-report-compare-subhead"><strong>Composição corporal</strong><span>Mesmo protocolo: ${escapeHTML(currentComp.methodLabel)}</span></div><div class="assessment-report-compare-table is-composition">${compRows.join('')}</div>`:''}${compGuard}</div>`;
   }
+
+  function assessmentReportChronologyThrough(studentId,assessmentId){
+    const rows=assessmentsForStudent(studentId).slice().reverse(),index=rows.findIndex(x=>String(x.id)===String(assessmentId));
+    return index>=0?rows.slice(0,index+1):rows;
+  }
+  function assessmentReportLongTermRow(label,current,first,unit='',digits=1){
+    const valid=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));if(!valid(current)||!valid(first))return '';
+    const d=assessmentDelta(current,first,digits,unit),fmt=v=>`${assessmentNumber(v,digits)}${unit?` ${unit}`:''}`;
+    return `<div class="assessment-report-longterm-row"><span>${escapeHTML(label)}</span><div><small>Primeiro</small><strong>${escapeHTML(fmt(first))}</strong></div><div><small>Atual</small><strong>${escapeHTML(fmt(current))}</strong></div><em class="${d.dir}">${escapeHTML(d.text)}</em></div>`;
+  }
+  function assessmentReportLongTermHTML(a,studentId,student){
+    const rows=assessmentReportChronologyThrough(studentId,a?.id);if(rows.length<2)return '';
+    const first=rows[0],baseRows=[
+      assessmentReportLongTermRow('Peso',a.weight,first.weight,'kg',1),
+      assessmentReportLongTermRow('IMC',assessmentBMI(a),assessmentBMI(first),'',1),
+      assessmentReportLongTermRow('IRCQ',assessmentIRCQ(a),assessmentIRCQ(first),'',2),
+      assessmentReportLongTermRow('Cintura',a.measurements?.waist,first.measurements?.waist,'cm',1),
+      assessmentReportLongTermRow('Abdômen',a.measurements?.abdomen,first.measurements?.abdomen,'cm',1),
+      assessmentReportLongTermRow('Quadril',a.measurements?.hip,first.measurements?.hip,'cm',1)
+    ].filter(Boolean);
+    const method=String(a?.bodyComposition?.method||''),sameMethod=bodyCompositionMethodsMatch(a,first),sameSex=!bodyCompositionMethodNeedsSex(method)||String(a?.referenceSex||'')===String(first?.referenceSex||''),sameFormula=String(a?.bodyComposition?.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION)===String(first?.bodyComposition?.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION),currentComp=bodyCompositionEstimate(a,student),firstComp=bodyCompositionEstimate(first,student),canCompareComp=Boolean(method&&sameMethod&&sameSex&&sameFormula&&currentComp.complete&&firstComp.complete);
+    const compRows=canCompareComp?[
+      assessmentReportLongTermRow('Gordura estimada',currentComp.bodyFatPercent,firstComp.bodyFatPercent,'%',1),
+      assessmentReportLongTermRow('Massa gorda',currentComp.fatMassKg,firstComp.fatMassKg,'kg',1),
+      assessmentReportLongTermRow('Massa livre',currentComp.fatFreeMassKg,firstComp.fatFreeMassKg,'kg',1)
+    ].filter(Boolean):[];
+    let compGuard='';
+    if(method&&first?.bodyComposition?.method&&!canCompareComp){
+      const reason=!sameMethod?'protocolos diferentes':!sameSex?'referências de equação diferentes':!sameFormula?'versões de fórmula diferentes':'um dos registros não possui resultado completo';
+      compGuard=`<div class="assessment-report-longterm-guard"><strong>Composição longitudinal protegida</strong><span>O resumo desde o início não compara composição corporal porque os registros têm ${escapeHTML(reason)}.</span></div>`;
+    }
+    if(!baseRows.length&&!compRows.length&&!compGuard)return '';
+    return `<div class="assessment-report-longterm"><div class="assessment-report-longterm-head"><div><span>PRIMEIRO REGISTRO</span><strong>${escapeHTML(fmtDate(first.date))}</strong></div><div><span>REGISTROS CONSIDERADOS</span><strong>${rows.length}</strong></div><small>${rows.length===2?'Com dois registros, esta leitura coincide numericamente com o comparativo anterior; ela prepara a série para as próximas reavaliações.':'Variação acumulada até este registro, sem interpretação automática de mérito.'}</small></div>${baseRows.length?`<div class="assessment-report-longterm-table">${baseRows.join('')}</div>`:''}${compRows.length?`<div class="assessment-report-longterm-subhead"><strong>Composição corporal</strong><span>Mesmo protocolo, referência e versão de fórmula</span></div><div class="assessment-report-longterm-table is-composition">${compRows.join('')}</div>`:''}${compGuard}</div>`;
+  }
+  function assessmentReportSeriesThrough(studentId,assessmentId,key){
+    const rows=assessmentReportChronologyThrough(studentId,assessmentId),current=rows[rows.length-1];if(!current)return [];
+    if(['bodyFat','fatMass','fatFreeMass'].includes(key)){
+      const method=String(current?.bodyComposition?.method||''),sex=String(current?.referenceSex||''),formula=String(current?.bodyComposition?.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION);if(!method)return [];
+      return rows.filter(x=>String(x?.bodyComposition?.method||'')===method&&(!bodyCompositionMethodNeedsSex(method)||String(x?.referenceSex||'')===sex)&&String(x?.bodyComposition?.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION)===formula).map(x=>({date:x.date,value:assessmentValue(x,key),assessment:x})).filter(p=>Number.isFinite(p.value));
+    }
+    return rows.map(x=>({date:x.date,value:assessmentValue(x,key),assessment:x})).filter(p=>Number.isFinite(p.value));
+  }
+  function assessmentReportMiniChartCard(studentId,assessmentId,key){
+    const series=assessmentReportSeriesThrough(studentId,assessmentId,key);if(series.length<2)return '';
+    const config=assessmentMetricConfig(key),width=320,height=92,padX=12,padY=12,vals=series.map(p=>p.value),rawMin=Math.min(...vals),rawMax=Math.max(...vals),spread=Math.max(rawMax-rawMin,Math.max(Math.abs(rawMax),1)*.05),min=rawMin-spread*.25,max=rawMax+spread*.25,range=Math.max(max-min,1e-9),innerW=width-padX*2,innerH=height-padY*2,x=i=>padX+(i/(series.length-1))*innerW,y=v=>padY+((max-v)/range)*innerH,points=series.map((p,i)=>`${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' '),dots=series.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="${i===series.length-1?4.2:3}" class="assessment-report-mini-dot"><title>${escapeHTML(fmtDate(p.date))}: ${escapeHTML(assessmentNumber(p.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</title></circle>`).join(''),first=series[0],last=series[series.length-1],d=assessmentDelta(last.value,first.value,config.digits,config.unit),bodyMetric=['bodyFat','fatMass','fatFreeMass'].includes(key),method=bodyMetric?String(last.assessment?.bodyComposition?.method||''):'';
+    return `<article class="assessment-report-mini-chart"><div class="assessment-report-mini-chart-head"><div><span>${escapeHTML(config.label)}</span><strong>${escapeHTML(assessmentNumber(last.value,config.digits))}${config.unit?` ${escapeHTML(config.unit)}`:''}</strong></div><em class="${d.dir}">${escapeHTML(d.text)} desde o primeiro</em></div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória de ${escapeHTML(config.label)}"><line x1="${padX}" y1="${height/2}" x2="${width-padX}" y2="${height/2}" class="assessment-report-mini-grid"/><polyline points="${points}" class="assessment-report-mini-line"/>${dots}</svg><div class="assessment-report-mini-chart-foot"><span>${escapeHTML(assessmentShortDate(first.date))}</span><b>${series.length} registros${bodyMetric&&method?` • ${escapeHTML(bodyCompositionMethodLabel(method))}`:''}</b><span>${escapeHTML(assessmentShortDate(last.date))}</span></div></article>`;
+  }
+  function assessmentReportChartsHTML(studentId,assessmentId){
+    const candidates=['bodyFat','waist','weight','fatFreeMass','abdomen','hip'],selected=[];
+    for(const key of candidates){if(assessmentReportSeriesThrough(studentId,assessmentId,key).length>=2){selected.push(key);if(selected.length===3)break;}}
+    if(!selected.length)return '';
+    return `<div class="assessment-report-charts"><div class="assessment-report-charts-intro"><strong>Indicadores de maior continuidade</strong><span>O relatório seleciona até três séries com dados suficientes. Séries de composição corporal são filtradas por protocolo, referência de equação e versão da fórmula.</span></div><div class="assessment-report-mini-grid-wrap">${selected.map(key=>assessmentReportMiniChartCard(studentId,assessmentId,key)).join('')}</div></div>`;
+  }
+  function assessmentReportNotesHTML(a){
+    const notes=String(a?.notes||'').trim();if(!notes)return '';
+    return `<div class="assessment-report-notes"><div><span>REGISTRO DO PROFISSIONAL</span><strong>Contexto que acompanha esta avaliação</strong></div><p>${escapeHTML(notes).replaceAll('\n','<br>')}</p><small>Observação descritiva. Não altera cálculos, classificações ou resultados históricos.</small></div>`;
+  }
+
   function openAssessmentReport(studentId,assessmentId){
     const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;
     const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),comp=bodyCompositionEstimate(a,student),age=ageOnDate(student.birthDate,a.date),reportType=assessmentReportType(studentId,assessmentId),studio=String(state.settings?.studioName||'Studio Márcio Bueno');
@@ -1687,20 +1745,25 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(Number(a.measurements?.waist)>0)summary.push(assessmentReportMetric('Cintura',`${assessmentNumber(a.measurements.waist,1)} cm`,'Perímetro registrado'));
     if(comp?.bodyFatPercent!=null)summary.push(assessmentReportMetric('Gordura estimada',`${assessmentNumber(comp.bodyFatPercent,1)}%`,comp.methodLabel||bodyCompositionMethodLabel(a.bodyComposition?.method)));
     const avatar=student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`,previous=assessmentReportPrevious(studentId,assessmentId);
-    const compositionHTML=assessmentReportCompositionHTML(a,student),skinfoldsHTML=assessmentReportSkinfoldsHTML(a),comparisonHTML=assessmentReportComparisonHTML(a,previous,student);
+    const compositionHTML=assessmentReportCompositionHTML(a,student),skinfoldsHTML=assessmentReportSkinfoldsHTML(a),comparisonHTML=assessmentReportComparisonHTML(a,previous,student),longTermHTML=assessmentReportLongTermHTML(a,studentId,student),chartsHTML=assessmentReportChartsHTML(studentId,assessmentId),notesHTML=assessmentReportNotesHTML(a);
     const optionalSections=[
       compositionHTML?{title:'Composição corporal',subtitle:'Resultados congelados no protocolo desta avaliação',html:compositionHTML}:null,
       skinfoldsHTML?{title:'Dobras cutâneas',subtitle:'Pontos utilizados no protocolo selecionado',html:skinfoldsHTML}:null,
-      comparisonHTML?{title:'Comparativo com a avaliação anterior',subtitle:'Anterior × atual × diferença numérica',html:comparisonHTML}:null
+      comparisonHTML?{title:'Comparativo com a avaliação anterior',subtitle:'Anterior × atual × diferença numérica',html:comparisonHTML}:null,
+      longTermHTML?{title:'Evolução desde o início',subtitle:'Primeiro registro × este registro',html:longTermHTML}:null,
+      chartsHTML?{title:'Trajetória em gráficos',subtitle:'Até três indicadores com continuidade suficiente',html:chartsHTML}:null,
+      notesHTML?{title:'Observações profissionais',subtitle:'Contexto registrado nesta avaliação',html:notesHTML}:null
     ].filter(Boolean);
     const extraSections=optionalSections.map((section,index)=>`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(index+3).padStart(2,'0')}</span><div><strong>${escapeHTML(section.title)}</strong><small>${escapeHTML(section.subtitle)}</small></div></div>${section.html}</section>`);
     openModal(`Relatório • ${student.name}`,`<div class="assessment-report"><section class="assessment-report-hero"><div class="assessment-report-brand"><span class="assessment-report-mark">MB</span><div><span>RELATÓRIO PREMIUM • AVALIAÇÃO FÍSICA</span><strong>${escapeHTML(studio)}</strong></div></div><div class="assessment-report-person"><div class="assessment-report-avatar">${avatar}</div><div class="assessment-report-person-copy"><span>${escapeHTML(reportType)}</span><h2>${escapeHTML(student.name)}</h2><p>${fmtDate(a.date)}${age!=null?` • ${age} anos`:''}</p></div><span class="assessment-report-seal">MB GESTOR<br>PREMIUM</span></div>${assessmentContextChips(a)}</section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>01</span><div><strong>Resumo executivo</strong><small>Indicadores disponíveis nesta avaliação</small></div></div><div class="assessment-report-summary">${summary.join('')}</div></section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>02</span><div><strong>Perímetros</strong><small>Medidas registradas em centímetros</small></div></div><div class="assessment-report-perimeters">${assessmentReportPerimetersHTML(a)}</div></section>
       ${extraSections.join('')}
-      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados sem classificar automaticamente aumento ou redução como resultado positivo ou negativo. Composição corporal só é comparada quando os registros são metodologicamente compatíveis.</span></div>
+      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados sem classificar automaticamente aumento ou redução como resultado positivo ou negativo. Composição corporal só é comparada quando os registros são metodologicamente compatíveis. Os gráficos representam trajetória numérica e não definem metas corporais.</span></div>
       <div class="assessment-report-actions"><button class="btn btn-secondary" id="reportBackDetail">Voltar à avaliação</button><button class="btn btn-primary" id="reportClose">Concluir visualização</button></div></div>`);
-    modalRoot.querySelector('.modal')?.classList.add('assessment-report-modal');
+    const reportModal=modalRoot.querySelector('.modal');reportModal?.classList.add('assessment-report-modal');
+    const head=reportModal?.querySelector('.modal-head'),closeBtn=head?.querySelector('[data-close-modal]');
+    if(head&&closeBtn){const present=document.createElement('button');present.type='button';present.id='reportPresentationToggle';present.className='btn btn-secondary btn-small assessment-report-present-toggle';present.innerHTML=`${icon('eye')} <span>Apresentar</span>`;head.insertBefore(present,closeBtn);present.addEventListener('click',()=>{const active=reportModal.classList.toggle('is-presentation');present.innerHTML=`${icon(active?'eye-off':'eye')} <span>${active?'Sair da apresentação':'Apresentar'}</span>`;present.setAttribute('aria-pressed',active?'true':'false');});}
     $('#reportBackDetail')?.addEventListener('click',()=>openAssessmentDetails(studentId,assessmentId));
     $('#reportClose')?.addEventListener('click',closeModal);
   }
@@ -2646,7 +2709,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="logo-feature"><img src="assets/logo-interna.jpg" alt="Márcio Bueno Personal Trainer" /></section>
       <div class="section-head"><div><h3>Aplicativo</h3><p>Uso privado no seu dispositivo</p></div></div>
       <section class="card">
-        <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Etapa 5B</span></div>
+        <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Etapa 6A • Fase 3</span></div>
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
@@ -2666,7 +2729,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Guia Anatômico Premium de Dobras • Persistência</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Relatório Premium • Evolução & apresentação</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
