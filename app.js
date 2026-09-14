@@ -1,14 +1,15 @@
-// MB Gestor Luxury Pro V10.1.0 — Etapa 5B • Guia Técnico Premium
+// MB Gestor Luxury Pro V10.1.1 — Etapa 5B • Hotfix de Persistência do Guia
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.1.0 — Etapa 5B • Guia Técnico Premium
+  // MB Gestor Luxury Pro V10.1.1 — Etapa 5B • Hotfix de Persistência do Guia
 
-  const APP_VERSION = '10.1.0';
+  const APP_VERSION = '10.1.1';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
   const ASSESSMENT_GUIDE_STATE_KEY = `${STORAGE_KEY}_assessment_guide_state_v1`;
   const ASSESSMENT_SKINFOLD_GUIDE_STATE_KEY = `${STORAGE_KEY}_assessment_skinfold_guide_state_v1`;
+  const ASSESSMENT_GUIDE_MODE_STATE_KEY = `${STORAGE_KEY}_assessment_guide_mode_v1`;
   const DEFAULT_STATE = {
     version: 1,
     students: [],
@@ -972,6 +973,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function saveAssessmentGuideState(item,view,side){
     if(!item)return;writeLocalJSON(ASSESSMENT_GUIDE_STATE_KEY,{key:item.key,group:item.group,view:view==='back'?'back':'front',side:item.bilateral&&side==='L'?'L':'R',updatedAt:new Date().toISOString()});
   }
+  function readAssessmentGuideMode(){
+    const saved=readLocalJSON(ASSESSMENT_GUIDE_MODE_STATE_KEY);return saved?.mode==='skinfold'?'skinfold':'perimeter';
+  }
+  function saveAssessmentGuideMode(mode){
+    writeLocalJSON(ASSESSMENT_GUIDE_MODE_STATE_KEY,{mode:mode==='skinfold'?'skinfold':'perimeter',updatedAt:new Date().toISOString()});
+  }
   function pushAssessmentHistoryGuard(){
     if(!assessmentSession)return;
     const token=assessmentSession.historyToken||uid('assessment_nav');assessmentSession.historyToken=token;
@@ -1059,7 +1066,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function closeAnatomicalGuide(){document.querySelector('#anatomicalGuideLayer')?.remove();document.body.classList.remove('anatomical-guide-open')}
   function openAnatomicalGuide(initialKey=null,initialSide=null){
-    closeAnatomicalGuide();
+    closeAnatomicalGuide();saveAssessmentGuideMode('perimeter');
     const returnFocus=document.activeElement,saved=readAssessmentGuideState();
     const requestedKey=initialKey&&ASSESSMENT_ANATOMICAL_GUIDE.some(x=>x.key===String(initialKey))?String(initialKey):null;
     let item=anatomicalGuideItem(requestedKey||saved?.key||'waist'),group=item.group;
@@ -1082,7 +1089,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       $$('[data-anatomy-view]',layer).forEach(b=>b.onclick=()=>{view=b.dataset.anatomyView;render()});
       $$('[data-anatomy-side]',layer).forEach(b=>b.onclick=()=>{side=b.dataset.anatomySide;render()});
     };
-    layer.querySelector('[data-guide-mode="skinfold"]')?.addEventListener('click',()=>{const assessmentForm=$('#physicalAssessmentForm',modalRoot),method=String(assessmentForm?.elements?.bodyCompositionMethod?.value||''),sex=String(assessmentForm?.elements?.referenceSex?.value||'');closeAnatomicalGuide();openSkinfoldGuide(null,'R',method,sex)});
+    layer.querySelector('[data-guide-mode="skinfold"]')?.addEventListener('click',()=>{const assessmentForm=$('#physicalAssessmentForm',modalRoot),method=String(assessmentForm?.elements?.bodyCompositionMethod?.value||''),sex=String(assessmentForm?.elements?.referenceSex?.value||'');closeAnatomicalGuide();openSkinfoldGuide(null,null,method,sex)});
     layer.querySelector('.anatomical-guide-close').addEventListener('click',()=>{closeAnatomicalGuide();returnFocus?.focus?.()});
     layer.addEventListener('click',e=>{if(e.target===layer){closeAnatomicalGuide();returnFocus?.focus?.()}});
     layer.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAnatomicalGuide();returnFocus?.focus?.()}});
@@ -1154,8 +1161,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     </section>`;
   }
 
-  function openSkinfoldGuide(initialKey=null,initialSide='R',method='',sex=''){
-    closeSkinfoldGuide();closeAnatomicalGuide();
+  function openSkinfoldGuide(initialKey=null,initialSide=null,method='',sex=''){
+    closeSkinfoldGuide();closeAnatomicalGuide();saveAssessmentGuideMode('skinfold');
     const returnFocus=document.activeElement,saved=readSkinfoldGuideState();
     const validMethod=bodyCompositionMethodConfig(method)?.family==='skinfold'?String(method):'';
     const methodSites=validMethod?bodyCompositionSkinfoldSites(validMethod,sex):[];
@@ -1163,7 +1170,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const requested=initialKey&&SKINFOLD_GUIDE_SITES.some(x=>x.key===String(initialKey))?String(initialKey):null;
     let item=skinfoldGuideItem(requested&&allowed.includes(requested)?requested:(saved?.key&&allowed.includes(saved.key)?saved.key:allowed[0]));
     let view=(saved?.key===item.key&&['front','back'].includes(saved?.view))?saved.view:(item.defaultView||'front');
-    let side=initialSide==='L'?'L':initialSide==='R'?'R':saved?.side==='L'?'L':'R';
+    let side=initialSide==='L'?'L':initialSide==='R'?'R':saved?.key===item.key&&saved?.side==='L'?'L':'R';
     let techniqueOpen=false;
     const layer=document.createElement('div');layer.id='skinfoldGuideLayer';layer.className='anatomical-guide-layer skinfold-guide-layer';
     layer.innerHTML=`<div class="anatomical-guide-shell skinfold-guide-shell" role="dialog" aria-modal="true" aria-labelledby="skinfoldGuideTitle">
@@ -1556,8 +1563,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $$('[data-assessment-jump]',form).forEach(btn=>btn.addEventListener('click',()=>expandAndGo(form.querySelector(`[data-assessment-section="${btn.dataset.assessmentJump}"]`))));
     $$('.assessment-section-collapse',form).forEach(btn=>{btn.setAttribute('aria-expanded',String(!btn.closest('.assessment-collapsible')?.classList.contains('is-collapsed')));btn.addEventListener('click',()=>{const section=btn.closest('.assessment-collapsible'),collapsed=section.classList.toggle('is-collapsed');btn.setAttribute('aria-expanded',String(!collapsed))})});
     if(focusComposition)setTimeout(()=>expandAndGo($('#assessmentBodyCompositionSection')),160);
-    $$('[data-anatomical-key]',form).forEach(b=>b.addEventListener('click',()=>{persistAssessmentDraftFromForm(form,{dirty:assessmentSession?.dirty});const generic=b.classList.contains('assessment-guide-main');openAnatomicalGuide(generic?null:(b.dataset.anatomicalKey||'waist'),generic?null:(b.dataset.anatomicalSide||null))}));
-    const openSkinfoldGuideFromForm=(key=null)=>{persistAssessmentDraftFromForm(form,{dirty:assessmentSession?.dirty});const method=String(form.elements.bodyCompositionMethod?.value||''),sex=String(form.elements.referenceSex?.value||''),sites=bodyCompositionSkinfoldSites(method,sex),first=key||(sites[0]||'biceps');openSkinfoldGuide(first,'R',method,sex)};
+    $$('[data-anatomical-key]',form).forEach(b=>b.addEventListener('click',()=>{persistAssessmentDraftFromForm(form,{dirty:assessmentSession?.dirty});const generic=b.classList.contains('assessment-guide-main');if(generic&&readAssessmentGuideMode()==='skinfold'){const method=String(form.elements.bodyCompositionMethod?.value||''),sex=String(form.elements.referenceSex?.value||'');openSkinfoldGuide(null,null,method,sex);return}openAnatomicalGuide(generic?null:(b.dataset.anatomicalKey||'waist'),generic?null:(b.dataset.anatomicalSide||null))}));
+    const openSkinfoldGuideFromForm=(key=null)=>{persistAssessmentDraftFromForm(form,{dirty:assessmentSession?.dirty});const method=String(form.elements.bodyCompositionMethod?.value||''),sex=String(form.elements.referenceSex?.value||'');openSkinfoldGuide(key||null,null,method,sex)};
     $$('[data-skinfold-key]',form).forEach(b=>b.addEventListener('click',()=>openSkinfoldGuideFromForm(b.dataset.skinfoldKey||null)));
     $('#bodyCompositionSkinfoldGuide')?.addEventListener('click',()=>openSkinfoldGuideFromForm());
     $('#bodyCompositionMethodTrigger')?.addEventListener('click',()=>openBodyCompositionPicker(form));
@@ -2552,7 +2559,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Guia Anatômico Premium de Dobras</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Guia Anatômico Premium de Dobras • Persistência</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
