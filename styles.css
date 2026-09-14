@@ -966,3 +966,167 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
     border-radius:3mm!important;
   }
 }
+
+/* ================================================================
+   V10.5.3 — Etapa 6B • PDF Premium — Hotfix Paginação Editorial
+   Objetivo: usar melhor a área A4 sem fragmentar seções.
+   - força composição em 4 colunas na impressão, inclusive em WebView móvel;
+   - compacta apenas o necessário no topo e nas seções de alta densidade;
+   - mantém cada seção indivisível quando ela cabe fisicamente em uma página;
+   - preserva a hierarquia visual do cabeçalho integrado da V10.5.2.
+   ================================================================ */
+@media print{
+  @page{size:A4 portrait;margin:8mm 9mm 10mm}
+
+  body.printing-assessment-report .assessment-report>*{margin-bottom:2.45mm!important}
+  body.printing-assessment-report .assessment-report-hero{
+    gap:5mm!important;
+    padding:4.3mm 5.3mm!important;
+    margin-bottom:2.45mm!important;
+  }
+  body.printing-assessment-report .assessment-report-brand{
+    flex-basis:36mm!important;
+    gap:1.7mm!important;
+    padding-right:4.2mm!important;
+  }
+  body.printing-assessment-report .assessment-report-studio-logo{
+    flex-basis:20.5mm!important;
+    width:20.5mm!important;
+    height:20.5mm!important;
+  }
+  body.printing-assessment-report .assessment-report-brand>div{max-width:31.5mm!important}
+  body.printing-assessment-report .assessment-report-brand div>span{font-size:5.2pt!important;line-height:1.2!important}
+  body.printing-assessment-report .assessment-report-brand div>strong{margin-top:.7mm!important;font-size:6.9pt!important}
+  body.printing-assessment-report .assessment-report-identity{padding:.5mm 0!important}
+  body.printing-assessment-report .assessment-report-person-copy>span{font-size:6.25pt!important}
+  body.printing-assessment-report .assessment-report-person-copy h2{margin:.8mm 0 .55mm!important;font-size:19pt!important}
+  body.printing-assessment-report .assessment-report-person-copy p{font-size:7.1pt!important}
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips{
+    gap:1.2mm!important;
+    margin:2mm 0 0!important;
+    padding-top:1.55mm!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips span{
+    padding:1.2mm 1.8mm!important;
+    font-size:5.45pt!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips b{font-size:4.9pt!important}
+
+  body.printing-assessment-report .assessment-report-print-meta{
+    gap:2mm!important;
+    margin-bottom:2.45mm!important;
+    padding:2.35mm 3.1mm!important;
+  }
+  body.printing-assessment-report .assessment-report-print-meta span{font-size:5.15pt!important}
+  body.printing-assessment-report .assessment-report-print-meta strong{margin-top:.7mm!important;font-size:6.8pt!important;line-height:1.22!important}
+  body.printing-assessment-report .assessment-report-print-clinical{
+    gap:.8mm!important;
+    margin-bottom:2.45mm!important;
+    padding:2.15mm 3.1mm!important;
+  }
+  body.printing-assessment-report .assessment-report-print-clinical strong{font-size:6.8pt!important}
+  body.printing-assessment-report .assessment-report-print-clinical span{margin-top:.55mm!important;font-size:5.8pt!important;line-height:1.32!important}
+  body.printing-assessment-report .assessment-report-print-clinical em{font-size:5.35pt!important}
+
+  body.printing-assessment-report .assessment-report-section{
+    margin-bottom:2.45mm!important;
+    padding:3mm!important;
+    break-inside:avoid-page!important;
+    page-break-inside:avoid!important;
+  }
+  body.printing-assessment-report .assessment-report-section-head{
+    grid-template-columns:8.2mm 1fr!important;
+    gap:2.15mm!important;
+    margin-bottom:2.05mm!important;
+  }
+  body.printing-assessment-report .assessment-report-section-head>span{width:7.7mm!important;height:7.7mm!important;font-size:5.8pt!important}
+  body.printing-assessment-report .assessment-report-section-head strong{font-size:9.6pt!important}
+  body.printing-assessment-report .assessment-report-section-head small{margin-top:.4mm!important;font-size:5.8pt!important}
+
+  /* 01 — resumo: mesma leitura, menos altura */
+  body.printing-assessment-report .assessment-report-section--summary .assessment-report-summary{gap:1.8mm!important}
+  body.printing-assessment-report .assessment-report-section--summary .assessment-report-metric{padding:2.45mm 2.7mm!important}
+  body.printing-assessment-report .assessment-report-section--summary .assessment-report-metric span{font-size:5.25pt!important}
+  body.printing-assessment-report .assessment-report-section--summary .assessment-report-metric strong{margin-top:.75mm!important;font-size:12.2pt!important}
+  body.printing-assessment-report .assessment-report-section--summary .assessment-report-metric small{margin-top:.45mm!important;font-size:5.65pt!important}
+
+  /* 02 — perímetros: mantém 3 grupos e reduz a altura das linhas */
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeters{gap:2mm!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-head{padding:2mm 2.25mm!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-head strong{font-size:7pt!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-head span{font-size:5.25pt!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-row{min-height:6.3mm!important;padding:1.15mm 2mm!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-row>span{font-size:5.9pt!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-perimeter-row>strong{font-size:6.3pt!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-sides{gap:.8mm!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-sides strong{padding:.85mm 1.15mm!important;font-size:5.25pt!important}
+  body.printing-assessment-report .assessment-report-section--perimeters .assessment-report-sides b{font-size:4.7pt!important}
+
+  /* 03 — composição: A4 usa quatro métricas em uma única linha.
+     Esta regra sobrescreve o layout móvel 2×2 durante a impressão. */
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-composition{gap:1.65mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-card{padding:2.35mm 2.8mm!important;grid-template-columns:minmax(0,1fr) 37mm!important;gap:2mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-meta{width:37mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-meta span{padding:1.5mm 1.8mm!important;min-width:0!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-composition-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:1.6mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-composition-metric{padding:1.8mm 2.05mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-composition-metric span{font-size:5.15pt!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-composition-metric strong{font-size:9pt!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-note{padding:1.75mm 2.35mm!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-note strong{font-size:6.25pt!important}
+  body.printing-assessment-report .assessment-report-section--composition .assessment-report-method-note span{font-size:5.45pt!important;line-height:1.25!important}
+
+  /* 04–06 — blocos comparativos densos, sem quebrar seção */
+  body.printing-assessment-report .assessment-report-section--skinfolds .assessment-report-skinfolds{gap:1.7mm!important}
+  body.printing-assessment-report .assessment-report-section--skinfolds .assessment-report-skinfold-intro{gap:.7mm!important}
+  body.printing-assessment-report .assessment-report-section--skinfolds .assessment-report-skinfold-row{padding:1.8mm 2.2mm!important}
+  body.printing-assessment-report .assessment-report-section--comparison .assessment-report-compare-row,
+  body.printing-assessment-report .assessment-report-section--longterm .assessment-report-longterm-row{min-height:6.05mm!important;padding:.9mm 2mm!important;gap:1.5mm!important}
+  body.printing-assessment-report .assessment-report-section--comparison .assessment-report-compare-head,
+  body.printing-assessment-report .assessment-report-section--longterm .assessment-report-longterm-head{gap:1.8mm!important;margin-bottom:.75mm!important}
+  body.printing-assessment-report .assessment-report-section--comparison .assessment-report-compare-subhead,
+  body.printing-assessment-report .assessment-report-section--longterm .assessment-report-longterm-subhead{margin-top:.7mm!important}
+
+  /* 07–08 — fechamento compacto e legível */
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-charts{gap:1.8mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-charts-intro{gap:.8mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-grid-wrap{gap:1.7mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart{padding:2.2mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart svg{height:16mm!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes{gap:1.8mm!important;padding:2.7mm!important}
+
+  body.printing-assessment-report .assessment-report-footnote{margin-bottom:2.2mm!important;padding:2.5mm 3mm!important}
+  body.printing-assessment-report .assessment-report-print-footer{margin-top:2.2mm!important;padding-top:1.8mm!important}
+}
+
+/* V10.5.3 — fechamento editorial: evita uma 3ª página quase vazia */
+@media print{
+  body.printing-assessment-report .assessment-report-section--comparison .assessment-report-compare-row,
+  body.printing-assessment-report .assessment-report-section--longterm .assessment-report-longterm-row{min-height:5.65mm!important;padding:.75mm 1.85mm!important}
+  body.printing-assessment-report .assessment-report-section--charts{padding:2.6mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-section-head{margin-bottom:1.45mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-charts{gap:1.2mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-charts-intro strong{font-size:6.5pt!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-charts-intro span{font-size:5.25pt!important;line-height:1.25!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-grid-wrap{gap:1.4mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart{padding:1.65mm 1.8mm!important;border-radius:2.6mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-head{gap:.45mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-head span{font-size:4.75pt!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-head strong{margin-top:.35mm!important;font-size:9.2pt!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-head em{padding:.65mm 1mm!important;font-size:4.55pt!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart svg{height:10.5mm!important;margin-top:.45mm!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-foot{gap:1mm!important;font-size:4.45pt!important}
+  body.printing-assessment-report .assessment-report-section--charts .assessment-report-mini-chart-foot b{font-size:4.45pt!important}
+
+  body.printing-assessment-report .assessment-report-section--notes{padding:2.5mm!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-section-head{margin-bottom:1.55mm!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes{gap:1.15mm!important;padding:2.1mm 2.4mm!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes>div span{font-size:5pt!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes>div strong{margin-top:.5mm!important;font-size:7pt!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes p{font-size:6.1pt!important;line-height:1.3!important}
+  body.printing-assessment-report .assessment-report-section--notes .assessment-report-notes small{font-size:5.15pt!important;line-height:1.25!important}
+  body.printing-assessment-report .assessment-report-footnote{margin-bottom:1.4mm!important;padding:1.9mm 2.5mm!important}
+  body.printing-assessment-report .assessment-report-footnote strong{font-size:6.6pt!important}
+  body.printing-assessment-report .assessment-report-footnote span{font-size:5.25pt!important;line-height:1.3!important}
+  body.printing-assessment-report .assessment-report-print-footer{margin-top:1.3mm!important;padding-top:1.25mm!important;font-size:4.9pt!important}
+}
