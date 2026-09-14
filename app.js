@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.2.0 — Etapa 6A • Relatório Premium — Fase 1
+// MB Gestor Luxury Pro V10.2.1 — Etapa 6A • Relatório Premium — Fase 1 • Hotfix de contexto
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.2.0 — Etapa 6A • Relatório Premium — Fase 1
+  // MB Gestor Luxury Pro V10.2.1 — Etapa 6A • Relatório Premium — Fase 1 • Hotfix de contexto
 
-  const APP_VERSION = '10.2.0';
+  const APP_VERSION = '10.2.1';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1621,7 +1621,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function assessmentReportType(studentId,assessmentId){
     const chronological=assessmentsForStudent(studentId).slice().reverse(),index=chronological.findIndex(a=>String(a.id)===String(assessmentId));
-    return index<=0?'Avaliação inicial':`Reavaliação • ${index+1}º registro`;
+    const assessment=index>=0?chronological[index]:(state.physicalAssessments||[]).find(a=>String(a.id)===String(assessmentId));
+    const savedStage=assessmentOptionLabel(ASSESSMENT_STAGES,assessment?.stage),stageLabel=savedStage&&savedStage!=='Não definido'?savedStage:(index<=0?'Avaliação inicial':'Avaliação física');
+    const recordLabel=index>=0?`${index+1}º registro`:'Registro';
+    return `${stageLabel} • ${recordLabel}`;
   }
   function openAssessmentReport(studentId,assessmentId){
     const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;
