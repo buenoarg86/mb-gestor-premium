@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V10.5.1 — Etapa 6B • PDF Premium — Hotfix Identidade & Paginação
-const CACHE='mb-gestor-luxury-pro-v10-5-1-pdf-premium-logo-pagination-hotfix';
+// MB Gestor Luxury Pro V10.5.2 — Etapa 6B • PDF Premium — Hotfix Cabeçalho Integrado
+const CACHE='mb-gestor-luxury-pro-v10-5-2-pdf-premium-header-integrated-hotfix';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

@@ -842,3 +842,127 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
   body.printing-assessment-report .assessment-report-footnote,
   body.printing-assessment-report .assessment-report-print-footer{break-inside:avoid-page!important;page-break-inside:avoid!important}
 }
+
+
+/* ================================================================
+   V10.5.2 — Etapa 6B • PDF Premium — Hotfix Cabeçalho Integrado
+   Um único cabeçalho editorial: marca institucional + aluno + contexto.
+   Mantém intactas as regras de paginação aprovadas na V10.5.1.
+   ================================================================ */
+.assessment-report-identity{min-width:0}
+@media print{
+  body.printing-assessment-report .assessment-report-hero{
+    display:flex!important;
+    align-items:stretch!important;
+    gap:6mm!important;
+    padding:5.2mm 6mm!important;
+    min-height:0!important;
+    background:radial-gradient(circle at 91% 18%,rgba(220,167,60,.12),transparent 31%),linear-gradient(145deg,#15171b,#23262c)!important;
+  }
+  body.printing-assessment-report .assessment-report-hero:after{
+    right:-32mm!important;
+    bottom:-37mm!important;
+    width:72mm!important;
+    height:72mm!important;
+    opacity:.75!important;
+  }
+  body.printing-assessment-report .assessment-report-brand{
+    flex:0 0 39mm!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:flex-start!important;
+    justify-content:center!important;
+    gap:2.1mm!important;
+    min-width:0!important;
+    padding:0 5mm 0 0!important;
+    border-bottom:0!important;
+    border-right:.25mm solid rgba(255,255,255,.13)!important;
+  }
+  body.printing-assessment-report .assessment-report-studio-logo{
+    flex:0 0 23mm!important;
+    width:23mm!important;
+    height:23mm!important;
+    margin:0!important;
+  }
+  body.printing-assessment-report .assessment-report-brand>div{max-width:33mm!important}
+  body.printing-assessment-report .assessment-report-brand div>span{
+    font-size:5.55pt!important;
+    line-height:1.25!important;
+    letter-spacing:.095em!important;
+  }
+  body.printing-assessment-report .assessment-report-brand div>strong{
+    margin-top:1mm!important;
+    font-size:7.3pt!important;
+    line-height:1.25!important;
+    color:#f1f1ef!important;
+  }
+  body.printing-assessment-report .assessment-report-identity{
+    flex:1 1 auto!important;
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:center!important;
+    min-width:0!important;
+    padding:1mm 0!important;
+  }
+  body.printing-assessment-report .assessment-report-person{
+    display:block!important;
+    min-width:0!important;
+    padding:0!important;
+    margin:0!important;
+  }
+  body.printing-assessment-report .assessment-report-avatar,
+  body.printing-assessment-report .assessment-report-seal{display:none!important}
+  body.printing-assessment-report .assessment-report-person-copy{min-width:0!important}
+  body.printing-assessment-report .assessment-report-person-copy>span{
+    font-size:6.7pt!important;
+    line-height:1.25!important;
+    letter-spacing:.095em!important;
+    color:#d2b258!important;
+  }
+  body.printing-assessment-report .assessment-report-person-copy h2{
+    margin:1.2mm 0 .9mm!important;
+    font-size:21pt!important;
+    line-height:1.02!important;
+    letter-spacing:-.025em!important;
+  }
+  body.printing-assessment-report .assessment-report-person-copy p{
+    font-size:7.7pt!important;
+    line-height:1.3!important;
+    color:#c4c7cb!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips{
+    display:flex!important;
+    flex-wrap:wrap!important;
+    gap:1.6mm!important;
+    margin:3mm 0 0!important;
+    padding-top:2mm!important;
+    border-top:.2mm solid rgba(255,255,255,.10)!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips span{
+    padding:1.5mm 2.1mm!important;
+    border-radius:99mm!important;
+    font-size:5.9pt!important;
+    line-height:1.2!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips b{
+    font-size:5.2pt!important;
+    letter-spacing:.055em!important;
+  }
+}
+
+/* V10.5.2 — estabilização dos chips do cabeçalho A4 em mecanismos de impressão */
+@media print{
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips{
+    align-items:flex-start!important;
+    align-content:flex-start!important;
+  }
+  body.printing-assessment-report .assessment-report-hero .assessment-context-chips span{
+    flex:0 0 auto!important;
+    align-self:flex-start!important;
+    width:auto!important;
+    min-width:0!important;
+    min-height:0!important;
+    height:auto!important;
+    border-radius:3mm!important;
+  }
+}
