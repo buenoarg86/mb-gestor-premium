@@ -1130,3 +1130,11 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
   body.printing-assessment-report .assessment-report-footnote span{font-size:5.25pt!important;line-height:1.3!important}
   body.printing-assessment-report .assessment-report-print-footer{margin-top:1.3mm!important;padding-top:1.25mm!important;font-size:4.9pt!important}
 }
+
+/* ================================================================
+   V10.6.0 — Etapa 6B • PDF Premium — Fase 2 • Compartilhamento Nativo
+   Compartilhamento local do PDF Premium via Web Share API com fallback.
+   ================================================================ */
+.assessment-report-share-toggle{min-width:148px!important;padding:8px 11px!important}.assessment-report-share-toggle svg{width:14px!important;height:14px!important}.assessment-report-share-toggle.is-preparing{opacity:.58;cursor:wait}.assessment-report-share-toggle:disabled{filter:saturate(.72)}
+@media(max-width:760px){.assessment-report-share-toggle{width:38px;height:38px;min-width:38px!important;padding:0!important}.assessment-report-share-toggle span{display:none}}
+@media print{body.printing-assessment-report .assessment-report-share-toggle{display:none!important}}
