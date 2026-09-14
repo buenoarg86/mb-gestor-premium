@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.3.0 — Etapa 6A • Relatório Premium — Fase 2
+// MB Gestor Luxury Pro V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.3.0 — Etapa 6A • Relatório Premium — Fase 2
+  // MB Gestor Luxury Pro V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial
 
-  const APP_VERSION = '10.3.0';
+  const APP_VERSION = '10.3.1';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1640,7 +1640,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(result.bodyDensity!=null)metrics.push(assessmentReportMetric('Densidade corporal',assessmentNumber(result.bodyDensity,4),'Resultado intermediário'));
     const status=result.complete?'Resultado calculado':'Registro sem resultado completo';
     const note=result.complete?String(result.note||'Estimativa antropométrica registrada.'):bodyCompositionPendingMessage(result,a,student);
-    return `<div class="assessment-report-composition"><div class="assessment-report-method-card"><div><span>PROTOCOLO REGISTRADO</span><strong>${escapeHTML(result.methodLabel||bodyCompositionMethodLabel(bc.method))}</strong><small>${escapeHTML(status)}</small></div><div class="assessment-report-method-meta"><span><b>Referência</b>${escapeHTML(sex)}</span><span><b>Fórmula</b>${escapeHTML(formula)}</span></div></div>${metrics.length?`<div class="assessment-report-composition-metrics">${metrics.join('')}</div>`:''}<div class="assessment-report-method-note ${result.complete?'is-ready':'is-pending'}"><strong>${escapeHTML(status)}</strong><span>${escapeHTML(note||'Confira os dados exigidos pelo protocolo.')}</span></div></div>`;
+    const referenceMeta=bodyCompositionMethodNeedsSex(bc.method)?`<span><b>Referência</b>${escapeHTML(sex)}</span>`:'';
+    return `<div class="assessment-report-composition"><div class="assessment-report-method-card"><div><span>PROTOCOLO REGISTRADO</span><strong>${escapeHTML(result.methodLabel||bodyCompositionMethodLabel(bc.method))}</strong><small>${escapeHTML(status)}</small></div><div class="assessment-report-method-meta">${referenceMeta}<span><b>Fórmula</b>${escapeHTML(formula)}</span></div></div>${metrics.length?`<div class="assessment-report-composition-metrics">${metrics.join('')}</div>`:''}<div class="assessment-report-method-note ${result.complete?'is-ready':'is-pending'}"><strong>${escapeHTML(status)}</strong><span>${escapeHTML(note||'Confira os dados exigidos pelo protocolo.')}</span></div></div>`;
   }
   function assessmentReportSkinfoldsHTML(a){
     const bc=a?.bodyComposition||{},sites=bodyCompositionSkinfoldSites(bc.method,a?.referenceSex||'');if(!sites.length)return '';
@@ -1685,11 +1686,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(ircq!=null)summary.push(assessmentReportMetric('IRCQ',assessmentNumber(ircq,2),'Cintura ÷ quadril'));
     if(Number(a.measurements?.waist)>0)summary.push(assessmentReportMetric('Cintura',`${assessmentNumber(a.measurements.waist,1)} cm`,'Perímetro registrado'));
     if(comp?.bodyFatPercent!=null)summary.push(assessmentReportMetric('Gordura estimada',`${assessmentNumber(comp.bodyFatPercent,1)}%`,comp.methodLabel||bodyCompositionMethodLabel(a.bodyComposition?.method)));
-    const avatar=student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`,previous=assessmentReportPrevious(studentId,assessmentId),extraSections=[];let sectionNo=3;
+    const avatar=student.photoData?`<img src="${student.photoData}" alt="" />`:`<span>${escapeHTML((student.name||'?').charAt(0).toUpperCase())}</span>`,previous=assessmentReportPrevious(studentId,assessmentId);
     const compositionHTML=assessmentReportCompositionHTML(a,student),skinfoldsHTML=assessmentReportSkinfoldsHTML(a),comparisonHTML=assessmentReportComparisonHTML(a,previous,student);
-    if(compositionHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Composição corporal</strong><small>Resultados congelados no protocolo desta avaliação</small></div></div>${compositionHTML}</section>`);
-    if(skinfoldsHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Dobras cutâneas</strong><small>Pontos utilizados no protocolo selecionado</small></div></div>${skinfoldsHTML}</section>`);
-    if(comparisonHTML)extraSections.push(`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(sectionNo++).padStart(2,'0')}</span><div><strong>Comparativo com a avaliação anterior</strong><small>Anterior × atual × diferença numérica</small></div></div>${comparisonHTML}</section>`);
+    const optionalSections=[
+      compositionHTML?{title:'Composição corporal',subtitle:'Resultados congelados no protocolo desta avaliação',html:compositionHTML}:null,
+      skinfoldsHTML?{title:'Dobras cutâneas',subtitle:'Pontos utilizados no protocolo selecionado',html:skinfoldsHTML}:null,
+      comparisonHTML?{title:'Comparativo com a avaliação anterior',subtitle:'Anterior × atual × diferença numérica',html:comparisonHTML}:null
+    ].filter(Boolean);
+    const extraSections=optionalSections.map((section,index)=>`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(index+3).padStart(2,'0')}</span><div><strong>${escapeHTML(section.title)}</strong><small>${escapeHTML(section.subtitle)}</small></div></div>${section.html}</section>`);
     openModal(`Relatório • ${student.name}`,`<div class="assessment-report"><section class="assessment-report-hero"><div class="assessment-report-brand"><span class="assessment-report-mark">MB</span><div><span>RELATÓRIO PREMIUM • AVALIAÇÃO FÍSICA</span><strong>${escapeHTML(studio)}</strong></div></div><div class="assessment-report-person"><div class="assessment-report-avatar">${avatar}</div><div class="assessment-report-person-copy"><span>${escapeHTML(reportType)}</span><h2>${escapeHTML(student.name)}</h2><p>${fmtDate(a.date)}${age!=null?` • ${age} anos`:''}</p></div><span class="assessment-report-seal">MB GESTOR<br>PREMIUM</span></div>${assessmentContextChips(a)}</section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>01</span><div><strong>Resumo executivo</strong><small>Indicadores disponíveis nesta avaliação</small></div></div><div class="assessment-report-summary">${summary.join('')}</div></section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>02</span><div><strong>Perímetros</strong><small>Medidas registradas em centímetros</small></div></div><div class="assessment-report-perimeters">${assessmentReportPerimetersHTML(a)}</div></section>

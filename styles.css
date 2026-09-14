@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V10.3.0 — Etapa 6A • Relatório Premium — Fase 2 */
+/* MB Gestor Luxury Pro V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -662,7 +662,7 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 
 
 /* ================================================================
-   V10.3.0 — Etapa 6A • Relatório Premium — Fase 2
+   V10.3.1 — Etapa 6A • Relatório Premium — Fase 2 • Hotfix de precisão editorial
    Estrutura editorial + resumo executivo + perímetros
    ================================================================ */
 .assessment-report-modal{width:min(1040px,calc(100vw - 24px));max-width:1040px}.assessment-report-modal .modal-head{border-bottom-color:rgba(233,198,110,.11)}.assessment-report-modal .modal-body{padding:18px;background:radial-gradient(circle at 92% 0,rgba(215,163,61,.055),transparent 30%)}
