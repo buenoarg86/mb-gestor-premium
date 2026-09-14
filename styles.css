@@ -790,3 +790,55 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
   body.printing-assessment-report .assessment-report-method-meta{display:block!important;width:42mm!important}
   body.printing-assessment-report .assessment-report-method-meta span{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box!important}
 }
+
+
+/* V10.5.1 — identidade oficial do Studio no PDF; tela mantém o monograma validado */
+.assessment-report-studio-logo{display:none}
+
+
+/* ================================================================
+   V10.5.1 — Etapa 6B • PDF Premium — Hotfix Identidade & Paginação
+   Logo oficial + seções indivisíveis + compactação editorial A4
+   ================================================================ */
+@media print{
+  @page{size:A4 portrait;margin:9mm 10mm 12mm}
+  body.printing-assessment-report .assessment-report-brand{gap:4mm!important;padding-bottom:3.2mm!important}
+  body.printing-assessment-report .assessment-report-mark{display:none!important}
+  body.printing-assessment-report .assessment-report-studio-logo{display:block!important;flex:0 0 21mm!important;width:21mm!important;height:21mm!important;object-fit:cover!important;border-radius:50%!important;border:.3mm solid rgba(225,190,95,.45)!important;background:#0d0e10!important;box-shadow:none!important}
+  body.printing-assessment-report .assessment-report-brand>div{min-width:0!important}
+  body.printing-assessment-report .assessment-report-brand div>span{font-size:7.1pt!important;letter-spacing:.105em!important}
+  body.printing-assessment-report .assessment-report-brand div>strong{font-size:9.2pt!important}
+  body.printing-assessment-report .assessment-report-hero{padding:5.8mm 6mm 5mm!important;margin-bottom:3.5mm!important}
+  body.printing-assessment-report .assessment-report-person{padding:3.8mm 0 2.8mm!important}
+  body.printing-assessment-report .assessment-report>*{margin-bottom:3.2mm!important}
+  body.printing-assessment-report .assessment-report-section{margin-bottom:3.2mm!important;padding:3.6mm!important;break-inside:avoid-page!important;page-break-inside:avoid!important}
+  body.printing-assessment-report .assessment-report-section-head{margin-bottom:2.7mm!important;break-after:avoid-page!important;page-break-after:avoid!important}
+  body.printing-assessment-report .assessment-report-print-meta{margin-bottom:3.2mm!important;padding:3mm 3.6mm!important}
+  body.printing-assessment-report .assessment-report-print-clinical{margin-bottom:3.2mm!important;padding:2.8mm 3.6mm!important}
+  body.printing-assessment-report .assessment-report-method-card,
+  body.printing-assessment-report .assessment-report-composition-metrics,
+  body.printing-assessment-report .assessment-report-method-note,
+  body.printing-assessment-report .assessment-report-skinfolds,
+  body.printing-assessment-report .assessment-report-comparison,
+  body.printing-assessment-report .assessment-report-longterm,
+  body.printing-assessment-report .assessment-report-charts,
+  body.printing-assessment-report .assessment-report-notes{break-inside:avoid-page!important;page-break-inside:avoid!important}
+  body.printing-assessment-report .assessment-report-composition-metric{padding:2.4mm 2.7mm!important}
+  body.printing-assessment-report .assessment-report-compare-head,
+  body.printing-assessment-report .assessment-report-longterm-head{gap:2.4mm!important;margin-bottom:1.2mm!important}
+  body.printing-assessment-report .assessment-report-compare-row,
+  body.printing-assessment-report .assessment-report-longterm-row{min-height:7.2mm!important;padding:1.25mm 2.3mm!important;gap:2mm!important}
+  body.printing-assessment-report .assessment-report-compare-row>span,
+  body.printing-assessment-report .assessment-report-longterm-row>span{font-size:6.1pt!important}
+  body.printing-assessment-report .assessment-report-compare-row>div small,
+  body.printing-assessment-report .assessment-report-longterm-row>div small{font-size:4.8pt!important}
+  body.printing-assessment-report .assessment-report-compare-row>div strong,
+  body.printing-assessment-report .assessment-report-longterm-row>div strong{font-size:6.3pt!important;margin-top:.4mm!important}
+  body.printing-assessment-report .assessment-report-compare-row>em,
+  body.printing-assessment-report .assessment-report-longterm-row>em{padding:.9mm 1.4mm!important;font-size:5.2pt!important}
+  body.printing-assessment-report .assessment-report-compare-subhead,
+  body.printing-assessment-report .assessment-report-longterm-subhead{margin-top:1.1mm!important}
+  body.printing-assessment-report .assessment-report-mini-chart{break-inside:avoid-page!important;page-break-inside:avoid!important}
+  body.printing-assessment-report .assessment-report-footnote,
+  body.printing-assessment-report .assessment-report-print-footer{break-inside:avoid-page!important;page-break-inside:avoid!important}
+}
