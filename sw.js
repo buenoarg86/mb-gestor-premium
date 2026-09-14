@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V10.6.2 — Etapa 6B • PDF Premium — Hotfix Fidelidade do Compartilhamento
-const CACHE='mb-gestor-luxury-pro-v10-6-2-pdf-premium-share-fidelity-hotfix';
+// MB Gestor Luxury Pro V10.6.3 — Etapa 6B • PDF Premium — Hotfix Enquadramento A4
+const CACHE='mb-gestor-luxury-pro-v10-6-3-pdf-premium-a4-fit-hotfix';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
