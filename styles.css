@@ -626,7 +626,7 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 @media(max-width:720px){.field.is-body-comp-used.has-assessment-guide::after{right:39px;top:-4px}}
 
 /* =========================================================
-   V10.0.5 — Etapa 5A • Guia Anatômico Premium de Dobras
+   V10.0.6 — Etapa 5A • Guia Anatômico Premium de Dobras • Axilar Média Hotfix
    Manequim masculino + pontos automatizados por protocolo
    ========================================================= */
 .anatomical-guide-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:13px 18px 0}

@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.0.5 — Etapa 5A • Guia Anatômico Premium de Dobras
+// MB Gestor Luxury Pro V10.0.6 — Etapa 5A • Axilar Média Hotfix
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.0.5 — Etapa 5A • Guia Anatômico Premium de Dobras
+  // MB Gestor Luxury Pro V10.0.6 — Etapa 5A • Axilar Média Hotfix
 
-  const APP_VERSION = '10.0.5';
+  const APP_VERSION = '10.0.6';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -898,7 +898,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     {key:'biceps',label:'Bíceps',defaultView:'front',focus:{front:{x:177,y:610,angle:0,len:66}},point:'Face anterior do braço, no mesmo nível antropométrico adotado para o tríceps, sobre o ventre do bíceps.',direction:'Vertical, acompanhando o eixo longitudinal do braço.',pinch:'Eleve pele e tecido subcutâneo, mantendo o músculo fora da prega.',standard:'Padronize lado, ponto, adipômetro e tempo de leitura. Nas reavaliações, repita exatamente a mesma técnica.'},
     {key:'triceps',label:'Tríceps',defaultView:'back',focus:{back:{x:602,y:632,angle:0,len:72}},point:'Face posterior do braço, no ponto médio entre acrômio e olécrano.',direction:'Vertical, paralela ao eixo longitudinal do braço.',pinch:'Segure a prega com o braço relaxado e aplique o adipômetro logo abaixo dos dedos.',standard:'Braço relaxado; use sempre o mesmo lado e o mesmo ponto médio previamente marcado.'},
     {key:'chest',label:'Peitoral',defaultView:'front',focus:{front:{x:286,y:548,angle:-28,len:76}},point:'Referência masculina: linha diagonal entre a prega axilar anterior e o mamilo, aproximadamente no ponto médio.',pointFemale:'Em protocolos femininos que utilizam o peitoral, a referência clássica fica a aproximadamente um terço da distância entre a prega axilar anterior e o mamilo.',direction:'Diagonal, acompanhando a direção natural da prega peitoral.',pinch:'Forme uma prega diagonal firme sem incluir tecido muscular.',standard:'O ponto peitoral varia entre descrições de protocolo; mantenha uma única referência longitudinal no Studio.'},
-    {key:'midaxillary',label:'Axilar média',defaultView:'front',focus:{front:{x:196,y:650,angle:0,len:64}},point:'Linha axilar média, na altura aproximada do processo xifoide.',direction:'Vertical.',pinch:'Eleve a prega na linha axilar média mantendo o tronco relaxado.',standard:'Marque a altura de referência antes da pinça e repita a mesma posição respiratória.'},
+    {key:'midaxillary',label:'Axilar média',defaultView:'front',focus:{front:{x:255,y:630,angle:0,len:64}},point:'Linha axilar média, na altura aproximada do processo xifoide.',direction:'Vertical.',pinch:'Eleve a prega na linha axilar média mantendo o tronco relaxado.',standard:'Marque a altura de referência antes da pinça e repita a mesma posição respiratória.'},
     {key:'subscapular',label:'Subescapular',defaultView:'back',focus:{back:{x:520,y:520,angle:42,len:76}},point:'Logo abaixo do ângulo inferior da escápula, ligeiramente deslocado lateralmente.',direction:'Diagonal, aproximadamente 45°, seguindo a orientação natural da pele.',pinch:'Identifique primeiro o ângulo inferior da escápula e forme a prega diagonal abaixo dele.',standard:'O avaliado permanece em postura relaxada; repita o mesmo ponto e a mesma direção.'},
     {key:'suprailiac',label:'Supra-ilíaca',defaultView:'front',focus:{front:{x:282,y:810,angle:45,len:78}},point:'Imediatamente acima da crista ilíaca, próximo à linha axilar anterior.',direction:'Diagonal, acompanhando a dobra natural da região.',pinch:'Localize a crista ilíaca antes de formar a prega; mantenha a pinça acima do reparo ósseo.',standard:'Repita lado, distância do reparo anatômico e direção da prega em todas as avaliações.'},
     {key:'abdomen',label:'Abdominal',defaultView:'front',focus:{front:{x:360,y:758,angle:0,len:74}},point:'Ao lado do umbigo, aproximadamente 2 cm lateralmente, no lado padronizado para a coleta.',direction:'Vertical.',pinch:'Eleve uma prega vertical mantendo o abdômen relaxado.',standard:'Evite alterar a posição por inspiração profunda; repita a mesma distância do umbigo.'},
