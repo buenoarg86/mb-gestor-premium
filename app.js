@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.4.0 — Etapa 6A • Relatório Premium — Fase 3 • Evolução & Apresentação
+// MB Gestor Luxury Pro V10.5.0 — Etapa 6B • PDF Premium — Fase 1 • A4 & Exportação
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.4.0 — Etapa 6A • Relatório Premium — Fase 3 • Evolução & Apresentação
+  // MB Gestor Luxury Pro V10.5.0 — Etapa 6B • PDF Premium — Fase 1 • A4 & Exportação
 
-  const APP_VERSION = '10.4.0';
+  const APP_VERSION = '10.5.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1734,6 +1734,35 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return `<div class="assessment-report-notes"><div><span>REGISTRO DO PROFISSIONAL</span><strong>Contexto que acompanha esta avaliação</strong></div><p>${escapeHTML(notes).replaceAll('\n','<br>')}</p><small>Observação descritiva. Não altera cálculos, classificações ou resultados históricos.</small></div>`;
   }
 
+  function assessmentReportPDFFileName(student,a){
+    const clean=String(student?.name||'Aluno').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,52)||'Aluno';
+    const date=String(a?.date||isoToday()).replace(/[^0-9-]/g,'');
+    return `MB_Relatorio_Avaliacao_${clean}_${date||isoToday()}`;
+  }
+  function assessmentReportPrintMetaHTML(a,student,studio){
+    const method=String(a?.bodyComposition?.method||''),formula=String(a?.bodyComposition?.formulaVersion||BODY_COMPOSITION_FORMULA_VERSION),methodLabel=method?bodyCompositionMethodLabel(method):'Sem protocolo de composição';
+    return `<div class="assessment-report-print-meta"><div><span>DOCUMENTO DE ACOMPANHAMENTO</span><strong>Avaliação física e evolução corporal</strong></div><div><span>PROTOCOLO / REFERÊNCIA</span><strong>${escapeHTML(methodLabel)}${method?` • ${escapeHTML(formula)}`:''}</strong></div><div><span>GERADO EM</span><strong class="js-report-print-generated">—</strong></div></div><div class="assessment-report-print-clinical"><div><strong>Leitura profissional e rastreável</strong><span>Este documento organiza medidas, estimativas e evolução registradas no MB Gestor. Resultados de composição corporal seguem o protocolo salvo na avaliação e não substituem diagnóstico clínico.</span></div><em>Uso do profissional e do aluno avaliado.</em></div>`;
+  }
+  function assessmentReportPrintFooterHTML(studio){
+    return `<div class="assessment-report-print-footer"><span>${escapeHTML(studio)} • Relatório de Avaliação Física</span><span>MB Gestor Luxury Pro V${escapeHTML(APP_VERSION)}</span></div>`;
+  }
+  function assessmentReportPrintCleanup(previousTitle){
+    document.body.classList.remove('printing-assessment-report');
+    modalRoot.querySelector('.assessment-report-modal')?.classList.remove('is-print-export');
+    if(previousTitle)document.title=previousTitle;
+  }
+  function printAssessmentReport(student,a){
+    const reportModal=modalRoot.querySelector('.assessment-report-modal');if(!reportModal)return;
+    const previousTitle=document.title,fileName=assessmentReportPDFFileName(student,a),generated=formatDateTimeBR(new Date().toISOString());
+    const generatedNode=reportModal.querySelector('.js-report-print-generated');if(generatedNode)generatedNode.textContent=generated;
+    document.title=fileName;document.body.classList.add('printing-assessment-report');reportModal.classList.add('is-print-export');
+    let cleaned=false;const cleanup=()=>{if(cleaned)return;cleaned=true;assessmentReportPrintCleanup(previousTitle)};
+    window.addEventListener('afterprint',cleanup,{once:true});
+    const media=window.matchMedia?.('print');if(media?.addEventListener){const onChange=e=>{if(!e.matches){media.removeEventListener('change',onChange);cleanup()}};media.addEventListener('change',onChange)}
+    toast('PDF Premium: na tela do aparelho, escolha “Salvar como PDF”.');
+    setTimeout(()=>{try{window.print()}catch(err){cleanup();toast('Não foi possível abrir a geração de PDF neste navegador.')}},180);
+  }
+
   function openAssessmentReport(studentId,assessmentId){
     const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.physicalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;
     const bmi=assessmentBMI(a),ircq=assessmentIRCQ(a),comp=bodyCompositionEstimate(a,student),age=ageOnDate(student.birthDate,a.date),reportType=assessmentReportType(studentId,assessmentId),studio=String(state.settings?.studioName||'Studio Márcio Bueno');
@@ -1755,15 +1784,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       notesHTML?{title:'Observações profissionais',subtitle:'Contexto registrado nesta avaliação',html:notesHTML}:null
     ].filter(Boolean);
     const extraSections=optionalSections.map((section,index)=>`<section class="assessment-report-section"><div class="assessment-report-section-head"><span>${String(index+3).padStart(2,'0')}</span><div><strong>${escapeHTML(section.title)}</strong><small>${escapeHTML(section.subtitle)}</small></div></div>${section.html}</section>`);
-    openModal(`Relatório • ${student.name}`,`<div class="assessment-report"><section class="assessment-report-hero"><div class="assessment-report-brand"><span class="assessment-report-mark">MB</span><div><span>RELATÓRIO PREMIUM • AVALIAÇÃO FÍSICA</span><strong>${escapeHTML(studio)}</strong></div></div><div class="assessment-report-person"><div class="assessment-report-avatar">${avatar}</div><div class="assessment-report-person-copy"><span>${escapeHTML(reportType)}</span><h2>${escapeHTML(student.name)}</h2><p>${fmtDate(a.date)}${age!=null?` • ${age} anos`:''}</p></div><span class="assessment-report-seal">MB GESTOR<br>PREMIUM</span></div>${assessmentContextChips(a)}</section>
+    openModal(`Relatório • ${student.name}`,`<div class="assessment-report"><section class="assessment-report-hero"><div class="assessment-report-brand"><span class="assessment-report-mark">MB</span><div><span>RELATÓRIO PREMIUM • AVALIAÇÃO FÍSICA</span><strong>${escapeHTML(studio)}</strong></div></div><div class="assessment-report-person"><div class="assessment-report-avatar">${avatar}</div><div class="assessment-report-person-copy"><span>${escapeHTML(reportType)}</span><h2>${escapeHTML(student.name)}</h2><p>${fmtDate(a.date)}${age!=null?` • ${age} anos`:''}</p></div><span class="assessment-report-seal">MB GESTOR<br>PREMIUM</span></div>${assessmentContextChips(a)}</section>${assessmentReportPrintMetaHTML(a,student,studio)}
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>01</span><div><strong>Resumo executivo</strong><small>Indicadores disponíveis nesta avaliação</small></div></div><div class="assessment-report-summary">${summary.join('')}</div></section>
       <section class="assessment-report-section"><div class="assessment-report-section-head"><span>02</span><div><strong>Perímetros</strong><small>Medidas registradas em centímetros</small></div></div><div class="assessment-report-perimeters">${assessmentReportPerimetersHTML(a)}</div></section>
       ${extraSections.join('')}
-      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados sem classificar automaticamente aumento ou redução como resultado positivo ou negativo. Composição corporal só é comparada quando os registros são metodologicamente compatíveis. Os gráficos representam trajetória numérica e não definem metas corporais.</span></div>
+      <div class="assessment-report-footnote"><strong>Leitura profissional</strong><span>O relatório apresenta os dados registrados sem classificar automaticamente aumento ou redução como resultado positivo ou negativo. Composição corporal só é comparada quando os registros são metodologicamente compatíveis. Os gráficos representam trajetória numérica e não definem metas corporais.</span></div>${assessmentReportPrintFooterHTML(studio)}
       <div class="assessment-report-actions"><button class="btn btn-secondary" id="reportBackDetail">Voltar à avaliação</button><button class="btn btn-primary" id="reportClose">Concluir visualização</button></div></div>`);
     const reportModal=modalRoot.querySelector('.modal');reportModal?.classList.add('assessment-report-modal');
     const head=reportModal?.querySelector('.modal-head'),closeBtn=head?.querySelector('[data-close-modal]');
-    if(head&&closeBtn){const present=document.createElement('button');present.type='button';present.id='reportPresentationToggle';present.className='btn btn-secondary btn-small assessment-report-present-toggle';present.innerHTML=`${icon('eye')} <span>Apresentar</span>`;head.insertBefore(present,closeBtn);present.addEventListener('click',()=>{const active=reportModal.classList.toggle('is-presentation');present.innerHTML=`${icon(active?'eye-off':'eye')} <span>${active?'Sair da apresentação':'Apresentar'}</span>`;present.setAttribute('aria-pressed',active?'true':'false');});}
+    if(head&&closeBtn){const pdf=document.createElement('button');pdf.type='button';pdf.id='reportPdfGenerate';pdf.className='btn btn-primary btn-small assessment-report-pdf-toggle';pdf.title='Gerar PDF Premium em formato A4';pdf.innerHTML=`${icon('download')} <span>Gerar PDF</span>`;head.insertBefore(pdf,closeBtn);pdf.addEventListener('click',()=>printAssessmentReport(student,a));const present=document.createElement('button');present.type='button';present.id='reportPresentationToggle';present.className='btn btn-secondary btn-small assessment-report-present-toggle';present.innerHTML=`${icon('eye')} <span>Apresentar</span>`;head.insertBefore(present,closeBtn);present.addEventListener('click',()=>{const active=reportModal.classList.toggle('is-presentation');present.innerHTML=`${icon(active?'eye-off':'eye')} <span>${active?'Sair da apresentação':'Apresentar'}</span>`;present.setAttribute('aria-pressed',active?'true':'false');});}
     $('#reportBackDetail')?.addEventListener('click',()=>openAssessmentDetails(studentId,assessmentId));
     $('#reportClose')?.addEventListener('click',closeModal);
   }
@@ -2729,7 +2758,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • Relatório Premium • Evolução & apresentação</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>MB Gestor Luxury Pro</strong><span>Versão ${APP_VERSION} • PDF Premium • A4 & exportação</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Estrutura comercial futura</strong><span>Preparado para evolução com autenticação, sincronização, suporte e licenciamento.</span></div><span class="pill">Planejado</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
