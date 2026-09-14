@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V10.0.3 — Etapa 4A/4B • Precisão Protocolar & UI Hotfix */
+/* MB Gestor Luxury Pro V10.0.4 — Etapa 4A/4B • Polimento Final de Validação */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -611,3 +611,16 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .body-comp-section{gap:10px}.body-comp-section.is-collapsed{padding-bottom:14px}.body-comp-skinfold-block{margin-top:0}.body-comp-result-note{margin-top:7px}
 
 @media(max-width:720px){.assessment-composition-mode-banner{align-items:flex-start;flex-direction:column}.assessment-composition-mode-banner button{width:100%}.assessment-step-nav{gap:3px;padding:5px}.assessment-step-nav button{min-height:39px;padding:5px 2px}.assessment-step-nav span{font-size:7px}.assessment-step-nav b{font-size:7px}.body-comp-picker-layer{align-items:flex-end;padding:0}.body-comp-picker-shell{width:100%;max-height:92dvh;border-radius:24px 24px 0 0;border-bottom:0}.body-comp-picker-content{max-height:calc(92dvh - 82px);padding-bottom:calc(18px + env(safe-area-inset-bottom))}.body-comp-result-panel{grid-template-columns:1fr}.body-comp-result-primary{text-align:center;padding:6px 4px}.body-comp-result-primary strong{font-size:31px}.body-comp-result-secondary{grid-template-columns:1fr 1fr}.body-comp-sex-options{grid-template-columns:1fr 1fr}.body-comp-sex-options button:last-child{grid-column:1/-1}.assessment-mini-notice{align-items:flex-start;flex-direction:column;gap:3px}.field.is-body-comp-used::after{top:-4px}}
+
+
+/* =========================================================
+   V10.0.4 — Etapa 4A/4B • Polimento Final de Validação
+   Separação do selo de protocolo + feedback para medidas inválidas
+   ========================================================= */
+.field.is-body-comp-used.has-assessment-guide::after{right:42px;top:-2px}
+.body-comp-requirements-head span.is-ready{color:#76cba4;font-weight:850}
+.body-comp-requirements-head span.is-review{color:#d5b45d;font-weight:900}
+.body-comp-requirements-head span.is-restricted{color:#b9a066;font-weight:850}
+.body-comp-result-note.is-review{border-color:rgba(224,181,84,.24);background:linear-gradient(145deg,rgba(224,181,84,.055),#0d0f13)}
+.body-comp-result-note.is-review strong{color:#e0bb61}
+@media(max-width:720px){.field.is-body-comp-used.has-assessment-guide::after{right:39px;top:-4px}}

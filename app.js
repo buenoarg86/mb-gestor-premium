@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.0.3 — Etapa 4A/4B • Precisão Protocolar & UI Hotfix
+// MB Gestor Luxury Pro V10.0.4 — Etapa 4A/4B • Polimento Final de Validação
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.0.3 — Etapa 4A/4B • Precisão Protocolar & UI Hotfix
+  // MB Gestor Luxury Pro V10.0.4 — Etapa 4A/4B • Polimento Final de Validação
 
-  const APP_VERSION = '10.0.3';
+  const APP_VERSION = '10.0.4';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -1135,12 +1135,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       const fatMass=weight>0?weight*bf/100:null;
       return {bodyFatPercent:bf,fatMassKg:fatMass,fatFreeMassKg:fatMass==null?null:weight-fatMass};
     };
+    const finalizePercent=(percent,extras={},successNote='')=>{
+      const masses=massResult(percent),valid=masses.bodyFatPercent!=null;
+      return {method,methodLabel:cfg.label,family:cfg.family,...masses,...extras,complete:valid,note:valid?successNote:'Resultado fora da faixa plausível para este protocolo. Confira as medidas informadas.'};
+    };
     if(!needAdult())return {method,methodLabel:cfg.label,family:cfg.family,bodyFatPercent:null,fatMassKg:null,fatFreeMassKg:null,bodyDensity:null,skinfoldSum:null,complete:false,note:'Protocolos automáticos desta etapa são aplicados somente a adultos (18+).'};
     if(method==='rfm'){
       const waist=val(m.waist);
       if(!(heightCm>0&&waist>0&&['male','female'].includes(sex)))return {method,methodLabel:cfg.label,family:cfg.family,...massResult(null),bodyDensity:null,skinfoldSum:null,complete:false,note:'Informe altura, cintura e sexo de referência.'};
       const percent=64-(20*(heightCm/waist))+(sex==='female'?12:0);
-      return {method,methodLabel:cfg.label,family:cfg.family,...massResult(percent),bodyDensity:null,skinfoldSum:null,complete:true,note:'Estimativa RFM por altura/cintura; resultado antropométrico, não diagnóstico.'};
+      return finalizePercent(percent,{bodyDensity:null,skinfoldSum:null},'Estimativa RFM por altura/cintura; resultado antropométrico, não diagnóstico.');
     }
     if(method==='navyClassic'){
       if(!['male','female'].includes(sex))return {method,methodLabel:cfg.label,family:cfg.family,...massResult(null),bodyDensity:null,skinfoldSum:null,complete:false,note:'Selecione o sexo de referência.'};
@@ -1157,13 +1161,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         if(!(waist>0&&hip>0&&diff>0))return {method,methodLabel:cfg.label,family:cfg.family,...massResult(null),bodyDensity:null,skinfoldSum:null,complete:false,note:'No protocolo feminino, informe cintura, quadril e pescoço.'};
         percent=(163.205*Math.log10(diff))-(97.684*Math.log10(heightIn))-78.387;
       }
-      return {method,methodLabel:cfg.label,family:cfg.family,...massResult(percent),bodyDensity:null,skinfoldSum:null,complete:true,note:'Equação clássica por circunferências. Não representa o BCA oficial da US Navy de 2026.'};
+      return finalizePercent(percent,{bodyDensity:null,skinfoldSum:null},'Equação clássica por circunferências. Não representa o BCA oficial da US Navy de 2026.');
     }
     if(method==='bai'){
       const hip=val(m.hip),heightM=heightCm/100;
       if(!(hip>0&&heightM>0))return {method,methodLabel:cfg.label,family:cfg.family,...massResult(null),bodyDensity:null,skinfoldSum:null,complete:false,note:'Informe quadril e altura.'};
       const percent=hip/Math.pow(heightM,1.5)-18;
-      return {method,methodLabel:cfg.label,family:cfg.family,...massResult(percent),bodyDensity:null,skinfoldSum:null,complete:true,note:'Índice auxiliar. A validade do BAI varia entre populações e não deve ser interpretada isoladamente.'};
+      return finalizePercent(percent,{bodyDensity:null,skinfoldSum:null},'Índice auxiliar. A validade do BAI varia entre populações e não deve ser interpretada isoladamente.');
     }
     const sites=bodyCompositionSkinfoldSites(method,sex),nums=sites.map(k=>val(sf[k]));
     if(method==='jp3'&&!['male','female'].includes(sex))return {method,methodLabel:cfg.label,family:cfg.family,...massResult(null),bodyDensity:null,skinfoldSum:null,complete:false,note:'Selecione o sexo de referência para definir os 3 pontos.'};
@@ -1172,7 +1176,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const sum=nums.reduce((acc,n)=>acc+n,0);
     if(method==='faulkner4'){
       const percent=5.783+(0.153*sum);
-      return {method,methodLabel:cfg.label,family:cfg.family,...massResult(percent),bodyDensity:null,skinfoldSum:sum,complete:true,note:'Estimativa Faulkner por 4 dobras; mantenha a mesma técnica nas reavaliações.'};
+      return finalizePercent(percent,{bodyDensity:null,skinfoldSum:sum},'Estimativa Faulkner por 4 dobras; mantenha a mesma técnica nas reavaliações.');
     }
     let density=null;
     if(method==='jp3'){
@@ -1190,7 +1194,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       density=table[0]-(table[1]*Math.log10(sum));
     }
     const percent=density>0?(495/density)-450:null;
-    return {method,methodLabel:cfg.label,family:cfg.family,...massResult(percent),bodyDensity:density,skinfoldSum:sum,complete:Number.isFinite(percent),note:'Estimativa por dobras cutâneas e conversão de Siri. Técnica e repetibilidade influenciam o resultado.'};
+    return finalizePercent(percent,{bodyDensity:density,skinfoldSum:sum},'Estimativa por dobras cutâneas e conversão de Siri. Técnica e repetibilidade influenciam o resultado.');
   }
   function bodyCompositionSnapshot(a,student){
     const r=bodyCompositionEstimate(a,student);
@@ -1217,9 +1221,12 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const usedInputs=items.filter(x=>x.inputName&&x.inputName!=='referenceSex'&&x.inputName!=='date').map(x=>x.inputName);
     return {items,missing:items.filter(x=>!x.ready),usedInputs};
   }
-  function bodyCompositionRequirementsHTML(draft,student){
+  function bodyCompositionRequirementsHTML(draft,student,result=null){
     const state=bodyCompositionRequirementState(draft,student);if(!state.items.length)return '';
-    return `<div class="body-comp-requirements"><div class="body-comp-requirements-head"><strong>Dados do protocolo</strong><span>${state.missing.length?`${state.missing.length} pendente${state.missing.length===1?'':'s'}`:'Pronto para calcular'}</span></div><div class="body-comp-requirement-chips">${state.items.map(item=>`<span class="${item.ready?'is-ready':'is-missing'}">${item.ready?'✓':'•'} ${escapeHTML(item.label)}</span>`).join('')}</div></div>`;
+    const note=String(result?.note||''),restriction=!state.missing.length&&result?.bodyFatPercent==null&&/adultos|data de nascimento necessária/i.test(note),review=!state.missing.length&&result?.bodyFatPercent==null&&!restriction;
+    const status=state.missing.length?`${state.missing.length} pendente${state.missing.length===1?'':'s'}`:restriction?'Indisponível':review?'Revisar medidas':'Pronto para calcular';
+    const statusClass=state.missing.length?'is-pending':restriction?'is-restricted':review?'is-review':'is-ready';
+    return `<div class="body-comp-requirements"><div class="body-comp-requirements-head"><strong>Dados do protocolo</strong><span class="${statusClass}">${status}</span></div><div class="body-comp-requirement-chips">${state.items.map(item=>`<span class="${item.ready?'is-ready':'is-missing'}">${item.ready?'✓':'•'} ${escapeHTML(item.label)}</span>`).join('')}</div></div>`;
   }
   function bodyCompositionPendingMessage(result,source,student){
     const fallback=String(result?.note||'');
@@ -1237,9 +1244,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function bodyCompositionResultHTML(result,source=null,student=null){
     if(!result?.method)return `<div class="body-comp-empty body-comp-empty-compact"><strong>Composição corporal opcional</strong><span>Escolha um protocolo somente quando desejar estimar a composição corporal nesta avaliação.</span></div>`;
-    const pct=result.bodyFatPercent==null?'—':`${assessmentNumber(result.bodyFatPercent,1)}%`,fat=result.fatMassKg==null?'—':`${assessmentNumber(result.fatMassKg,1)} kg`,ffm=result.fatFreeMassKg==null?'—':`${assessmentNumber(result.fatFreeMassKg,1)} kg`,hasPct=result.bodyFatPercent!=null,hasWeight=source?Number(source?.weight)>0:(result.fatMassKg!=null||result.fatFreeMassKg!=null),note=hasPct?String(result.note||''):bodyCompositionPendingMessage(result,source,student);
+    const pct=result.bodyFatPercent==null?'—':`${assessmentNumber(result.bodyFatPercent,1)}%`,fat=result.fatMassKg==null?'—':`${assessmentNumber(result.fatMassKg,1)} kg`,ffm=result.fatFreeMassKg==null?'—':`${assessmentNumber(result.fatFreeMassKg,1)} kg`,hasPct=result.bodyFatPercent!=null,hasWeight=source?Number(source?.weight)>0:(result.fatMassKg!=null||result.fatFreeMassKg!=null),note=hasPct?String(result.note||''):bodyCompositionPendingMessage(result,source,student),requirements=source&&student?bodyCompositionRequirementState(source,student):null,allRequiredReady=Boolean(requirements?.items?.length&&!requirements.missing.length),restriction=!hasPct&&/adultos|data de nascimento necessária/i.test(String(note||'')),review=!hasPct&&!restriction&&(Boolean(result?.complete)||allRequiredReady),statusTitle=hasPct?(hasWeight?'Resultado calculado':'% calculado • falta peso para resultados em kg'):restriction?'Protocolo indisponível':review?'Confira as medidas':'Aguardando dados',statusClass=hasPct?'is-ready':review?'is-review':'is-pending';
     const technical=result.skinfoldSum!=null?`<div class="body-comp-result-tech"><span>Soma das dobras <b>${assessmentNumber(result.skinfoldSum,1)} mm</b></span>${result.bodyDensity!=null?`<span>Densidade <b>${assessmentNumber(result.bodyDensity,4)}</b></span>`:''}</div>`:'';
-    return `<div class="body-comp-result-panel ${hasPct?'has-result':'is-waiting'}"><div class="body-comp-result-primary"><span>GORDURA ESTIMADA</span><strong>${pct}</strong><small>${escapeHTML(result.methodLabel||'')}</small></div><div class="body-comp-result-secondary"><div><span>Massa gorda</span><strong>${fat}</strong></div><div><span>Massa livre de gordura</span><strong>${ffm}</strong></div></div>${technical}</div><div class="body-comp-result-note ${hasPct?'is-ready':'is-pending'}"><strong>${hasPct?(hasWeight?'Resultado calculado':'% calculado • falta peso para resultados em kg'):'Aguardando dados'}</strong><span>${escapeHTML(note)}</span></div>`;
+    return `<div class="body-comp-result-panel ${hasPct?'has-result':'is-waiting'}"><div class="body-comp-result-primary"><span>GORDURA ESTIMADA</span><strong>${pct}</strong><small>${escapeHTML(result.methodLabel||'')}</small></div><div class="body-comp-result-secondary"><div><span>Massa gorda</span><strong>${fat}</strong></div><div><span>Massa livre de gordura</span><strong>${ffm}</strong></div></div>${technical}</div><div class="body-comp-result-note ${statusClass}"><strong>${statusTitle}</strong><span>${escapeHTML(note)}</span></div>`;
   }
   function bodyCompositionDetailsHTML(a,student){
     const result=bodyCompositionEstimate(a,student),bc=a?.bodyComposition||{};if(!bc.method)return '';
@@ -1429,9 +1436,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(ageHint)ageHint.textContent=usesAge?(equationAge!=null?`Idade utilizada na equação: ${equationAge} anos`:'Data de nascimento necessária para a equação'):'Sexo necessário para aplicar a equação selecionada';
       protocol?.classList.toggle('hidden',!method);if(method)protocol.innerHTML=`<div><span>${cfg.family==='skinfold'?'DOBRAS CUTÂNEAS':'PERÍMETROS'}</span><strong>${escapeHTML(cfg.label)}</strong><p>${escapeHTML(bodyCompositionProtocolText(method,sex))}</p>${usesAge&&equationAge!=null?`<small>Idade utilizada na equação: ${equationAge} anos</small>`:''}</div>${method==='bai'?'<i>AUXILIAR</i>':method==='navyClassic'?'<i>CLÁSSICO</i>':''}`;
       block?.classList.toggle('hidden',cfg.family!=='skinfold');$$('.body-comp-sf-field',form).forEach(field=>field.classList.toggle('hidden',!sites.includes(field.dataset.bodySf)));
-      $$('.field.is-body-comp-used',form).forEach(field=>field.classList.remove('is-body-comp-used'));requirements.usedInputs.forEach(name=>form.elements[name]?.closest('.field')?.classList.add('is-body-comp-used'));
-      $('#bodyCompositionRequirements').innerHTML=method?bodyCompositionRequirementsHTML(draft,student):'';
-      const result=bodyCompositionEstimate(draft,student);$('#bodyCompositionLiveResults').innerHTML=bodyCompositionResultHTML(result,draft,student);
+      $$('.field.is-body-comp-used',form).forEach(field=>field.classList.remove('is-body-comp-used','has-assessment-guide'));requirements.usedInputs.forEach(name=>{const field=form.elements[name]?.closest('.field');if(!field)return;field.classList.add('is-body-comp-used');if(field.querySelector('.assessment-guide-mini'))field.classList.add('has-assessment-guide')});
+      const result=bodyCompositionEstimate(draft,student);$('#bodyCompositionRequirements').innerHTML=method?bodyCompositionRequirementsHTML(draft,student,result):'';
+      $('#bodyCompositionLiveResults').innerHTML=bodyCompositionResultHTML(result,draft,student);
     };
     ['weight','heightCm','waist','hip','date','referenceSex'].forEach(name=>{form.elements[name]?.addEventListener('input',preview);form.elements[name]?.addEventListener('change',preview)});
     ['weight','heightCm','neck','waist','abdomen','hip','date','referenceSex','bodyCompositionMethod',...BODY_COMPOSITION_SKINFOLDS.map(([key])=>`sf_${key}`)].forEach(name=>{form.elements[name]?.addEventListener('input',renderBodyComposition);form.elements[name]?.addEventListener('change',renderBodyComposition)});
