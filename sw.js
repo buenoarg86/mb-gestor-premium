@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V10.0.6 — Etapa 5A • Axilar Média Hotfix
-const CACHE='mb-gestor-luxury-pro-v10-0-6-skinfold-midaxillary-hotfix';
+// MB Gestor Luxury Pro V10.1.0 — Etapa 5B • Guia Técnico Premium
+const CACHE='mb-gestor-luxury-pro-v10-1-0-skinfold-technical-guide';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

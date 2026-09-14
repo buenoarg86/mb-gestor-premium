@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V10.0.6 — Etapa 5A • Axilar Média Hotfix
+// MB Gestor Luxury Pro V10.1.0 — Etapa 5B • Guia Técnico Premium
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V10.0.6 — Etapa 5A • Axilar Média Hotfix
+  // MB Gestor Luxury Pro V10.1.0 — Etapa 5B • Guia Técnico Premium
 
-  const APP_VERSION = '10.0.6';
+  const APP_VERSION = '10.1.0';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
@@ -888,7 +888,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     ['thigh','Coxa']
   ];
 
-  // Etapa 5A — Guia Anatômico Premium de Dobras.
+  // Etapa 5B — Guia Anatômico Premium Pro de Dobras.
+  // Mantém o mapa anatômico aprovado da Etapa 5A e acrescenta orientação técnica
+  // compacta de coleta, sem alterar fórmulas, protocolos ou dados salvos.
   // Modelo masculino dedicado e marcadores dinâmicos. O mapa visual é separado
   // do cálculo: nenhuma fórmula ou resultado de composição corporal é alterado.
   const SKINFOLD_MODEL_SIZE={w:793,h:1983};
@@ -1136,6 +1138,22 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="anatomy-view-caption-html">${back?'VISTA POSTERIOR':'VISTA FRONTAL'}</div>
     </div>`;
   }
+  function skinfoldTechniquePanelHTML(open=false){
+    return `<section class="skinfold-technique-card ${open?'open':''}" aria-label="Técnica padronizada de coleta">
+      <div class="skinfold-technique-head">
+        <div><span>TÉCNICA DE COLETA</span><strong>Sequência padronizada</strong><small>Passos comuns aos pontos de dobra, preservando a orientação específica mostrada acima.</small></div>
+        <button type="button" data-skinfold-technique-toggle aria-expanded="${open?'true':'false'}">${open?'Ocultar':'Ver passos'}</button>
+      </div>
+      <div class="skinfold-technique-body">
+        <div class="skinfold-technique-step"><b>01</b><div><strong>Identifique e marque</strong><span>Localize o reparo anatômico e marque o ponto antes de formar a prega.</span></div></div>
+        <div class="skinfold-technique-step"><b>02</b><div><strong>Eleve a prega</strong><span>Use polegar e indicador, separe pele e tecido subcutâneo e mantenha a prega elevada durante a leitura.</span></div></div>
+        <div class="skinfold-technique-step"><b>03</b><div><strong>Posicione o adipômetro</strong><span>Coloque as hastes perpendiculares à prega, cerca de 1 cm abaixo dos dedos, e libere a pressão de forma controlada.</span></div></div>
+        <div class="skinfold-technique-step"><b>04</b><div><strong>Confirme a repetibilidade</strong><span>Faça ao menos duas leituras em rodízio entre os pontos; se houver diferença relevante, repita antes de registrar.</span></div></div>
+      </div>
+      <div class="skinfold-technique-conditions"><span>Pele seca • sem loção</span><span>Evite logo após exercício</span><span>Mesmo adipômetro e condições</span><span>Mesmo lado e ordem do protocolo</span></div>
+    </section>`;
+  }
+
   function openSkinfoldGuide(initialKey=null,initialSide='R',method='',sex=''){
     closeSkinfoldGuide();closeAnatomicalGuide();
     const returnFocus=document.activeElement,saved=readSkinfoldGuideState();
@@ -1146,17 +1164,18 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     let item=skinfoldGuideItem(requested&&allowed.includes(requested)?requested:(saved?.key&&allowed.includes(saved.key)?saved.key:allowed[0]));
     let view=(saved?.key===item.key&&['front','back'].includes(saved?.view))?saved.view:(item.defaultView||'front');
     let side=initialSide==='L'?'L':initialSide==='R'?'R':saved?.side==='L'?'L':'R';
+    let techniqueOpen=false;
     const layer=document.createElement('div');layer.id='skinfoldGuideLayer';layer.className='anatomical-guide-layer skinfold-guide-layer';
     layer.innerHTML=`<div class="anatomical-guide-shell skinfold-guide-shell" role="dialog" aria-modal="true" aria-labelledby="skinfoldGuideTitle">
-      <header class="anatomical-guide-header"><div><span class="section-overline">ETAPA 5A • GUIA PREMIUM</span><h3 id="skinfoldGuideTitle">Guia anatômico • dobras cutâneas</h3><p>Ponto anatômico e direção da prega para repetir a coleta com o mesmo padrão.</p></div><button type="button" class="anatomical-guide-close" aria-label="Fechar guia">${icon('x')}</button></header>
+      <header class="anatomical-guide-header"><div><span class="section-overline">ETAPA 5B • GUIA TÉCNICO PREMIUM</span><h3 id="skinfoldGuideTitle">Guia anatômico • dobras cutâneas</h3><p>Ponto anatômico, direção da prega e técnica padronizada de coleta.</p></div><button type="button" class="anatomical-guide-close" aria-label="Fechar guia">${icon('x')}</button></header>
       <div class="anatomical-guide-mode-tabs"><button type="button" data-guide-mode="perimeter">Perímetros</button><button type="button" class="active" data-guide-mode="skinfold">Dobras cutâneas</button></div>
       <div class="skinfold-guide-context" id="skinfoldGuideContext"></div>
       <div class="anatomical-guide-layout"><section class="anatomical-guide-visual skinfold-guide-visual"><div class="anatomical-guide-view-tabs"><button type="button" data-skinfold-view="front">Frente</button><button type="button" data-skinfold-view="back">Costas</button></div><div id="skinfoldGuideFigure"></div><div id="skinfoldGuideSide"></div></section>
-      <section class="anatomical-guide-content"><div class="anatomical-guide-picker skinfold-guide-picker"><span>Ponto selecionado</span><div id="skinfoldGuideSites"></div></div><article class="anatomical-guide-info" id="skinfoldGuideInfo"></article><div class="anatomical-guide-protocol"><strong>Padronização acima de tudo</strong><span>O guia é uma referência visual. Protocolos podem descrever pequenas variações de localização; mantenha a mesma referência, lado, técnica e adipômetro nas reavaliações.</span></div></section></div></div>`;
+      <section class="anatomical-guide-content"><div class="anatomical-guide-picker skinfold-guide-picker"><span>Ponto selecionado</span><div id="skinfoldGuideSites"></div></div><article class="anatomical-guide-info" id="skinfoldGuideInfo"></article><div id="skinfoldTechniquePanel"></div><div class="anatomical-guide-protocol"><strong>Padronização acima de tudo</strong><span>O guia é uma referência visual. Protocolos podem descrever pequenas variações de localização; mantenha a mesma referência, lado, técnica e adipômetro nas reavaliações.</span></div></section></div></div>`;
     document.body.appendChild(layer);document.body.classList.add('anatomical-guide-open');
     const render=()=>{
       saveSkinfoldGuideState(item,view,side);
-      const fig=$('#skinfoldGuideFigure',layer),sitesBox=$('#skinfoldGuideSites',layer),info=$('#skinfoldGuideInfo',layer),sideBox=$('#skinfoldGuideSide',layer),context=$('#skinfoldGuideContext',layer);
+      const fig=$('#skinfoldGuideFigure',layer),sitesBox=$('#skinfoldGuideSites',layer),info=$('#skinfoldGuideInfo',layer),sideBox=$('#skinfoldGuideSide',layer),context=$('#skinfoldGuideContext',layer),techniquePanel=$('#skinfoldTechniquePanel',layer);
       $$('[data-skinfold-view]',layer).forEach(b=>b.classList.toggle('active',b.dataset.skinfoldView===view));
       fig.innerHTML=skinfoldGuideFigure(item,view,side);
       sitesBox.innerHTML=allowed.map(key=>{const x=skinfoldGuideItem(key);return `<button type="button" class="${item.key===x.key?'active':''}" data-skinfold-site="${x.key}">${escapeHTML(x.label)}</button>`}).join('');
@@ -1164,6 +1183,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       const pointText=(sex==='female'&&item.pointFemale)?item.pointFemale:item.point;
       info.innerHTML=`<div class="anatomical-guide-info-head"><span class="anatomical-guide-index">${String(SKINFOLD_GUIDE_SITES.findIndex(x=>x.key===item.key)+1).padStart(2,'0')}</span><div><span>DOBRA CUTÂNEA</span><strong>${escapeHTML(item.label)}</strong></div></div><div class="anatomical-guide-rule"><span>LOCALIZAÇÃO</span><p>${escapeHTML(pointText)}</p></div><div class="anatomical-guide-rule"><span>PREGA</span><p>${escapeHTML(item.direction)}</p></div><div class="anatomical-guide-rule"><span>PINÇA</span><p>${escapeHTML(item.pinch)}</p></div><div class="anatomical-guide-rule"><span>REPETIÇÃO</span><p>${escapeHTML(item.standard)}</p></div>`;
       context.innerHTML=validMethod?`<span>PROTOCOLO ATUAL</span><strong>${escapeHTML(bodyCompositionMethodLabel(validMethod))}</strong><small>${sex==='male'?'Referência masculina':sex==='female'?'Referência feminina':'Sexo de referência ainda não informado'} • ${allowed.length} ${allowed.length===1?'ponto':'pontos'} no guia</small>`:`<span>BIBLIOTECA DE DOBRAS</span><strong>8 pontos anatômicos</strong><small>Selecione um ponto ou abra o guia diretamente pelo campo da avaliação.</small>`;
+      techniquePanel.innerHTML=skinfoldTechniquePanelHTML(techniqueOpen);
+      techniquePanel.querySelector('[data-skinfold-technique-toggle]')?.addEventListener('click',()=>{techniqueOpen=!techniqueOpen;render()});
       $$('[data-skinfold-site]',layer).forEach(b=>b.onclick=()=>{item=skinfoldGuideItem(b.dataset.skinfoldSite);view=item.defaultView||'front';render()});
       $$('[data-skinfold-view]',layer).forEach(b=>b.onclick=()=>{view=b.dataset.skinfoldView;render()});
       $$('[data-skinfold-side]',layer).forEach(b=>b.onclick=()=>{side=b.dataset.skinfoldSide;render()});
@@ -2511,7 +2532,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="logo-feature"><img src="assets/logo-interna.jpg" alt="Márcio Bueno Personal Trainer" /></section>
       <div class="section-head"><div><h3>Aplicativo</h3><p>Uso privado no seu dispositivo</p></div></div>
       <section class="card">
-        <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Etapa 5A</span></div>
+        <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Etapa 5B</span></div>
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
