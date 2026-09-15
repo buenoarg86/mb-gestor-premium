@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V10.8.3 — Etapa 9 • Master Audit Polish */
+/* MB Gestor Luxury Pro V10.8.4 — Hotfix • Navegação + Foto Premium */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -393,7 +393,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .assessment-hero h2{margin:5px 0 7px;font-size:27px;letter-spacing:-.03em}.assessment-hero p{margin:0;color:#a7a9b0;font-size:12px;line-height:1.55;max-width:620px}.assessment-hero-icon,.assessment-emblem{flex:0 0 auto;display:grid;place-items:center;color:#e6c66f;background:linear-gradient(145deg,rgba(233,198,110,.13),rgba(233,198,110,.035));border:1px solid rgba(233,198,110,.22);box-shadow:inset 0 1px rgba(255,255,255,.03),0 12px 28px rgba(0,0,0,.22)}
 .assessment-hero-icon{width:72px;height:72px;border-radius:22px}.assessment-hero-icon svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.6}.assessment-top-metrics{margin-bottom:14px}.assessment-guidance{display:grid;gap:4px;margin:14px 0;padding:13px 14px;border-radius:16px;border:1px solid rgba(104,197,141,.13);background:rgba(104,197,141,.035)}.assessment-guidance strong{font-size:12px;color:#cfd6d1}.assessment-guidance span{font-size:11px;color:#858b88;line-height:1.5}.assessment-tabs{margin-top:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;overflow:visible;padding-bottom:0}.assessment-tabs .tab{display:flex;align-items:center;justify-content:center;min-height:46px;padding:10px 9px;text-align:center;white-space:normal;line-height:1.15}.assessment-student-list{gap:10px}.assessment-student-card{display:flex;align-items:center;justify-content:space-between;gap:14px}.assessment-student-main{display:flex;align-items:center;gap:12px;min-width:0}.assessment-student-main>div:last-child{min-width:0}.assessment-student-main strong{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.assessment-student-main>div>span{display:block;color:#888b92;font-size:11px;margin-top:4px}.assessment-student-actions{display:flex;gap:7px;flex:0 0 auto}.assessment-inline-status{display:flex!important;flex-wrap:wrap;gap:6px 10px;margin-top:8px!important}.assessment-inline-status>span{display:inline-flex!important;align-items:center;gap:5px;margin:0!important;font-size:10px!important;color:#a4a7ad!important}.assessment-inline-status b{color:#e0e1e3}.assessment-inline-status .status{font-size:8px;padding:3px 6px}
 .profile-assessment-card{margin:14px 0;padding:15px;border:1px solid rgba(233,198,110,.16);border-radius:19px;background:linear-gradient(145deg,rgba(233,198,110,.055),rgba(255,255,255,.018));box-shadow:inset 0 1px rgba(255,255,255,.025)}.profile-assessment-card.empty-assessment{border-style:dashed;background:rgba(255,255,255,.018)}.profile-assessment-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.profile-assessment-head strong{display:block;font-size:14px;margin-top:3px}.profile-assessment-head p{margin:4px 0 0;color:#858891;font-size:11px;line-height:1.45}.assessment-emblem{width:40px;height:40px;border-radius:13px}.assessment-emblem svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}.assessment-profile-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.assessment-result{min-width:0;padding:11px 12px;border:1px solid rgba(255,255,255,.065);border-radius:14px;background:#101216}.assessment-result>span{display:block;color:#777b84;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.assessment-result>strong{display:block;margin-top:4px;font-size:18px;letter-spacing:-.02em}.assessment-result>small{display:block;margin-top:3px;color:#989ba2;font-size:9px;line-height:1.35}.assessment-result.ok>strong{color:#8ed7aa}.assessment-result.warn>strong{color:#efc878}.assessment-result.danger>strong{color:#ef9a9a}.profile-assessment-actions{display:flex;gap:8px;margin-top:11px}.profile-assessment-actions .btn{flex:1}
-.assessment-form{display:grid;gap:13px}.assessment-form-intro{display:flex;align-items:center;gap:11px;padding:4px 2px}.assessment-form-intro strong,.assessment-form-intro span{display:block}.assessment-form-intro span{font-size:11px;color:#868991;margin-top:3px}.assessment-form-section{display:grid;gap:12px;padding:14px;border:1px solid rgba(255,255,255,.07);border-radius:19px;background:linear-gradient(145deg,#15171b,#101115)}.assessment-form-section-head{display:flex;align-items:center;gap:10px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.055)}.assessment-form-section-head>span{width:29px;height:29px;display:grid;place-items:center;border-radius:10px;background:rgba(233,198,110,.09);color:#e4c269;font-size:10px;font-weight:900}.assessment-form-section-head strong,.assessment-form-section-head small{display:block}.assessment-form-section-head strong{font-size:13px}.assessment-form-section-head small{font-size:9px;color:#73767d;margin-top:2px}.assessment-input-wrap{position:relative}.assessment-input-wrap input{padding-right:44px!important}.assessment-input-wrap>span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#686c74;font-size:10px;font-weight:900;text-transform:uppercase;pointer-events:none}.assessment-live-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.assessment-pair{display:grid;gap:9px;padding:11px;border:1px solid rgba(255,255,255,.055);border-radius:15px;background:rgba(0,0,0,.12)}.assessment-pair+.assessment-pair{margin-top:2px}.assessment-pair-title{display:flex;justify-content:space-between;gap:8px}.assessment-pair-title strong{font-size:11px}.assessment-pair-title span{font-size:9px;color:#73767d}.assessment-pair-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.assessment-save-actions{position:sticky;bottom:-18px;z-index:3;margin:4px -18px -18px;padding:14px 18px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(18,19,24,0),rgba(18,19,24,.96) 25%,#121318);backdrop-filter:blur(12px)}
+.assessment-form{display:grid;gap:13px}.assessment-form-section{transition:border-color .18s ease,background .18s ease,box-shadow .18s ease}.assessment-form-section.is-active-step{border-color:rgba(231,196,105,.34);background:radial-gradient(circle at 8% 0,rgba(231,196,105,.065),transparent 34%),linear-gradient(145deg,#17181c,#101115);box-shadow:inset 0 1px rgba(255,255,255,.025),0 0 0 1px rgba(231,196,105,.025),0 10px 28px rgba(0,0,0,.12)}.assessment-form-section.is-active-step>.assessment-form-section-head>span{background:rgba(233,198,110,.13);color:#f0cf72;box-shadow:inset 0 0 0 1px rgba(231,196,105,.08)}.assessment-form-intro{display:flex;align-items:center;gap:11px;padding:4px 2px}.assessment-form-intro strong,.assessment-form-intro span{display:block}.assessment-form-intro span{font-size:11px;color:#868991;margin-top:3px}.assessment-form-section{display:grid;gap:12px;padding:14px;border:1px solid rgba(255,255,255,.07);border-radius:19px;background:linear-gradient(145deg,#15171b,#101115)}.assessment-form-section-head{display:flex;align-items:center;gap:10px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.055)}.assessment-form-section-head>span{width:29px;height:29px;display:grid;place-items:center;border-radius:10px;background:rgba(233,198,110,.09);color:#e4c269;font-size:10px;font-weight:900}.assessment-form-section-head strong,.assessment-form-section-head small{display:block}.assessment-form-section-head strong{font-size:13px}.assessment-form-section-head small{font-size:9px;color:#73767d;margin-top:2px}.assessment-input-wrap{position:relative}.assessment-input-wrap input{padding-right:44px!important}.assessment-input-wrap>span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#686c74;font-size:10px;font-weight:900;text-transform:uppercase;pointer-events:none}.assessment-live-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.assessment-pair{display:grid;gap:9px;padding:11px;border:1px solid rgba(255,255,255,.055);border-radius:15px;background:rgba(0,0,0,.12)}.assessment-pair+.assessment-pair{margin-top:2px}.assessment-pair-title{display:flex;justify-content:space-between;gap:8px}.assessment-pair-title strong{font-size:11px}.assessment-pair-title span{font-size:9px;color:#73767d}.assessment-pair-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.assessment-save-actions{position:sticky;bottom:-18px;z-index:3;margin:4px -18px -18px;padding:14px 18px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(18,19,24,0),rgba(18,19,24,.96) 25%,#121318);backdrop-filter:blur(12px)}
 .assessment-history-head,.assessment-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.assessment-history-head strong,.assessment-detail-head strong{display:block;font-size:16px;margin-top:4px}.assessment-history-head p,.assessment-detail-head p{margin:4px 0 0;color:#80838a;font-size:10px;line-height:1.4}.assessment-history-list{display:grid;gap:10px}.assessment-history-card{padding:14px;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:linear-gradient(145deg,#15171b,#101115)}.assessment-history-card.is-latest{border-color:rgba(233,198,110,.22);box-shadow:0 10px 28px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.02)}.assessment-history-date{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}.assessment-history-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}.assessment-history-date strong,.assessment-history-date span{display:block}.assessment-history-date strong{font-size:14px}.assessment-history-date div>span{font-size:10px;color:#81848b;margin-top:3px}.assessment-history-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.assessment-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.assessment-detail-grid>div{padding:11px;border:1px solid rgba(255,255,255,.055);border-radius:13px;background:#101216}.assessment-detail-grid span,.assessment-detail-grid strong{display:block}.assessment-detail-grid span{font-size:9px;color:#73767d;text-transform:uppercase;font-weight:900;letter-spacing:.06em}.assessment-detail-grid strong{font-size:13px;margin-top:4px}.assessment-bilateral-table{margin-top:10px;border:1px solid rgba(255,255,255,.06);border-radius:15px;overflow:hidden}.assessment-bilateral-table>div{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(70px,.7fr));gap:8px;align-items:center;padding:10px 11px;border-bottom:1px solid rgba(255,255,255,.05)}.assessment-bilateral-table>div:last-child{border-bottom:0}.assessment-bilateral-table strong,.assessment-bilateral-table span{font-size:10px}.assessment-bilateral-table span{text-align:right;color:#a7a9af}.assessment-bilateral-head{background:rgba(233,198,110,.045)}.assessment-bilateral-head span{font-size:8px!important;text-transform:uppercase;font-weight:900;color:#7d7f86!important}.assessment-scale-note,.assessment-notes{display:grid;gap:4px;margin-top:12px;padding:12px 13px;border:1px solid rgba(233,198,110,.11);border-radius:14px;background:rgba(233,198,110,.035)}.assessment-scale-note strong{font-size:11px}.assessment-scale-note span,.assessment-notes p{font-size:10px;color:#8d9097;line-height:1.5;margin:0}.detail-results{margin-top:5px}.assessment-detail-actions{display:flex;justify-content:flex-end;margin-top:13px}
 @media(max-width:620px){.assessment-hero{padding:18px}.assessment-hero h2{font-size:23px}.assessment-hero-icon{width:58px;height:58px;border-radius:18px}.assessment-student-card{align-items:flex-start;display:grid}.assessment-student-actions{width:100%}.assessment-student-actions .btn{flex:1}.assessment-history-head,.assessment-detail-head{align-items:stretch;display:grid}.assessment-history-head .btn,.assessment-detail-head .btn{width:100%}.assessment-bilateral-table>div{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(58px,.7fr))}.profile-assessment-actions{display:grid}.assessment-pair-title{align-items:flex-end}}
 @media(min-width:720px){.assessment-profile-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.assessment-detail-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
@@ -495,13 +495,14 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
    ================================================================ */
 .body-comp-section{
   position:relative;overflow:hidden;
-  border-color:rgba(231,196,105,.22);
-  background:linear-gradient(155deg,rgba(231,196,105,.035),rgba(13,14,17,.96) 42%,rgba(8,9,11,.98));
+  border-color:rgba(255,255,255,.07);
+  background:linear-gradient(145deg,#15171b,#101115);
 }
 .body-comp-section::before{
   content:"";position:absolute;inset:0 auto auto 0;width:100%;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(241,211,129,.38),transparent);pointer-events:none
+  background:linear-gradient(90deg,transparent,rgba(241,211,129,.38),transparent);pointer-events:none;opacity:0;transition:opacity .18s ease
 }
+.body-comp-section.is-active-step::before{opacity:1}
 .body-comp-method-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(190px,.7fr);gap:12px;align-items:stretch}
 .body-comp-method-badge{
   min-height:82px;padding:13px 14px;border:1px solid rgba(231,196,105,.18);border-radius:16px;
@@ -1193,3 +1194,85 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .assessment-share-primary-actions{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-top:12px}.assessment-share-primary-actions .btn{min-width:0;min-height:48px}.assessment-share-secondary-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}.assessment-share-secondary-actions .btn{min-width:0}.assessment-share-text-action{opacity:.86}
 .assessment-share-export-host{position:fixed;left:-10000px;top:0;width:776px;z-index:-1;pointer-events:none;opacity:.001}.assessment-share-export-root{box-sizing:border-box;width:776px;padding:28px;background:#08090b}.assessment-share-export-root *{box-sizing:border-box}
 @media(max-width:620px){.assessment-share-primary-actions,.assessment-share-secondary-actions{grid-template-columns:1fr}.assessment-share-primary-actions .btn,.assessment-share-secondary-actions .btn{width:100%}}
+
+/* V10.8.4 — Foto Premium • identidade visual dos alunos */
+.student-photo{
+  position:relative;display:grid;place-items:center;width:48px;height:48px;flex:0 0 48px;
+  padding:2px;overflow:hidden;border-radius:50%;border:1px solid rgba(233,198,110,.34);
+  background:linear-gradient(145deg,rgba(243,199,106,.18),rgba(185,137,50,.06) 42%,#111318 78%);
+  box-shadow:0 9px 24px rgba(0,0,0,.28),0 0 0 1px rgba(243,199,106,.035),inset 0 1px rgba(255,255,255,.08)
+}
+.student-photo>img,.student-photo>span{width:100%;height:100%;border-radius:inherit}
+.student-photo>img{display:block;object-fit:cover;object-position:center 28%;background:#0d0e11}
+.student-photo>span{display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,rgba(243,199,106,.18),transparent 38%),linear-gradient(145deg,#242017,#111318 72%);color:#f0cb70;font-size:19px;font-weight:950;letter-spacing:-.035em;text-shadow:0 1px 0 rgba(0,0,0,.35)}
+.tiny-photo{width:42px;height:42px;flex-basis:42px;padding:2px}
+
+/* Cadastro de alunos: a foto identifica, sem dominar a ficha. */
+.student-card{padding:18px;border-color:rgba(255,255,255,.085);background:radial-gradient(circle at 0 0,rgba(233,198,110,.025),transparent 35%),linear-gradient(145deg,#121317,#0e0f11)}
+.student-card .student-profile{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:16px;min-width:0}
+.student-card .student-card-photo{
+  width:clamp(96px,28vw,116px);height:clamp(96px,28vw,116px);flex-basis:clamp(96px,28vw,116px);
+  padding:3px;border-color:rgba(243,199,106,.68);
+  box-shadow:0 14px 34px rgba(0,0,0,.34),0 0 0 1px rgba(215,163,61,.13),0 0 24px rgba(215,163,61,.06),inset 0 1px rgba(255,255,255,.11)
+}
+.student-card .student-card-photo::after,.premium-profile-photo::after,.photo-preview::after{
+  content:"";position:absolute;inset:3px;border-radius:inherit;border:1px solid rgba(255,255,255,.09);pointer-events:none
+}
+.student-card .student-card-photo>span{font-size:34px}
+.student-card .student-info{align-self:center;padding-top:2px}
+.student-card .student-name{font-size:19px;line-height:1.12;letter-spacing:-.025em}
+.student-card .student-meta{gap:7px 13px;line-height:1.35}
+.student-card .student-actions{align-self:start;padding-top:2px}
+
+/* Ficha Premium: avatar maior e hierarquia editorial mais equilibrada. */
+.student-premium-summary{grid-template-columns:auto minmax(0,1fr);gap:18px;padding:18px;border-color:rgba(233,198,110,.22);background:radial-gradient(circle at 0 0,rgba(233,198,110,.10),transparent 42%),linear-gradient(145deg,rgba(233,198,110,.045),rgba(255,255,255,.012))}
+.premium-profile-photo{width:clamp(96px,24vw,112px)!important;height:clamp(96px,24vw,112px)!important;flex:0 0 clamp(96px,24vw,112px)!important;padding:3px!important;border-color:rgba(243,199,106,.70)!important;box-shadow:0 15px 36px rgba(0,0,0,.34),0 0 0 1px rgba(215,163,61,.14),0 0 25px rgba(215,163,61,.06)!important}
+.premium-profile-photo>span{font-size:32px}
+.student-premium-summary h4{font-size:22px;line-height:1.1}
+.student-premium-summary p{margin-top:7px;line-height:1.4}
+
+/* Cadastro/edição: a prévia usa o mesmo padrão visual da ficha final. */
+.luxury-photo-picker{display:grid!important;grid-template-columns:112px minmax(0,1fr)!important;gap:17px!important;align-items:center!important;padding:14px!important;border:1px solid rgba(233,198,110,.14);border-radius:19px;background:linear-gradient(145deg,rgba(233,198,110,.045),rgba(255,255,255,.012))}
+.photo-preview{position:relative;display:grid;place-items:center;width:112px;height:112px;padding:3px;overflow:hidden;border-radius:50%;border:1px solid rgba(243,199,106,.68);background:linear-gradient(145deg,rgba(243,199,106,.18),rgba(185,137,50,.06) 42%,#111318 78%);box-shadow:0 14px 34px rgba(0,0,0,.32),0 0 0 1px rgba(215,163,61,.07),inset 0 1px rgba(255,255,255,.10)}
+.photo-preview>img,.photo-preview>span{width:100%;height:100%;border-radius:inherit}
+.photo-preview>img{display:block;object-fit:cover;object-position:center 28%}
+.photo-preview>span{display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,rgba(243,199,106,.18),transparent 38%),linear-gradient(145deg,#242017,#111318 72%);color:#f0cb70;font-size:32px;font-weight:950}
+.photo-preview .photo-placeholder{color:#c9a954;background:linear-gradient(145deg,#201c14,#111318)!important}
+.photo-preview .photo-placeholder svg{width:28px;height:28px}
+.photo-picker-controls{gap:9px}
+.photo-picker-controls small{max-width:320px;line-height:1.45;color:#858890}
+
+@media(max-width:620px){
+  .student-card{grid-template-columns:minmax(0,1fr) auto;padding:16px}
+  .student-card .student-profile{gap:13px}
+  .student-card .student-card-photo{width:clamp(96px,28vw,108px);height:clamp(96px,28vw,108px);flex-basis:clamp(96px,28vw,108px)}
+  .student-card .student-name{font-size:18px}
+  .student-card .student-meta{font-size:11px;gap:6px 10px}
+  .student-premium-summary{gap:14px;padding:16px}
+  .premium-profile-photo{width:96px!important;height:96px!important;flex-basis:96px!important}
+  .luxury-photo-picker{grid-template-columns:96px minmax(0,1fr)!important;gap:14px!important;padding:13px!important}
+  .photo-preview{width:96px;height:96px}
+  .photo-preview>span{font-size:28px}
+}
+@media(max-width:430px){
+  .student-card{grid-template-columns:1fr;gap:14px}
+  .student-card .student-profile{grid-template-columns:96px minmax(0,1fr);gap:12px}
+  .student-card .student-card-photo{width:96px;height:96px;flex-basis:96px}
+  .student-card .student-card-photo>span{font-size:30px}
+  .student-card .student-actions{justify-content:flex-start;flex-wrap:wrap;padding-top:0}
+  .student-premium-summary{grid-template-columns:88px minmax(0,1fr);gap:12px}
+  .premium-profile-photo{width:88px!important;height:88px!important;flex-basis:88px!important}
+  .premium-profile-photo>span{font-size:28px}
+  .student-premium-summary h4{font-size:20px}
+  .luxury-photo-picker{grid-template-columns:88px minmax(0,1fr)!important;gap:12px!important}
+  .photo-preview{width:88px;height:88px}
+}
+@media(max-width:350px){
+  .student-card .student-profile{grid-template-columns:82px minmax(0,1fr)}
+  .student-card .student-card-photo{width:82px;height:82px;flex-basis:82px}
+  .student-premium-summary{grid-template-columns:1fr;text-align:center;justify-items:center}
+  .profile-pills{justify-content:center}
+  .luxury-photo-picker{grid-template-columns:1fr!important;justify-items:center;text-align:center}
+  .photo-picker-controls{align-items:stretch;width:100%}
+}
+
