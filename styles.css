@@ -1565,3 +1565,8 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(214,178,94,.2)}
   .agenda-impact-metrics strong{font-size:15px}
   .agenda-impact-metrics small{font-size:8px}
 }
+
+/* V12.0.8 — conflito de capacidade visível no modal da turma */
+.lesson-capacity-conflict-note{display:flex;flex-direction:column;gap:5px;margin:14px 24px 0;border-color:rgba(224,96,103,.34);background:linear-gradient(180deg,rgba(113,31,38,.20),rgba(24,24,28,.72));}
+.lesson-capacity-conflict-note strong{color:#f0a0a5;}
+.lesson-capacity-conflict-note span{color:var(--muted);line-height:1.45;}
