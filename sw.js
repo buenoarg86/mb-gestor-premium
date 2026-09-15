@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.1.3 — Final White Label Residual Polish
-const CACHE='mb-gestor-luxury-pro-v12-1-3-final-white-label-residual-polish';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
+// MB Gestor Luxury Pro V12.2.0 — Commercial Readiness Foundation • Etapa 1A Workspace Seguro
+const CACHE='mb-gestor-luxury-pro-v12-2-0-commercial-readiness-foundation';
+const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
