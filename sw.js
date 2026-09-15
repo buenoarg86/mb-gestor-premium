@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V10.7.1 — Etapa 7A • Polimento Final 360°
-const CACHE='mb-gestor-luxury-pro-v10-7-1-etapa-7a-polimento-360';
+// MB Gestor Luxury Pro V10.8.0 — Etapa 7B • Compartilhamento Evolução 360°
+const CACHE='mb-gestor-luxury-pro-v10-8-0-etapa-7b-compartilhamento-360';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
