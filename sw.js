@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V12.0.2 — Settings Binding Recovery Hotfix
-const CACHE='mb-gestor-luxury-pro-v12-0-2-settings-binding-recovery';
+// MB Gestor Luxury Pro V12.0.3 — Onboarding Stepper Layout Polish
+const CACHE='mb-gestor-luxury-pro-v12-0-3-onboarding-stepper-layout-polish';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
