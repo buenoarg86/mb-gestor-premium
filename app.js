@@ -1,13 +1,15 @@
-// MB Gestor Luxury Pro V12.2.0 — Commercial Readiness Foundation • Etapa 1A Workspace Seguro
+// MB Gestor Luxury Pro V12.2.1 — Identity Preservation Hotfix • Existing Workspace Safe Branding
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.2.0 — Commercial Readiness Foundation • Etapa 1A Workspace Seguro
+  // MB Gestor Luxury Pro V12.2.1 — Identity Preservation Hotfix • Existing Workspace Safe Branding
 
-  const APP_VERSION = '12.2.0';
+  const APP_VERSION = '12.2.1';
   const DATA_SCHEMA_VERSION = 2;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
+  // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
+  const BRAND_IDENTITY_RECOVERY_KEY = `${STORAGE_KEY}_brand_identity_recovery_v1`;
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
   const ASSESSMENT_DRAFT_KEY = `${STORAGE_KEY}_assessment_draft_v1`;
   const ASSESSMENT_GUIDE_STATE_KEY = `${STORAGE_KEY}_assessment_guide_state_v1`;
@@ -204,6 +206,60 @@
     );
   }
 
+  function brandingSnapshotFromSettings(settings={}){
+    const src=settings&&typeof settings==='object'?settings:{};
+    return {
+      appName:String(src.appName||''),
+      studioName:String(src.studioName||''),
+      trainerName:String(src.trainerName||''),
+      brandLogoData:String(src.brandLogoData||''),
+      brandPrimaryColor:String(src.brandPrimaryColor||''),
+      brandAccentColor:String(src.brandAccentColor||''),
+      capturedAt:new Date().toISOString()
+    };
+  }
+
+  function brandingSnapshotHasIdentity(snapshot={}){
+    if(!snapshot||typeof snapshot!=='object')return false;
+    return Boolean(
+      String(snapshot.appName||'').trim() || String(snapshot.studioName||'').trim() ||
+      String(snapshot.trainerName||'').trim() || String(snapshot.brandLogoData||'').trim() ||
+      String(snapshot.brandPrimaryColor||'').trim() || String(snapshot.brandAccentColor||'').trim()
+    );
+  }
+
+  function persistBrandingRecovery(settings={}, reason='alteração'){
+    try{
+      const snapshot=brandingSnapshotFromSettings(settings);
+      if(!brandingSnapshotHasIdentity(snapshot))return false;
+      const currentRaw=localStorage.getItem(BRAND_IDENTITY_RECOVERY_KEY);
+      const current=currentRaw?JSON.parse(currentRaw):null;
+      // Evita substituir uma recuperação útil por uma cópia idêntica.
+      const comparable=x=>JSON.stringify({appName:x?.appName||'',studioName:x?.studioName||'',trainerName:x?.trainerName||'',brandLogoData:x?.brandLogoData||'',brandPrimaryColor:x?.brandPrimaryColor||'',brandAccentColor:x?.brandAccentColor||''});
+      if(current&&comparable(current)===comparable(snapshot))return true;
+      localStorage.setItem(BRAND_IDENTITY_RECOVERY_KEY,JSON.stringify({...snapshot,reason:String(reason||'alteração')}));
+      return true;
+    }catch(err){console.warn('Não foi possível criar snapshot da identidade.',err);return false;}
+  }
+
+  function readBrandingRecovery(){
+    try{
+      const raw=localStorage.getItem(BRAND_IDENTITY_RECOVERY_KEY);if(!raw)return null;
+      const snapshot=JSON.parse(raw);return brandingSnapshotHasIdentity(snapshot)?snapshot:null;
+    }catch{return null;}
+  }
+
+  function applyBrandingSnapshot(snapshot){
+    if(!snapshot||typeof snapshot!=='object')return false;
+    state.settings.appName=String(snapshot.appName||BRAND_DEFAULTS.appName).trim().slice(0,36)||BRAND_DEFAULTS.appName;
+    state.settings.studioName=String(snapshot.studioName||BRAND_DEFAULTS.studioName).trim().slice(0,60)||BRAND_DEFAULTS.studioName;
+    state.settings.trainerName=String(snapshot.trainerName||BRAND_DEFAULTS.trainerName).trim().slice(0,60)||BRAND_DEFAULTS.trainerName;
+    state.settings.brandLogoData=String(snapshot.brandLogoData||'');
+    state.settings.brandPrimaryColor=normalizeBrandColor(snapshot.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);
+    state.settings.brandAccentColor=normalizeBrandColor(snapshot.brandAccentColor,BRAND_DEFAULTS.accentColor);
+    return true;
+  }
+
   function createFreshState(){
     const fresh=structuredClone(DEFAULT_STATE);
     fresh.workspace=normalizeWorkspace();
@@ -250,6 +306,9 @@
       const hydrated=hydrateState(parsed);
       const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||!parsed.settings?.operationConfig;
       if(needsFoundationMigration){
+        // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
+        // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
+        persistBrandingRecovery(parsed.settings||{},'pré-migração V12.2.1');
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(hydrated));}catch(err){console.warn('Migração comercial carregada em memória; persistência adiada.',err);}
       }
       return hydrated;
@@ -4115,7 +4174,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openBrandingSettings(){
-    const current=brandingSettings(),draft={...current};
+    const current=brandingSettings(),draft={...current},recovery=readBrandingRecovery();
     const palettes=[
       {name:'MB Dourado',primary:'#d7a33d',accent:'#f3c76a'},
       {name:'Safira',primary:'#2f6fdf',accent:'#79a9ff'},
@@ -4130,7 +4189,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="form-grid branding-name-grid"><div class="field"><label>Nome do aplicativo</label><input id="brandAppNameInput" maxlength="36" value="${escapeHTML(draft.appName)}" placeholder="Ex.: Studio Pro" /></div><div class="field"><label>Nome do studio / negócio</label><input id="brandStudioNameInput" maxlength="60" value="${escapeHTML(draft.studioName)}" placeholder="Ex.: Studio Movimento" /></div><div class="field"><label>Nome do profissional</label><input id="brandTrainerNameInput" maxlength="60" value="${escapeHTML(draft.trainerName)}" placeholder="Ex.: Ana Silva" /></div></div>
       <div class="branding-editor-section"><span class="section-overline">CORES</span><div class="brand-color-grid"><label class="brand-color-field"><span>Cor principal</span><div><input id="brandPrimaryPicker" type="color" value="${escapeHTML(draft.primaryColor)}" /><input id="brandPrimaryHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.primaryColor)}" /></div></label><label class="brand-color-field"><span>Cor de destaque</span><div><input id="brandAccentPicker" type="color" value="${escapeHTML(draft.accentColor)}" /><input id="brandAccentHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.accentColor)}" /></div></label></div><div class="brand-palette-grid">${palettes.map((p,i)=>`<button type="button" class="brand-palette" data-brand-palette="${i}"><i style="--p1:${p.primary};--p2:${p.accent}"></i><span>${escapeHTML(p.name)}</span></button>`).join('')}</div></div>
       <div class="brand-safety-note"><strong>Prévia segura</strong><span>Nada muda na identidade real até você tocar em “Salvar identidade”. Agenda, alunos, financeiro e avaliações não são alterados.</span></div>
-      <div class="modal-actions branding-actions"><button type="button" class="btn btn-secondary" id="restoreBrandingDefaults">Restaurar padrão MB</button><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar identidade</button></div>
+      <div class="modal-actions branding-actions">${recovery?'<button type="button" class="btn btn-secondary" id="recoverPreviousBranding">Recuperar anterior</button>':''}<button type="button" class="btn btn-secondary" id="restoreBrandingDefaults">Prévia padrão MB</button><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar identidade</button></div>
     </form>`);
     const root=$('#brandingForm');
     const preview=$('#brandEditorPreview',root),logoPreview=$('#brandLogoPreview',root),appInput=$('#brandAppNameInput',root),studioInput=$('#brandStudioNameInput',root),trainerInput=$('#brandTrainerNameInput',root),primaryPicker=$('#brandPrimaryPicker',root),accentPicker=$('#brandAccentPicker',root),primaryHex=$('#brandPrimaryHex',root),accentHex=$('#brandAccentHex',root);
@@ -4143,8 +4202,19 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#chooseBrandLogo',root).addEventListener('click',()=>$('#brandLogoFile',root).click());
     $('#brandLogoFile',root).addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{draft.logoData=await brandLogoFileToData(file);refreshPreview();toast('Logotipo preparado para a prévia.');}catch(err){toast(err?.message||'Não foi possível preparar o logotipo.')}finally{e.target.value=''}});
     $('#useDefaultBrandLogo',root).addEventListener('click',()=>{draft.logoData='';refreshPreview()});
-    $('#restoreBrandingDefaults',root).addEventListener('click',()=>openPremiumConfirm({title:'Restaurar identidade MB?',message:'Nome, logotipo e cores voltarão ao padrão original. Seus alunos, agenda, financeiro e avaliações não serão alterados.',confirmLabel:'Restaurar padrão',cancelLabel:'Manter personalização',tone:'danger',onConfirm:()=>{state.settings.appName=BRAND_DEFAULTS.appName;state.settings.studioName=BRAND_DEFAULTS.studioName;state.settings.trainerName=BRAND_DEFAULTS.trainerName;state.settings.brandLogoData='';state.settings.brandPrimaryColor=BRAND_DEFAULTS.primaryColor;state.settings.brandAccentColor=BRAND_DEFAULTS.accentColor;addAudit('Identidade visual restaurada','Padrão MB Gestor');saveState();applyBranding();closeModal();renderSettings();toast('Identidade MB restaurada.')}}));
-    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName}`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual salva.');});
+    $('#restoreBrandingDefaults',root).addEventListener('click',()=>{
+      // V12.2.1: restauração virou SOMENTE prévia. Nada é gravado sem "Salvar identidade".
+      draft.appName=BRAND_DEFAULTS.appName;draft.studioName=BRAND_DEFAULTS.studioName;draft.trainerName=BRAND_DEFAULTS.trainerName;draft.logoData='';draft.primaryColor=BRAND_DEFAULTS.primaryColor;draft.accentColor=BRAND_DEFAULTS.accentColor;
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;refreshPreview();
+      toast('Padrão MB preparado na prévia. Toque em “Salvar identidade” para aplicar.');
+    });
+    $('#recoverPreviousBranding',root)?.addEventListener('click',()=>{
+      const previous=readBrandingRecovery();if(!previous)return toast('Nenhuma identidade anterior disponível.');
+      draft.appName=String(previous.appName||BRAND_DEFAULTS.appName);draft.studioName=String(previous.studioName||BRAND_DEFAULTS.studioName);draft.trainerName=String(previous.trainerName||BRAND_DEFAULTS.trainerName);draft.logoData=String(previous.brandLogoData||'');draft.primaryColor=normalizeBrandColor(previous.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);draft.accentColor=normalizeBrandColor(previous.brandAccentColor,BRAND_DEFAULTS.accentColor);
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;refreshPreview();
+      toast('Identidade anterior carregada na prévia. Salve apenas se estiver correta.');
+    });
+    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName}`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual salva.');});
   }
 
   function workspaceShortId(){

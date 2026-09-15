@@ -1633,8 +1633,8 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
   box-shadow:0 12px 34px rgba(0,0,0,.16),inset 0 0 0 1px rgba(var(--brand-primary-rgb),.025)!important;
 }
 
-/* V12.2.0 — COMMERCIAL READINESS FOUNDATION • ETAPA 1A WORKSPACE SEGURO */
-/* V12.2.0 • proteção visual de restauração entre Workspaces */
+/* V12.2.1 — IDENTITY PRESERVATION HOTFIX • EXISTING WORKSPACE SAFE BRANDING */
+/* V12.2.1 • proteção visual de restauração entre Workspaces */
 .backup-workspace-guard{margin-top:12px;align-items:flex-start}
 .backup-restore-summary .danger strong{color:var(--danger)}
 .notice.danger{border-color:rgba(233,104,104,.38);background:rgba(233,104,104,.08);color:#f2c8c8}
