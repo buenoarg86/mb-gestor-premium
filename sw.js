@@ -1,5 +1,5 @@
-// MB Gestor Luxury Pro V12.0.6 — Smart Agenda Impact Guard
-const CACHE='mb-gestor-luxury-pro-v12-0-6-smart-agenda-impact-guard';
+// MB Gestor Luxury Pro V12.0.7 — Impact Guard Data Alignment Hotfix
+const CACHE='mb-gestor-luxury-pro-v12-0-7-impact-guard-data-alignment-hotfix';
 const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/logo-interna.jpg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
