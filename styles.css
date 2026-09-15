@@ -1318,3 +1318,102 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 .intel-review-foot{padding:12px 18px 15px;border-top:1px solid rgba(255,255,255,.045);color:#777c88;font-size:11px;text-align:center}
 @media (max-width:640px){.intel-retention-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.intel-review-head{align-items:flex-start}.intel-review-head>strong{min-width:38px;height:38px;font-size:16px}}
 \n\n/* V11.0.3 — Intelligence Action Cards & Context Polish */\n.intel-retention-summary button{position:relative;padding:16px;border:1px solid rgba(224,184,91,.13);border-radius:20px;background:linear-gradient(145deg,rgba(32,29,22,.72),#101115);text-align:center;color:#eee;min-width:0;box-shadow:0 10px 26px rgba(0,0,0,.15);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}\n.intel-retention-summary button:active,.intel-finance-grid button:active,.intel-context-return button:active{transform:scale(.975)}\n.intel-retention-summary button:hover,.intel-retention-summary button.is-active{border-color:rgba(231,195,94,.34);box-shadow:0 14px 34px rgba(0,0,0,.24),inset 0 0 24px rgba(224,184,91,.035)}\n.intel-retention-summary button strong{display:block;font-size:25px;color:#e4bd55}.intel-retention-summary button span{display:block;color:#7f8189;font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-top:4px}.intel-retention-summary button em{display:block;margin-top:8px;color:#a38a4d;font-size:9px;font-style:normal;font-weight:800;letter-spacing:.04em}.intel-retention-summary button.is-review{border-color:rgba(138,153,178,.18);background:linear-gradient(145deg,rgba(31,36,45,.78),#101115)}.intel-retention-summary button.is-review strong{color:#aeb8ca}.intel-retention-summary button.is-review em{color:#8794aa}\n.intel-retention-filter-state{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-bottom:1px solid rgba(255,255,255,.055);background:rgba(224,184,91,.025);color:#8f9199;font-size:11px}.intel-retention-filter-state strong{color:#d6b65a}.intel-retention-filter-state button{border:1px solid rgba(224,184,91,.18);background:rgba(224,184,91,.06);color:#d4b45b;border-radius:999px;padding:7px 10px;font-size:10px;font-weight:800}.intel-retention-row[hidden]{display:none!important}\n.intel-focus-pulse{animation:intelFocusPulse .8s ease}@keyframes intelFocusPulse{0%{box-shadow:0 0 0 0 rgba(225,190,91,.28)}50%{box-shadow:0 0 0 7px rgba(225,190,91,.06)}100%{box-shadow:0 0 0 0 rgba(225,190,91,0)}}\n.intel-finance-grid button{position:relative;overflow:hidden;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.intel-finance-grid button:hover{border-color:rgba(224,184,91,.28);box-shadow:0 14px 34px rgba(0,0,0,.26),inset 0 0 24px rgba(224,184,91,.025)}.intel-finance-grid button em{display:block;margin-top:10px;color:#a58c4e;font-size:10px;font-style:normal;font-weight:800;letter-spacing:.04em}\n.intel-context-return{margin:0 0 16px}.intel-context-return button{width:100%;display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:20px;border:1px solid rgba(224,184,91,.2);background:linear-gradient(145deg,rgba(38,32,20,.72),rgba(14,15,18,.96));color:#eee;text-align:left;box-shadow:0 12px 30px rgba(0,0,0,.2);transition:transform .16s ease,border-color .16s ease}.intel-context-return-arrow{display:grid!important;place-items:center;width:28px;height:28px;flex:0 0 auto;border-radius:10px;background:rgba(224,184,91,.08);color:#e3bd5b;font-size:28px;line-height:1;font-weight:400}.intel-context-return button span{display:block}.intel-context-return button strong,.intel-context-return button small{display:block}.intel-context-return button strong{font-size:13px;color:#ead079}.intel-context-return button small{margin-top:3px;color:#777b84;font-size:10px}\n@media(max-width:640px){.intel-retention-summary button{padding:14px 10px}.intel-retention-summary button strong{font-size:23px}.intel-retention-summary button em{font-size:8px}.intel-context-return button{padding:12px 13px}}\n
+
+/* V11.0.4 — Intelligence Spacing & Safe-Area Polish
+   Polimento exclusivamente visual dos drill-downs e áreas acionáveis da Inteligência. */
+
+/* Mais respiro real entre o retorno contextual e o próximo bloco. */
+.intel-context-return{
+  position:relative;
+  z-index:1;
+  margin:8px 0 24px!important;
+}
+.intel-context-return button{
+  min-height:74px;
+  padding:15px 16px;
+  border-radius:22px;
+}
+.intel-context-return + .tabs{
+  margin-top:0!important;
+  margin-bottom:20px!important;
+  padding:2px 2px 7px;
+}
+
+/* Financeiro contextual: separa retorno, privacidade e abas como três camadas independentes. */
+.intel-context-return + .finance-privacy-hero{
+  margin-top:0!important;
+  margin-bottom:20px!important;
+}
+.finance-privacy-hero + .tabs{
+  margin-top:0!important;
+  margin-bottom:20px!important;
+  padding-bottom:7px;
+}
+
+/* Cobranças: filtros, aviso e título não encostam entre si. */
+.intel-context-return + .tabs + .notice,
+.tabs + .notice{
+  margin-top:0;
+  margin-bottom:24px;
+}
+.notice + .section-head{
+  margin-top:28px;
+}
+
+/* Consistência vertical de blocos consecutivos sem usar margens negativas. */
+.section-head + .cards,
+.section-head + .metrics{
+  margin-top:0;
+}
+.cards + .section-head,
+.metrics + .section-head{
+  margin-top:30px;
+}
+
+/* Navegação fixa nunca deve cobrir o último conteúdo útil. */
+.main{
+  padding-bottom:calc(104px + var(--safe-bottom));
+}
+.view{
+  padding-bottom:calc(44px + var(--safe-bottom));
+  scroll-padding-top:22px;
+  scroll-padding-bottom:calc(112px + var(--safe-bottom));
+}
+.view > .cards:last-child,
+.view > .card:last-child,
+.view > .empty:last-child,
+.view > .intel-finance-grid:last-child{
+  margin-bottom:24px;
+}
+
+/* Os alvos acionáveis da Inteligência ganham zona de foco sem invadir o bloco vizinho. */
+.intel-retention-summary,
+.intel-finance-grid,
+.intel-retention-card,
+.intel-review-card,
+.intel-occupancy-map,
+.intel-opportunity-card,
+.intel-demand-card{
+  scroll-margin-top:24px;
+  scroll-margin-bottom:calc(104px + var(--safe-bottom));
+}
+
+/* Mobile: mantém o respiro, mas sem desperdiçar altura útil. */
+@media(max-width:620px){
+  .intel-context-return{margin:6px 0 20px!important}
+  .intel-context-return button{min-height:70px;padding:14px 14px;border-radius:20px}
+  .intel-context-return + .tabs{margin-bottom:18px!important;padding-bottom:6px}
+  .intel-context-return + .finance-privacy-hero{margin-bottom:18px!important}
+  .finance-privacy-hero + .tabs{margin-bottom:18px!important}
+  .tabs + .notice{margin-bottom:21px}
+  .notice + .section-head{margin-top:25px}
+  .view{padding-bottom:calc(40px + var(--safe-bottom));scroll-padding-bottom:calc(108px + var(--safe-bottom))}
+}
+
+/* Telas muito estreitas: evita colisão horizontal nos filtros. */
+@media(max-width:390px){
+  .intel-context-return button{gap:10px;padding-left:12px;padding-right:12px}
+  .intel-context-return button strong{font-size:12px}
+  .intel-context-return button small{font-size:9px;line-height:1.35}
+  .intel-context-return + .tabs{gap:7px}
+}
