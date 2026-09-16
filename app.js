@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.6.5 — Assessment Radio Binding Root-Cause Fix • External Body Fat Preserved
+// MB Gestor Luxury Pro V12.7.0 — Avaliação Postural Premium • Foundation
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.6.5 — Assessment Radio Binding Root-Cause Fix • External Body Fat Preserved
+  // MB Gestor Luxury Pro V12.7.0 — Avaliação Postural Premium • Foundation
 
-  const APP_VERSION = '12.6.5';
+  const APP_VERSION = '12.7.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -137,6 +137,7 @@
     trials: [],
     monthClosures: [],
     physicalAssessments: [],
+    posturalAssessments: [],
     auditLog: [],
     trash: [],
     settings: {
@@ -292,7 +293,7 @@
   function stateHasBusinessData(source={}){
     return Boolean(
       (source.students||[]).length || (source.payments||[]).length || (source.expenses||[]).length ||
-      (source.physicalAssessments||[]).length || (source.prospects||[]).length || (source.trials||[]).length ||
+      (source.physicalAssessments||[]).length || (source.posturalAssessments||[]).length || (source.prospects||[]).length || (source.trials||[]).length ||
       Object.values(source.schedule||{}).some(ids=>Array.isArray(ids)&&ids.length) ||
       Object.keys(source.attendance||{}).length || Object.keys(source.makeups||{}).length
     );
@@ -390,6 +391,7 @@
       trials:Array.isArray(parsed.trials)?parsed.trials:[],
       monthClosures:Array.isArray(parsed.monthClosures)?parsed.monthClosures:[],
       physicalAssessments:Array.isArray(parsed.physicalAssessments)?parsed.physicalAssessments:[],
+      posturalAssessments:Array.isArray(parsed.posturalAssessments)?parsed.posturalAssessments:[],
       auditLog:Array.isArray(parsed.auditLog)?parsed.auditLog:[],
       trash:Array.isArray(parsed.trash)?parsed.trash:[],
       settings:{...DEFAULT_STATE.settings,...(parsed.settings||{}),operationConfig:normalizeOperationConfig(operationSource)}
@@ -2825,6 +2827,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="assessment-feature-grid">
         <button type="button" class="assessment-guide-entry" id="assessmentGuideEntry"><span class="assessment-guide-entry-icon">${icon('body')}</span><span><b>Guia anatômico premium</b><small>Consulte os pontos de mensuração antes ou durante a avaliação.</small></span><i>${icon('eye')}</i></button>
         <button type="button" class="assessment-guide-entry assessment-composition-entry" id="assessmentCompositionEntry"><span class="assessment-guide-entry-icon">${icon('chart')}</span><span><b>Composição corporal</b><small>% de gordura, massa gorda e massa livre com origem e método rastreáveis.</small></span><i class="assessment-entry-arrow">›</i></button>
+        <button type="button" class="assessment-guide-entry assessment-postural-entry" id="assessmentPosturalEntry"><span class="assessment-guide-entry-icon">${icon('body')}</span><span><b>Avaliação Postural Premium</b><small>Quatro vistas, achados estruturados, histórico e evolução postural.</small></span><i class="assessment-entry-arrow">›</i></button>
       </div>
       <div class="assessment-composition-mode-banner hidden" id="assessmentCompositionModeBanner"><div><span>COMPOSIÇÃO CORPORAL</span><strong>Escolha o aluno</strong><small>O app abre diretamente a seção de composição. Se já houver avaliação hoje, ela será retomada para evitar duplicidade.</small></div><button type="button" id="assessmentCompositionModeExit">Voltar às avaliações</button></div>
       <div class="section-head" id="assessmentStudentsSection"><div><h3>Alunos</h3><p id="assessmentStudentsHint">Selecione um aluno para avaliar, consultar histórico ou acompanhar evolução.</p></div></div>
@@ -2836,9 +2839,130 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const draw=()=>{const q=String($('#assessmentSearch')?.value||'').trim().toLocaleLowerCase('pt-BR');const list=students.filter(s=>{const rows=assessmentsForStudent(s.id),has=Boolean(rows.length);if(assessmentFilter==='done'&&!has)return false;if(assessmentFilter==='evolution'&&rows.length<2)return false;if(assessmentFilter==='review'&&!reviewIds.has(String(s.id)))return false;if(assessmentFilter==='pending'&&has)return false;return !q||String(s.name||'').toLocaleLowerCase('pt-BR').includes(q)});$('#assessmentStudentList').innerHTML=list.length?list.map(s=>{const rows=assessmentsForStudent(s.id),a=rows[0],todayAssessment=rows.find(r=>String(r.date)===isoToday())||null,bmi=a?assessmentBMI(a):null,ircq=a?assessmentIRCQ(a):null,bc=a?bmiClassification(a,s):null,rc=a?ircqClassification(a,s):null,comp=a?bodyCompositionReferenceResult(a,s):null,compositionAction=compositionMode?(todayAssessment?'Continuar composição':a?'Nova composição':'Iniciar composição'):(a?'Nova':'Avaliar');return `<article class="card assessment-student-card ${compositionMode?'is-composition-mode':''}"><div class="assessment-student-main"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(s.name)}</strong><span>${a?`Última avaliação: ${fmtDate(a.date)} • ${rows.length} ${rows.length===1?'registro':'registros'}`:'Nenhuma avaliação registrada'}${s.active===false?' • aluno inativo':''}</span>${a?`${assessmentContextChips(a)}<div class="assessment-inline-status"><span>IMC <b>${bmi==null?'—':assessmentNumber(bmi,1)}</b> ${assessmentStatusPill(bc)}</span><span>IRCQ <b>${ircq==null?'—':assessmentNumber(ircq,2)}</b> ${assessmentStatusPill(rc)}</span>${comp?.complete?`<span class="assessment-composition-inline">Gordura <b>${assessmentNumber(comp.bodyFatPercent,1)}%</b><i>${escapeHTML(comp.methodLabel)} • ${comp.source==='external'?'externa':'MB'}</i></span>`:''}</div>`:''}</div></div><div class="assessment-student-actions"><button class="btn ${compositionMode||!a?'btn-primary':'btn-secondary'} btn-small js-assessment-new" data-id="${s.id}" data-today-assessment="${todayAssessment?.id||''}">${icon('plus')} ${compositionAction}</button>${a?`<button class="btn btn-secondary btn-small js-assessment-history" data-id="${s.id}">Histórico</button>`:''}${rows.length>1&&!compositionMode?`<button class="btn btn-secondary btn-small js-assessment-evolution" data-id="${s.id}">${icon('chart')} Evolução</button>`:''}</div></article>`}).join(''):emptyState('Nenhum aluno neste filtro','Ajuste a busca ou escolha outro filtro.');$$('.js-assessment-new',viewEl).forEach(b=>b.addEventListener('click',()=>{if(compositionMode){openAssessmentModal(b.dataset.id,b.dataset.todayAssessment||null,{focusComposition:true});return;}openAssessmentModal(b.dataset.id)}));$$('.js-assessment-history',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentHistory(b.dataset.id)));$$('.js-assessment-evolution',viewEl).forEach(b=>b.addEventListener('click',()=>openAssessmentEvolution(b.dataset.id)));};
     $('#assessmentGuideEntry')?.addEventListener('click',()=>{if(readAssessmentGuideMode()==='skinfold'){openSkinfoldGuide();return}openAnatomicalGuide()});
     $('#assessmentCompositionEntry')?.addEventListener('click',()=>setCompositionMode(true));
+    $('#assessmentPosturalEntry')?.addEventListener('click',renderPosturalAssessments);
     $('#assessmentCompositionModeExit')?.addEventListener('click',()=>setCompositionMode(false));
     $('#assessmentSearch')?.addEventListener('input',draw);$$('[data-assessment-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{assessmentFilter=b.dataset.assessmentFilter;$$('[data-assessment-filter]',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw()}));draw();
   }
+
+  // V12.7.0 • Avaliação Postural Premium — fundação independente da antropometria.
+  // A análise é documental/observacional: o app não diagnostica nem atribui significado clínico automático.
+  const POSTURAL_DRAFT_KEY='mb_gestor_postural_draft_v1';
+  const POSTURAL_STATUS_OPTIONS=[
+    ['','Não avaliado'],['expected','Dentro do esperado'],['mild','Alteração leve observada'],['moderate','Alteração moderada observada'],['marked','Alteração acentuada observada']
+  ];
+  const POSTURAL_SIDE_OPTIONS=[['','Não aplicável / central'],['R','Direito'],['L','Esquerdo'],['B','Bilateral']];
+  const POSTURAL_VIEW_CONFIG={
+    anterior:{label:'Anterior',caption:'Vista frontal',segments:[
+      ['head','Cabeça e pescoço',['Alinhamento aparente preservado','Inclinação lateral aparente','Rotação aparente']],
+      ['shoulders','Ombros e clavículas',['Nivelamento aparente preservado','Ombro direito mais elevado','Ombro esquerdo mais elevado','Assimetria aparente']],
+      ['trunk','Tronco e cintura',['Alinhamento aparente preservado','Desvio lateral aparente','Assimetria dos triângulos de Tales']],
+      ['pelvis','Pelve',['Nivelamento aparente preservado','Hemipelve direita mais elevada','Hemipelve esquerda mais elevada','Assimetria aparente']],
+      ['knees','Joelhos',['Alinhamento aparente preservado','Tendência visual ao valgo','Tendência visual ao varo','Rotação aparente']],
+      ['feet','Tornozelos e pés',['Alinhamento aparente preservado','Pés abduzidos','Pés aduzidos','Pronação aparente','Supinação aparente']]
+    ]},
+    posterior:{label:'Posterior',caption:'Vista posterior',segments:[
+      ['head','Cabeça e pescoço',['Alinhamento aparente preservado','Inclinação lateral aparente','Rotação aparente']],
+      ['shoulders','Ombros',['Nivelamento aparente preservado','Ombro direito mais elevado','Ombro esquerdo mais elevado','Assimetria aparente']],
+      ['scapulae','Escápulas',['Simetria aparente preservada','Assimetria escapular aparente','Protração aparente','Escápula alada aparente']],
+      ['spine','Coluna e tronco',['Alinhamento aparente preservado','Desvio lateral aparente','Rotação de tronco aparente']],
+      ['pelvis','Pelve e pregas glúteas',['Nivelamento aparente preservado','Assimetria pélvica aparente','Assimetria de pregas aparente']],
+      ['knees','Joelhos',['Alinhamento aparente preservado','Tendência visual ao valgo','Tendência visual ao varo','Rotação aparente']],
+      ['feet','Calcâneos e pés',['Alinhamento aparente preservado','Pronação aparente','Supinação aparente','Assimetria aparente']]
+    ]},
+    lateralR:{label:'Lateral D',caption:'Lateral direita',segments:[
+      ['head','Cabeça e cervical',['Alinhamento aparente preservado','Anteriorização aparente da cabeça','Extensão cervical aparente']],
+      ['shoulder','Ombro',['Alinhamento aparente preservado','Protração aparente do ombro','Retração aparente do ombro']],
+      ['thoracic','Coluna torácica',['Curvatura aparente dentro do esperado','Aumento aparente da cifose','Retificação aparente']],
+      ['lumbar','Coluna lombar',['Curvatura aparente dentro do esperado','Aumento aparente da lordose','Retificação aparente']],
+      ['pelvis','Pelve',['Posição aparente neutra','Anteversão pélvica aparente','Retroversão pélvica aparente']],
+      ['knee','Joelho',['Alinhamento aparente preservado','Hiperextensão/recurvato aparente','Flexão persistente aparente']],
+      ['ankle','Tornozelo',['Alinhamento aparente preservado','Deslocamento anterior aparente','Deslocamento posterior aparente']]
+    ]},
+    lateralL:{label:'Lateral E',caption:'Lateral esquerda',segments:[
+      ['head','Cabeça e cervical',['Alinhamento aparente preservado','Anteriorização aparente da cabeça','Extensão cervical aparente']],
+      ['shoulder','Ombro',['Alinhamento aparente preservado','Protração aparente do ombro','Retração aparente do ombro']],
+      ['thoracic','Coluna torácica',['Curvatura aparente dentro do esperado','Aumento aparente da cifose','Retificação aparente']],
+      ['lumbar','Coluna lombar',['Curvatura aparente dentro do esperado','Aumento aparente da lordose','Retificação aparente']],
+      ['pelvis','Pelve',['Posição aparente neutra','Anteversão pélvica aparente','Retroversão pélvica aparente']],
+      ['knee','Joelho',['Alinhamento aparente preservado','Hiperextensão/recurvato aparente','Flexão persistente aparente']],
+      ['ankle','Tornozelo',['Alinhamento aparente preservado','Deslocamento anterior aparente','Deslocamento posterior aparente']]
+    ]}
+  };
+  function posturalAssessmentsForStudent(studentId){
+    return (state.posturalAssessments||[]).filter(a=>String(a.studentId)===String(studentId)).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  }
+  function latestPosturalAssessment(studentId){return posturalAssessmentsForStudent(studentId)[0]||null}
+  function posturalEvaluatedItems(a){
+    let total=0,altered=0,expected=0;
+    Object.values(a?.views||{}).forEach(view=>Object.values(view?.segments||{}).forEach(item=>{if(!item?.status)return;total++;if(item.status==='expected')expected++;else altered++;}));
+    return {total,altered,expected};
+  }
+  function posturalStatusLabel(value){return POSTURAL_STATUS_OPTIONS.find(x=>x[0]===String(value||''))?.[1]||'Não avaliado'}
+  function posturalSideLabel(value){return POSTURAL_SIDE_OPTIONS.find(x=>x[0]===String(value||''))?.[1]||'Central'}
+  function posturalFigureHTML(viewKey){
+    const side=viewKey==='lateralR'||viewKey==='lateralL',posterior=viewKey==='posterior',mirror=viewKey==='lateralL'?'scale(-1 1) translate(-260 0)':'';
+    if(side)return `<div class="postural-figure-shell"><svg class="postural-figure" viewBox="0 0 260 520" role="img" aria-label="${escapeHTML(POSTURAL_VIEW_CONFIG[viewKey].caption)}"><defs><linearGradient id="posturalBodySide" x1="0" x2="1"><stop offset="0" stop-color="#34383f"/><stop offset=".5" stop-color="#656a72"/><stop offset="1" stop-color="#24272c"/></linearGradient></defs><g transform="${mirror}"><line class="postural-plumb" x1="130" y1="24" x2="130" y2="492"/><circle class="postural-head" cx="137" cy="68" r="31"/><path class="postural-body postural-body-side" d="M125 99 C112 112 106 137 109 165 C111 190 103 215 108 249 C111 270 113 287 111 307 L101 391 C99 420 101 460 105 488 L128 488 C133 452 134 419 137 391 L143 307 C146 281 152 260 154 238 C157 204 154 178 157 156 C160 132 154 110 143 101 Z"/><path class="postural-arm" d="M116 129 C91 168 87 218 91 275 C93 304 99 327 102 350"/><circle class="postural-landmark" cx="130" cy="98" r="4"/><circle class="postural-landmark" cx="124" cy="132" r="4"/><circle class="postural-landmark" cx="132" cy="248" r="4"/><circle class="postural-landmark" cx="128" cy="306" r="4"/><circle class="postural-landmark" cx="121" cy="392" r="4"/><circle class="postural-landmark" cx="110" cy="487" r="4"/></g></svg><span>${escapeHTML(POSTURAL_VIEW_CONFIG[viewKey].caption.toUpperCase())}</span></div>`;
+    return `<div class="postural-figure-shell"><svg class="postural-figure" viewBox="0 0 260 520" role="img" aria-label="${escapeHTML(POSTURAL_VIEW_CONFIG[viewKey].caption)}"><defs><linearGradient id="posturalBodyFront" x1="0" x2="1"><stop offset="0" stop-color="#24272c"/><stop offset=".5" stop-color="#656a72"/><stop offset="1" stop-color="#24272c"/></linearGradient></defs><line class="postural-plumb" x1="130" y1="24" x2="130" y2="492"/><circle class="postural-head" cx="130" cy="63" r="31"/><path class="postural-body" d="M103 97 C81 109 68 142 69 183 L77 274 C79 299 82 320 84 340 L75 470 L103 470 L126 334 L134 334 L157 470 L185 470 L176 340 C178 320 181 299 183 274 L191 183 C192 142 179 109 157 97 C150 107 143 111 130 111 C117 111 110 107 103 97 Z"/><path class="postural-arm" d="M76 131 C51 178 46 242 52 316 C54 342 59 365 64 389 M184 131 C209 178 214 242 208 316 C206 342 201 365 196 389"/><line class="postural-level" x1="79" y1="137" x2="181" y2="137"/><line class="postural-level" x1="90" y1="285" x2="170" y2="285"/><circle class="postural-landmark" cx="85" cy="137" r="4"/><circle class="postural-landmark" cx="175" cy="137" r="4"/><circle class="postural-landmark" cx="95" cy="285" r="4"/><circle class="postural-landmark" cx="165" cy="285" r="4"/>${posterior?'<path class="postural-spine" d="M130 111 C126 158 134 201 130 250 C126 292 133 319 130 340"/>':''}</svg><span>${escapeHTML(POSTURAL_VIEW_CONFIG[viewKey].caption.toUpperCase())}</span></div>`;
+  }
+  function posturalSelectOptions(options,value=''){return options.map(([v,l])=>`<option value="${escapeHTML(v)}" ${String(value||'')===String(v)?'selected':''}>${escapeHTML(l)}</option>`).join('')}
+  function posturalFindingOptions(options,value=''){
+    const values=[['','Selecione o padrão observado'],...options.map(v=>[v,v])];
+    return values.map(([v,l])=>`<option value="${escapeHTML(v)}" ${String(value||'')===String(v)?'selected':''}>${escapeHTML(l)}</option>`).join('');
+  }
+  function posturalSegmentField(viewKey,segment,existing={}){
+    const [key,label,findings]=segment,name=`post_${viewKey}_${key}`;
+    return `<article class="postural-segment-card" data-postural-segment="${escapeHTML(name)}"><div class="postural-segment-head"><div><span>SEGMENTO</span><strong>${escapeHTML(label)}</strong></div><span class="postural-segment-indicator ${existing.status&&existing.status!=='expected'?'is-alert':existing.status==='expected'?'is-ok':''}">${existing.status?posturalStatusLabel(existing.status):'Não avaliado'}</span></div><div class="postural-segment-grid"><div class="field"><label>Status observacional</label><select name="${name}_status" data-postural-status>${posturalSelectOptions(POSTURAL_STATUS_OPTIONS,existing.status)}</select></div><div class="field"><label>Lado</label><select name="${name}_side">${posturalSelectOptions(POSTURAL_SIDE_OPTIONS,existing.side)}</select></div><div class="field postural-field-wide"><label>Padrão observado</label><select name="${name}_finding">${posturalFindingOptions(findings,existing.finding)}</select></div><div class="field postural-field-wide"><label>Observação curta</label><input name="${name}_notes" maxlength="180" value="${escapeHTML(existing.notes||'')}" placeholder="Ex.: diferença discreta, conferir na reavaliação" /></div></div></article>`;
+  }
+  function posturalViewPanel(viewKey,record={}){
+    const cfg=POSTURAL_VIEW_CONFIG[viewKey],segments=record?.views?.[viewKey]?.segments||{};
+    return `<section class="postural-view-panel ${viewKey==='anterior'?'active':''}" data-postural-panel="${viewKey}"><div class="postural-view-intro"><div>${posturalFigureHTML(viewKey)}</div><div class="postural-view-copy"><span class="section-overline">${escapeHTML(cfg.caption)}</span><h4>${escapeHTML(cfg.label)}</h4><p>Registre somente o que é visualmente observável nesta vista. A marcação representa documentação profissional e não diagnóstico automático.</p><div class="postural-view-guide"><strong>Padronização de captura</strong><span>Aluno relaxado • corpo inteiro visível • câmera nivelada • distância e condições semelhantes nas reavaliações.</span></div></div></div><div class="postural-segment-list">${cfg.segments.map(seg=>posturalSegmentField(viewKey,seg,segments[seg[0]]||{})).join('')}</div></section>`;
+  }
+  function readPosturalDraft(){try{return JSON.parse(localStorage.getItem(POSTURAL_DRAFT_KEY)||'null')}catch{return null}}
+  function clearPosturalDraft(){try{localStorage.removeItem(POSTURAL_DRAFT_KEY)}catch{}}
+  function posturalRecordFromForm(form,student,existing=null){
+    const fd=new FormData(form),views={};
+    Object.entries(POSTURAL_VIEW_CONFIG).forEach(([viewKey,cfg])=>{const segments={};cfg.segments.forEach(([key])=>{const base=`post_${viewKey}_${key}`,status=String(fd.get(`${base}_status`)||''),side=String(fd.get(`${base}_side`)||''),finding=String(fd.get(`${base}_finding`)||''),notes=String(fd.get(`${base}_notes`)||'').trim();segments[key]={status,side,finding,notes}});views[viewKey]={segments}});
+    return {id:existing?.id||uid('postural'),studentId:student.id,date:String(fd.get('posturalDate')||isoToday()),method:'visual-static-v1',capture:{standardized:Boolean(fd.get('captureStandardized')),notes:String(fd.get('captureNotes')||'').trim()},views,notes:String(fd.get('posturalGeneralNotes')||'').trim(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  }
+  function posturalFormSnapshot(form,studentId,assessmentId='new'){
+    const fd=new FormData(form),values={};for(const [k,v] of fd.entries())values[k]=v;return {studentId:String(studentId),assessmentId:String(assessmentId||'new'),values,savedAt:new Date().toISOString()};
+  }
+  function applyPosturalDraft(form,draft){if(!draft?.values)return;Object.entries(draft.values).forEach(([name,value])=>{const el=form.elements?.[name];if(!el)return;if(el.type==='checkbox')el.checked=Boolean(value);else el.value=String(value??'')})}
+  function posturalAssessmentSummaryHTML(a){
+    const sum=posturalEvaluatedItems(a);return `<div class="postural-summary-chips"><span><b>${sum.total}</b> itens avaliados</span><span class="good"><b>${sum.expected}</b> dentro do esperado</span><span class="${sum.altered?'attention':''}"><b>${sum.altered}</b> alterações observadas</span></div>`;
+  }
+  function renderPosturalAssessments(){
+    const students=[...state.students].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+    const total=(state.posturalAssessments||[]).length,withPostural=students.filter(s=>latestPosturalAssessment(s.id)).length,withEvolution=students.filter(s=>posturalAssessmentsForStudent(s.id).length>1).length;
+    viewEl.innerHTML=`<section class="postural-hub-hero"><div><button type="button" class="postural-back" id="posturalBackToAssessment">‹ Avaliação Física</button><span class="section-overline">AVALIAÇÃO POSTURAL PREMIUM</span><h2>Postura em quatro vistas</h2><p>Registro visual estruturado, histórico e evolução. O profissional observa; o MB Gestor organiza, documenta e compara.</p></div><span class="postural-hub-emblem">${icon('body')}</span></section><section class="metrics assessment-top-metrics">${metricCard('users',students.length,'Alunos cadastrados')}${metricCard('check',withPostural,'Com avaliação postural','good')}${metricCard('chart',total,'Registros posturais')}${metricCard('chart',withEvolution,'Com evolução')}</section><div class="postural-method-note"><strong>Leitura profissional protegida</strong><span>Este módulo não diagnostica desvios nem transforma observação visual em prescrição automática. Ele registra a avaliação do profissional e preserva a evolução ao longo do tempo.</span></div><div class="section-head"><div><h3>Alunos</h3><p>Escolha um aluno para iniciar, revisar ou comparar avaliações posturais.</p></div></div><div class="search-wrap">${icon('search')}<input id="posturalSearch" placeholder="Buscar aluno por nome" autocomplete="off" /></div><section id="posturalStudentList" class="cards assessment-student-list"></section>`;
+    const draw=()=>{const q=String($('#posturalSearch')?.value||'').trim().toLocaleLowerCase('pt-BR'),list=students.filter(s=>!q||String(s.name||'').toLocaleLowerCase('pt-BR').includes(q));$('#posturalStudentList').innerHTML=list.length?list.map(s=>{const rows=posturalAssessmentsForStudent(s.id),a=rows[0],sum=a?posturalEvaluatedItems(a):null;return `<article class="card assessment-student-card postural-student-card"><div class="assessment-student-main"><div class="student-photo tiny-photo">${s.photoData?`<img src="${s.photoData}" alt="" />`:`<span>${escapeHTML((s.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(s.name)}</strong><span>${a?`Última avaliação postural: ${fmtDate(a.date)} • ${rows.length} ${rows.length===1?'registro':'registros'}`:'Nenhuma avaliação postural registrada'}</span>${a?`<div class="assessment-inline-status"><span><b>${sum.total}</b> itens avaliados</span><span><b>${sum.altered}</b> alterações observadas</span></div>`:''}</div></div><div class="assessment-student-actions"><button class="btn ${a?'btn-secondary':'btn-primary'} btn-small js-postural-new" data-id="${s.id}">${icon('plus')} ${a?'Nova':'Avaliar postura'}</button>${a?`<button class="btn btn-secondary btn-small js-postural-history" data-id="${s.id}">Histórico</button>`:''}</div></article>`}).join(''):emptyState('Nenhum aluno encontrado','Ajuste a busca para continuar.');$$('.js-postural-new',viewEl).forEach(b=>b.addEventListener('click',()=>openPosturalAssessmentModal(b.dataset.id)));$$('.js-postural-history',viewEl).forEach(b=>b.addEventListener('click',()=>openPosturalHistory(b.dataset.id)))};
+    $('#posturalBackToAssessment')?.addEventListener('click',renderAssessments);$('#posturalSearch')?.addEventListener('input',draw);draw();
+  }
+  function openPosturalAssessmentModal(studentId,assessmentId=null){
+    const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;const existing=assessmentId?(state.posturalAssessments||[]).find(a=>String(a.id)===String(assessmentId)):null;
+    openModal(`${existing?'Editar':'Nova'} avaliação postural • ${student.name}`,`<form id="posturalAssessmentForm" class="postural-form"><section class="postural-form-hero"><div><span class="section-overline">AVALIAÇÃO POSTURAL PREMIUM</span><strong>${escapeHTML(student.name)}</strong><small>Quatro vistas • registro observacional • histórico independente da antropometria</small></div><div class="field"><label>Data</label><input type="date" name="posturalDate" value="${escapeHTML(existing?.date||isoToday())}" required /></div></section><div class="postural-capture-card"><label class="toggle-row"><input type="checkbox" name="captureStandardized" ${existing?.capture?.standardized?'checked':''}><span>Captura realizada em condições padronizadas</span></label><div class="field"><label>Condições / observação de captura</label><input name="captureNotes" maxlength="180" value="${escapeHTML(existing?.capture?.notes||'')}" placeholder="Ex.: câmera nivelada, mesma distância, pés descalços" /></div></div><div class="postural-view-tabs">${Object.entries(POSTURAL_VIEW_CONFIG).map(([key,cfg],i)=>`<button type="button" class="${i===0?'active':''}" data-postural-view="${key}">${escapeHTML(cfg.label)}</button>`).join('')}</div><div class="postural-view-panels">${Object.keys(POSTURAL_VIEW_CONFIG).map(key=>posturalViewPanel(key,existing||{})).join('')}</div><div class="field postural-general-notes"><label>Observação geral da avaliação</label><textarea name="posturalGeneralNotes" rows="4" maxlength="1200" placeholder="Síntese profissional, contexto ou pontos para reavaliar">${escapeHTML(existing?.notes||'')}</textarea></div><div class="postural-form-method"><strong>Registro observacional</strong><span>Os termos “leve”, “moderada” e “acentuada” representam a graduação escolhida pelo avaliador. O MB Gestor não converte esses achados em diagnóstico clínico.</span></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Fechar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar avaliação postural</button></div></form>`);
+    const form=$('#posturalAssessmentForm');if(!form)return;
+    if(!existing){const draft=readPosturalDraft();if(draft&&String(draft.studentId)===String(studentId)&&String(draft.assessmentId)==='new'){applyPosturalDraft(form,draft);toast('Rascunho postural restaurado.')}}
+    const switchView=key=>{$$('[data-postural-view]',form).forEach(b=>b.classList.toggle('active',b.dataset.posturalView===key));$$('[data-postural-panel]',form).forEach(p=>p.classList.toggle('active',p.dataset.posturalPanel===key));};
+    $$('[data-postural-view]',form).forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.posturalView)));
+    const refreshIndicators=()=>{$$('[data-postural-segment]',form).forEach(card=>{const sel=card.querySelector('[data-postural-status]'),ind=card.querySelector('.postural-segment-indicator'),v=sel?.value||'';if(ind){ind.textContent=posturalStatusLabel(v);ind.classList.toggle('is-ok',v==='expected');ind.classList.toggle('is-alert',Boolean(v&&v!=='expected'))}})};
+    let draftTimer=null;const saveDraft=()=>{if(existing)return;clearTimeout(draftTimer);draftTimer=setTimeout(()=>{try{localStorage.setItem(POSTURAL_DRAFT_KEY,JSON.stringify(posturalFormSnapshot(form,studentId,'new')))}catch{}},180)};
+    form.addEventListener('input',saveDraft);form.addEventListener('change',()=>{refreshIndicators();saveDraft()});refreshIndicators();
+    form.addEventListener('submit',e=>{e.preventDefault();const record=posturalRecordFromForm(form,student,existing),sum=posturalEvaluatedItems(record);const commit=()=>{state.posturalAssessments=state.posturalAssessments||[];if(existing)state.posturalAssessments=state.posturalAssessments.map(x=>String(x.id)===String(existing.id)?record:x);else state.posturalAssessments.push(record);addAudit(existing?'Avaliação postural atualizada':'Avaliação postural registrada',`${student.name} • ${fmtDate(record.date)} • ${sum.total} itens avaliados • ${sum.altered} alterações observadas`);saveState();clearPosturalDraft();closeModal();renderPosturalAssessments();toast(existing?'Avaliação postural atualizada.':'Avaliação postural salva.');};if(!sum.total){openPremiumConfirm({title:'Salvar sem itens avaliados?',message:'Nenhum segmento recebeu status. Você pode salvar apenas como registro/observação, mas o histórico ficará sem achados estruturados.',confirmLabel:'Salvar mesmo assim',cancelLabel:'Continuar avaliando',onConfirm:commit});return;}if(record.date>isoToday()){openPremiumConfirm({title:'Data futura na avaliação postural',message:`A avaliação está marcada para ${fmtDate(record.date)}. Confirme somente se essa data estiver correta.`,confirmLabel:'Salvar mesmo assim',cancelLabel:'Revisar data',onConfirm:commit});return;}commit()});
+  }
+  function posturalDetailsHTML(a){
+    return Object.entries(POSTURAL_VIEW_CONFIG).map(([viewKey,cfg])=>{const seg=a?.views?.[viewKey]?.segments||{},rows=cfg.segments.map(([key,label])=>{const item=seg[key]||{};if(!item.status&&!item.finding&&!item.notes)return '';return `<div class="postural-detail-row"><div><strong>${escapeHTML(label)}</strong><span>${escapeHTML(posturalStatusLabel(item.status))}${item.side?` • ${escapeHTML(posturalSideLabel(item.side))}`:''}</span></div><div><b>${escapeHTML(item.finding||'Sem padrão selecionado')}</b>${item.notes?`<small>${escapeHTML(item.notes)}</small>`:''}</div></div>`}).filter(Boolean).join('');return rows?`<section class="postural-detail-view"><div class="postural-detail-view-head"><span>${escapeHTML(cfg.caption)}</span><strong>${escapeHTML(cfg.label)}</strong></div>${rows}</section>`:''}).filter(Boolean).join('')||`<div class="assessment-chart-empty"><strong>Sem achados estruturados</strong><span>Este registro contém apenas informações gerais.</span></div>`;
+  }
+  function openPosturalDetails(studentId,assessmentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.posturalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;openModal(`Avaliação postural • ${student.name}`,`<div class="postural-detail-head"><div><span class="section-overline">${fmtDate(a.date)}</span><strong>Registro postural em quatro vistas</strong><p>${a.capture?.standardized?'Captura marcada como padronizada':'Padronização de captura não confirmada'}${a.capture?.notes?` • ${escapeHTML(a.capture.notes)}`:''}</p></div><button class="btn btn-secondary btn-small" id="posturalDetailBack">Voltar</button></div>${posturalAssessmentSummaryHTML(a)}${posturalDetailsHTML(a)}${a.notes?`<div class="assessment-notes"><span class="section-overline">OBSERVAÇÃO GERAL</span><p>${escapeHTML(a.notes)}</p></div>`:''}<div class="postural-form-method"><strong>Leitura profissional</strong><span>Registro observacional. O MB Gestor não atribui diagnóstico nem significado clínico automático aos achados.</span></div><div class="assessment-detail-actions"><button class="btn btn-primary btn-small" id="posturalDetailEdit">${icon('edit')} Editar</button><button class="btn btn-secondary btn-small" id="posturalDetailHistory">Histórico</button></div>`);$('#posturalDetailBack')?.addEventListener('click',()=>openPosturalHistory(studentId));$('#posturalDetailHistory')?.addEventListener('click',()=>openPosturalHistory(studentId));$('#posturalDetailEdit')?.addEventListener('click',()=>openPosturalAssessmentModal(studentId,assessmentId));
+  }
+  function openPosturalHistory(studentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;const rows=posturalAssessmentsForStudent(studentId);openModal(`Histórico postural • ${student.name}`,`<div class="assessment-history-head"><div><span class="section-overline">AVALIAÇÃO POSTURAL PREMIUM</span><strong>${rows.length} ${rows.length===1?'registro':'registros'}</strong><p>Histórico independente da antropometria, preservado por data.</p></div><button class="btn btn-primary btn-small" id="posturalHistoryNew">${icon('plus')} Nova avaliação</button></div>${rows.length?`<div class="postural-history-list">${rows.map((a,i)=>{const sum=posturalEvaluatedItems(a);return `<article class="postural-history-card"><button type="button" class="postural-history-main js-postural-open" data-id="${a.id}"><span class="postural-history-index">${String(rows.length-i).padStart(2,'0')}</span><span><strong>${fmtDate(a.date)}</strong><small>${sum.total} itens avaliados • ${sum.altered} alterações observadas</small></span><i>›</i></button><div class="postural-history-actions"><button class="btn btn-secondary btn-small js-postural-edit" data-id="${a.id}">${icon('edit')} Editar</button><button class="btn btn-danger btn-small js-postural-delete" data-id="${a.id}">Excluir</button></div></article>`}).join('')}</div>`:emptyState('Nenhuma avaliação postural','Crie o primeiro registro postural deste aluno.')}<div class="modal-actions"><button type="button" class="btn btn-secondary" id="posturalHistoryBackHub">Voltar aos alunos</button></div>`);$('#posturalHistoryNew')?.addEventListener('click',()=>openPosturalAssessmentModal(studentId));$('#posturalHistoryBackHub')?.addEventListener('click',()=>{closeModal();renderPosturalAssessments()});$$('.js-postural-open',modalRoot).forEach(b=>b.addEventListener('click',()=>openPosturalDetails(studentId,b.dataset.id)));$$('.js-postural-edit',modalRoot).forEach(b=>b.addEventListener('click',()=>openPosturalAssessmentModal(studentId,b.dataset.id)));$$('.js-postural-delete',modalRoot).forEach(b=>b.addEventListener('click',()=>confirmDeletePosturalAssessment(studentId,b.dataset.id)));
+  }
+  function confirmDeletePosturalAssessment(studentId,assessmentId){
+    const student=state.students.find(s=>String(s.id)===String(studentId)),a=(state.posturalAssessments||[]).find(x=>String(x.id)===String(assessmentId));if(!student||!a)return;openPremiumConfirm({title:'Excluir avaliação postural?',message:`O registro postural de ${student.name}, realizado em ${fmtDate(a.date)}, será removido. A avaliação física e o cadastro do aluno não serão alterados.`,confirmLabel:'Excluir registro',cancelLabel:'Manter avaliação',tone:'danger',onConfirm:()=>{state.posturalAssessments=state.posturalAssessments.filter(x=>String(x.id)!==String(assessmentId));addAudit('Avaliação postural removida',`${student.name} • ${fmtDate(a.date)}`);saveState();openPosturalHistory(studentId);toast('Avaliação postural removida.')}});
+  }
+
   function assessmentInput(name,label,value='',required=false,guideKey='',guideSide=''){
     const guide=guideKey?`<button type="button" class="assessment-guide-mini" data-anatomical-key="${escapeHTML(guideKey)}" ${guideSide?`data-anatomical-side="${guideSide}"`:''} aria-label="Abrir guia de ${escapeHTML(label.replace(' *',''))}" title="Ver ponto de mensuração">${icon('body')}</button>`:'';
     return `<div class="field"><div class="assessment-field-label"><label>${escapeHTML(label)}</label>${guide}</div><div class="assessment-input-wrap"><input name="${name}" type="number" inputmode="decimal" min="1" max="300" step="0.1" ${required?'required':''} value="${value??''}" placeholder="0,0" /><span>cm</span></div></div>`
@@ -4492,11 +4616,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('commercial','Conta e instalação',commercialOk?'ok':'danger',commercialOk?`Estrutura V${COMMERCIAL_SCHEMA_VERSION} • instalação ${installationShortId()} • proprietário ${commercialOwnerConfigured()?'configurado':'ainda não informado'}.`:'Estrutura comercial ou identidade desta instalação ausente.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
-    const arrays=['students','payments','expenses','physicalAssessments','auditLog','trash'];
+    const arrays=['students','payments','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
     const objects=['schedule','attendance','makeups','settings'];
     const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
     push('structure','Estrutura principal',invalid.length?'danger':'ok',invalid.length?`Campos inválidos: ${invalid.join(', ')}.`:'Coleções essenciais estão no formato esperado.');
-    const duplicateGroups=[['alunos',duplicateIds(state.students)],['receitas',duplicateIds(state.payments)],['gastos',duplicateIds(state.expenses)],['avaliações',duplicateIds(state.physicalAssessments)]].filter(([,ids])=>ids.length);
+    const duplicateGroups=[['alunos',duplicateIds(state.students)],['receitas',duplicateIds(state.payments)],['gastos',duplicateIds(state.expenses)],['avaliações físicas',duplicateIds(state.physicalAssessments)],['avaliações posturais',duplicateIds(state.posturalAssessments)]].filter(([,ids])=>ids.length);
     push('ids','Identificadores únicos',duplicateGroups.length?'danger':'ok',duplicateGroups.length?`Duplicidades detectadas em ${duplicateGroups.map(([name,ids])=>`${name} (${ids.length})`).join(', ')}.`:'Nenhuma duplicidade crítica de ID encontrada.');
     const op=state.settings?.operationConfig,mods=Array.isArray(op?.modalities)?op.modalities:[];
     const modDup=duplicateIds(mods);
@@ -4537,6 +4661,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       `Gastos: ${counts.expenses}`,
       `Registros de aula: ${counts.attendanceRecords}`,
       `Avaliações físicas: ${(state.physicalAssessments||[]).length}`,
+      `Avaliações posturais: ${(state.posturalAssessments||[]).length}`,
       '',
       `DIAGNÓSTICO: ${result.summaryLabel} • ${result.danger} crítico(s) • ${result.warn} atenção(ões)`,
       ...result.checks.map(c=>`[${c.status.toUpperCase()}] ${c.label}: ${c.detail}`),
@@ -4851,7 +4976,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function backupSummaryFor(sourceState=state){
     const attendanceRecords=Object.keys(sourceState.attendance||{}).length;let present=0,absent=0,makeups=0;
     Object.entries(sourceState.attendance||{}).forEach(([k,map])=>Object.entries(map||{}).forEach(([id,status])=>{if(status==='present'){present++;const raw=sourceState.makeups?.[k];const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(ids.map(String).includes(String(id)))makeups++;}if(status==='absent')absent++;}));
-    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,expenses:(sourceState.expenses||[]).length,attendanceRecords,present,absent,makeups};
+    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,attendanceRecords,present,absent,makeups};
   }
 
   async function exportBackup(){
