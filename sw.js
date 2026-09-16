@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.2.2 — Identidade Visual • Logo Fit & Crop Studio
-const CACHE='mb-gestor-luxury-pro-v12-2-2-logo-fit-crop-studio';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.2.3 — Version Sync & Update Guard Hotfix
+const CACHE='mb-gestor-luxury-pro-v12-2-3-version-sync-update-guard';
+const ASSETS=['./','./index.html','./styles.css?v=12.2.3','./app.js?v=12.2.3','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

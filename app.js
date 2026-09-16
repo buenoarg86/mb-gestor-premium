@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.2.2 — Identidade Visual • Logo Fit & Crop Studio
+// MB Gestor Luxury Pro V12.2.3 — Version Sync & Update Guard Hotfix
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.2.2 — Identidade Visual • Logo Fit & Crop Studio
+  // MB Gestor Luxury Pro V12.2.3 — Version Sync & Update Guard Hotfix
 
-  const APP_VERSION = '12.2.2';
+  const APP_VERSION = '12.2.3';
   const DATA_SCHEMA_VERSION = 2;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
@@ -4237,7 +4237,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="brand-editor-preview" id="brandEditorPreview" style="--preview-primary:${escapeHTML(draft.primaryColor)};--preview-accent:${escapeHTML(draft.accentColor)}"><div class="brand-preview-glow"></div><span class="brand-editor-logo-frame brand-fitted-media" id="brandEditorLogoFrame" style="${escapeHTML(logoFitVars(draft.logoFitIcon))}"><img id="brandLogoPreview" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Prévia do logotipo" /></span><div><span id="brandPreviewApp">${escapeHTML(draft.appName)}</span><strong id="brandPreviewStudio">${escapeHTML(draft.studioName)}</strong><small>Identidade aplicada ao app e relatórios</small></div><em id="brandPreviewInitials">${escapeHTML(brandInitials())}</em></div>
       <div class="branding-editor-section"><span class="section-overline">LOGOTIPO</span><div class="branding-logo-actions"><button type="button" class="btn btn-primary btn-small" id="chooseBrandLogo">Escolher imagem</button><button type="button" class="btn btn-secondary btn-small" id="useDefaultBrandLogo">Usar logo MB</button><input id="brandLogoFile" class="hidden" type="file" accept="image/png,image/jpeg,image/webp" /></div><small class="brand-help">PNG, JPG ou WEBP • a imagem original otimizada é salva uma vez; banner e ícone guardam apenas o enquadramento.</small></div>
       <div class="branding-editor-section logo-fit-editor" id="logoFitEditor">
-        <div class="logo-fit-title"><div><span class="section-overline">ENQUADRAMENTO</span><strong>Ajustar logotipo</strong><small>Arraste a imagem e defina um enquadramento independente para cada uso.</small></div><span class="logo-fit-status">V12.2.2</span></div>
+        <div class="logo-fit-title"><div><span class="section-overline">ENQUADRAMENTO</span><strong>Ajustar logotipo</strong><small>Arraste a imagem e defina um enquadramento independente para cada uso.</small></div><span class="logo-fit-status">V${APP_VERSION}</span></div>
         <div class="logo-fit-tabs" role="tablist" aria-label="Formato do logotipo"><button type="button" class="logo-fit-tab active" data-logo-surface="banner">Banner</button><button type="button" class="logo-fit-tab" data-logo-surface="icon">Ícone</button></div>
         <div class="logo-fit-stage-shell"><div class="logo-fit-stage brand-fitted-media" id="logoFitStage" data-surface="banner" style="${escapeHTML(logoFitVars(draft.logoFitBanner))}" aria-label="Prévia ajustável do logotipo"><img id="logoFitImage" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Logotipo para enquadramento" draggable="false"/><span class="logo-fit-center-line horizontal"></span><span class="logo-fit-center-line vertical"></span><span class="logo-fit-safe-area"></span></div><small id="logoFitHint">Banner • arraste para reposicionar. O quadro corresponde à proporção usada na tela de Identidade visual.</small></div>
         <label class="logo-zoom-control"><span><strong>Zoom</strong><output id="logoZoomOutput">100%</output></span><input id="logoZoomRange" type="range" min="50" max="300" step="1" value="${Math.round(draft.logoFitBanner.scale*100)}" /></label>
@@ -4702,7 +4702,22 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   $('#installBtnSide')?.addEventListener('click',installApp);
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(err=>console.warn('Service worker não registrado',err)));
+    // V12.2.3 • atualização segura: evita que HTML novo rode com JS/CSS antigos em WebViews/PWA Android.
+    window.addEventListener('load',async()=>{
+      const hadController=!!navigator.serviceWorker.controller;
+      try{
+        const reg=await navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(APP_VERSION)}`,{updateViaCache:'none'});
+        await reg.update?.();
+        if(hadController){
+          let reloading=false;
+          navigator.serviceWorker.addEventListener('controllerchange',()=>{
+            if(reloading)return;
+            reloading=true;
+            location.reload();
+          },{once:true});
+        }
+      }catch(err){console.warn('Service worker não registrado',err)}
+    });
   }
 
   window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){refreshStateFromStorage();render();}});
