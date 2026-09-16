@@ -1,7 +1,7 @@
-// MB Gestor Luxury Pro V12.6.3 — Draft-Safe Assessment Hotfix • External Body Fat Preserved
-const CACHE='mb-gestor-luxury-pro-v12-6-3-draft-safe-assessment-hotfix';
-const ASSETS=['./','./index.html','./styles.css?v=12.6.3','./app.js?v=12.6.3','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
-// V12.6.3 • atualização segura: worker sem skipWaiting; a sessão ativa não é forçada a recarregar.
+// MB Gestor Luxury Pro V12.6.4 — Verified Assessment Save Hotfix • External Body Fat Preserved
+const CACHE='mb-gestor-luxury-pro-v12-6-4-verified-assessment-save-hotfix';
+const ASSETS=['./','./index.html','./styles.css?v=12.6.4','./app.js?v=12.6.4','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// V12.6.4 • atualização segura: worker sem skipWaiting; a sessão ativa não é forçada a recarregar.
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
