@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.5.0 — Plan & License Center • Clear Commercial Foundation
+// MB Gestor Luxury Pro V12.5.1 — Support Report UTF-8 Hotfix
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.5.0 — Plan & License Center • Clear Commercial Foundation
+  // MB Gestor Luxury Pro V12.5.1 — Support Report UTF-8 Hotfix
 
-  const APP_VERSION = '12.5.0';
+  const APP_VERSION = '12.5.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -4533,7 +4533,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function downloadText(name,text){
-    const blob=new Blob([text],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');
+    // V12.5.1 • BOM UTF-8 + CRLF: evita mojibake em visualizadores de texto do Android/Samsung.
+    const utf8Text=`\uFEFF${String(text??'').replace(/\r?\n/g,'\r\n')}`;
+    const blob=new Blob([utf8Text],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');
     a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1200);
   }
 
