@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.2.1 — Identity Preservation Hotfix • Existing Workspace Safe Branding
+// MB Gestor Luxury Pro V12.2.2 — Identidade Visual • Logo Fit & Crop Studio
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.2.1 — Identity Preservation Hotfix • Existing Workspace Safe Branding
+  // MB Gestor Luxury Pro V12.2.2 — Identidade Visual • Logo Fit & Crop Studio
 
-  const APP_VERSION = '12.2.1';
+  const APP_VERSION = '12.2.2';
   const DATA_SCHEMA_VERSION = 2;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
@@ -81,6 +81,32 @@
     const preset=allowedPresets.has(String(src.preset||''))?String(src.preset):'custom';
     return {schemaVersion:1,preset,slotMinutes:[15,20,30,45,60,90,120].includes(Number(src.slotMinutes))?Number(src.slotMinutes):60,defaultCapacity:Math.max(1,Math.min(99,Number(src.defaultCapacity)||base.defaultCapacity||1)),defaultModalityId:fallback,modalities,days,slotOverrides:src.slotOverrides&&typeof src.slotOverrides==='object'?src.slotOverrides:{}};
   }
+  // V12.2.2 • enquadramento independente do logotipo para banner e ícone.
+  // Instalações antigas sem estes campos continuam visualmente em COVER até o professor ajustar.
+  const BRAND_LOGO_FIT_LEGACY_DEFAULTS = {
+    banner:{fit:'cover',scale:1,x:0,y:0},
+    icon:{fit:'cover',scale:1,x:0,y:0}
+  };
+  const BRAND_LOGO_FIT_SAFE_DEFAULTS = {
+    banner:{fit:'contain',scale:1,x:0,y:0},
+    icon:{fit:'contain',scale:1,x:0,y:0}
+  };
+  function clampNumber(value,min,max,fallback){
+    const n=Number(value);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):fallback;
+  }
+  function normalizeLogoFit(raw={},kind='icon',safeDefault=false){
+    const base=structuredClone((safeDefault?BRAND_LOGO_FIT_SAFE_DEFAULTS:BRAND_LOGO_FIT_LEGACY_DEFAULTS)[kind]||BRAND_LOGO_FIT_LEGACY_DEFAULTS.icon);
+    const src=raw&&typeof raw==='object'?raw:{};
+    const fit=src.fit==='contain'||src.fit==='cover'?src.fit:base.fit;
+    return {
+      fit,
+      scale:Math.round(clampNumber(src.scale,.5,3,base.scale)*100)/100,
+      x:Math.round(clampNumber(src.x,-85,85,base.x)*10)/10,
+      y:Math.round(clampNumber(src.y,-85,85,base.y)*10)/10
+    };
+  }
+  function freshLogoFit(kind='icon'){return normalizeLogoFit({},kind,true)}
+
   const DEFAULT_STATE = {
     version: DATA_SCHEMA_VERSION,
     workspace: {schemaVersion:WORKSPACE_SCHEMA_VERSION,id:'',createdAt:'',mode:'local'},
@@ -108,6 +134,8 @@
       trainerName: 'Profissional',
       appName: 'MB Gestor',
       brandLogoData: '',
+      brandLogoFitBanner: structuredClone(BRAND_LOGO_FIT_LEGACY_DEFAULTS.banner),
+      brandLogoFitIcon: structuredClone(BRAND_LOGO_FIT_LEGACY_DEFAULTS.icon),
       brandPrimaryColor: '#d7a33d',
       brandAccentColor: '#f3c76a',
       chargeDaysBefore: 3,
@@ -213,6 +241,8 @@
       studioName:String(src.studioName||''),
       trainerName:String(src.trainerName||''),
       brandLogoData:String(src.brandLogoData||''),
+      brandLogoFitBanner:normalizeLogoFit(src.brandLogoFitBanner,'banner'),
+      brandLogoFitIcon:normalizeLogoFit(src.brandLogoFitIcon,'icon'),
       brandPrimaryColor:String(src.brandPrimaryColor||''),
       brandAccentColor:String(src.brandAccentColor||''),
       capturedAt:new Date().toISOString()
@@ -235,7 +265,7 @@
       const currentRaw=localStorage.getItem(BRAND_IDENTITY_RECOVERY_KEY);
       const current=currentRaw?JSON.parse(currentRaw):null;
       // Evita substituir uma recuperação útil por uma cópia idêntica.
-      const comparable=x=>JSON.stringify({appName:x?.appName||'',studioName:x?.studioName||'',trainerName:x?.trainerName||'',brandLogoData:x?.brandLogoData||'',brandPrimaryColor:x?.brandPrimaryColor||'',brandAccentColor:x?.brandAccentColor||''});
+      const comparable=x=>JSON.stringify({appName:x?.appName||'',studioName:x?.studioName||'',trainerName:x?.trainerName||'',brandLogoData:x?.brandLogoData||'',brandLogoFitBanner:normalizeLogoFit(x?.brandLogoFitBanner,'banner'),brandLogoFitIcon:normalizeLogoFit(x?.brandLogoFitIcon,'icon'),brandPrimaryColor:x?.brandPrimaryColor||'',brandAccentColor:x?.brandAccentColor||''});
       if(current&&comparable(current)===comparable(snapshot))return true;
       localStorage.setItem(BRAND_IDENTITY_RECOVERY_KEY,JSON.stringify({...snapshot,reason:String(reason||'alteração')}));
       return true;
@@ -255,6 +285,8 @@
     state.settings.studioName=String(snapshot.studioName||BRAND_DEFAULTS.studioName).trim().slice(0,60)||BRAND_DEFAULTS.studioName;
     state.settings.trainerName=String(snapshot.trainerName||BRAND_DEFAULTS.trainerName).trim().slice(0,60)||BRAND_DEFAULTS.trainerName;
     state.settings.brandLogoData=String(snapshot.brandLogoData||'');
+    state.settings.brandLogoFitBanner=normalizeLogoFit(snapshot.brandLogoFitBanner,'banner');
+    state.settings.brandLogoFitIcon=normalizeLogoFit(snapshot.brandLogoFitIcon,'icon');
     state.settings.brandPrimaryColor=normalizeBrandColor(snapshot.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);
     state.settings.brandAccentColor=normalizeBrandColor(snapshot.brandAccentColor,BRAND_DEFAULTS.accentColor);
     return true;
@@ -357,10 +389,22 @@
       studioName:String(state?.settings?.studioName||BRAND_DEFAULTS.studioName).trim().slice(0,60)||BRAND_DEFAULTS.studioName,
       trainerName:String(state?.settings?.trainerName||BRAND_DEFAULTS.trainerName).trim().slice(0,60)||BRAND_DEFAULTS.trainerName,
       logoData:String(state?.settings?.brandLogoData||''),
+      logoFitBanner:normalizeLogoFit(state?.settings?.brandLogoFitBanner,'banner'),
+      logoFitIcon:normalizeLogoFit(state?.settings?.brandLogoFitIcon,'icon'),
       primaryColor:normalizeBrandColor(state?.settings?.brandPrimaryColor,BRAND_DEFAULTS.primaryColor),
       accentColor:normalizeBrandColor(state?.settings?.brandAccentColor,BRAND_DEFAULTS.accentColor)
     };
   }
+  function logoFitVars(fit){
+    const f=normalizeLogoFit(fit);
+    return `--logo-fit:${f.fit};--logo-scale:${f.scale};--logo-x:${f.x}%;--logo-y:${f.y}%`;
+  }
+  function applyLogoFitToFrame(frame,fit){
+    if(!frame)return;
+    const f=normalizeLogoFit(fit);
+    frame.style.setProperty('--logo-fit',f.fit);frame.style.setProperty('--logo-scale',String(f.scale));frame.style.setProperty('--logo-x',`${f.x}%`);frame.style.setProperty('--logo-y',`${f.y}%`);
+  }
+  function brandingLogoFit(kind='icon'){const b=brandingSettings();return kind==='banner'?b.logoFitBanner:b.logoFitIcon}
   function brandAppName(){return brandingSettings().appName}
   function brandStudioName(){return brandingSettings().studioName}
   function brandInitials(){
@@ -379,6 +423,7 @@
     const appEl=$('#appBrandName');if(appEl)appEl.textContent=b.appName;
     const avatar=$('#brandAvatar');if(avatar)avatar.textContent=brandInitials();
     const sideLogo=$('#brandMiniLogo');if(sideLogo){sideLogo.src=brandingLogoSrc();sideLogo.alt=`Logo ${b.studioName}`;}
+    applyLogoFitToFrame($('#brandMiniLogoFrame'),b.logoFitIcon);
     document.title=`${b.appName} • ${b.studioName}`;
     document.querySelector('meta[name="application-name"]')?.setAttribute('content',b.appName);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content',b.appName);
@@ -1541,7 +1586,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
             <p>Uma visão elegante e objetiva do que importa hoje.</p>
             <div class="hero-actions"><button class="btn btn-primary btn-small" data-nav="schedule">${icon('calendar')} Ver agenda</button><button class="btn btn-ghost btn-small" data-nav="students">${icon('users')} Alunos</button></div>
           </div>
-          <div class="luxury-logo-wrap"><img class="hero-logo" src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /><span>PREMIUM</span></div>
+          <div class="luxury-logo-wrap"><span class="hero-logo-frame brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img class="hero-logo" src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></span><span>PREMIUM</span></div>
         </div>
       </section>
 
@@ -4174,7 +4219,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openBrandingSettings(){
-    const current=brandingSettings(),draft={...current},recovery=readBrandingRecovery();
+    const current=brandingSettings(),draft={
+      ...current,
+      logoFitBanner:normalizeLogoFit(current.logoFitBanner,'banner'),
+      logoFitIcon:normalizeLogoFit(current.logoFitIcon,'icon')
+    },recovery=readBrandingRecovery();
     const palettes=[
       {name:'MB Dourado',primary:'#d7a33d',accent:'#f3c76a'},
       {name:'Safira',primary:'#2f6fdf',accent:'#79a9ff'},
@@ -4183,38 +4232,63 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       {name:'Rubi',primary:'#b53c50',accent:'#ef8797'},
       {name:'Cobre',primary:'#a96935',accent:'#e0a36f'}
     ];
+    let activeLogoSurface='banner',dragState=null;
     openModal('Identidade visual',`<form id="brandingForm" class="branding-editor-form">
-      <div class="brand-editor-preview" id="brandEditorPreview" style="--preview-primary:${escapeHTML(draft.primaryColor)};--preview-accent:${escapeHTML(draft.accentColor)}"><div class="brand-preview-glow"></div><img id="brandLogoPreview" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Prévia do logotipo" /><div><span id="brandPreviewApp">${escapeHTML(draft.appName)}</span><strong id="brandPreviewStudio">${escapeHTML(draft.studioName)}</strong><small>Identidade aplicada ao app e relatórios</small></div><em id="brandPreviewInitials">${escapeHTML(brandInitials())}</em></div>
-      <div class="branding-editor-section"><span class="section-overline">LOGOTIPO</span><div class="branding-logo-actions"><button type="button" class="btn btn-primary btn-small" id="chooseBrandLogo">Escolher imagem</button><button type="button" class="btn btn-secondary btn-small" id="useDefaultBrandLogo">Usar logo MB</button><input id="brandLogoFile" class="hidden" type="file" accept="image/png,image/jpeg,image/webp" /></div><small class="brand-help">PNG, JPG ou WEBP • a imagem é otimizada e fica salva localmente no backup.</small></div>
+      <div class="brand-editor-preview" id="brandEditorPreview" style="--preview-primary:${escapeHTML(draft.primaryColor)};--preview-accent:${escapeHTML(draft.accentColor)}"><div class="brand-preview-glow"></div><span class="brand-editor-logo-frame brand-fitted-media" id="brandEditorLogoFrame" style="${escapeHTML(logoFitVars(draft.logoFitIcon))}"><img id="brandLogoPreview" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Prévia do logotipo" /></span><div><span id="brandPreviewApp">${escapeHTML(draft.appName)}</span><strong id="brandPreviewStudio">${escapeHTML(draft.studioName)}</strong><small>Identidade aplicada ao app e relatórios</small></div><em id="brandPreviewInitials">${escapeHTML(brandInitials())}</em></div>
+      <div class="branding-editor-section"><span class="section-overline">LOGOTIPO</span><div class="branding-logo-actions"><button type="button" class="btn btn-primary btn-small" id="chooseBrandLogo">Escolher imagem</button><button type="button" class="btn btn-secondary btn-small" id="useDefaultBrandLogo">Usar logo MB</button><input id="brandLogoFile" class="hidden" type="file" accept="image/png,image/jpeg,image/webp" /></div><small class="brand-help">PNG, JPG ou WEBP • a imagem original otimizada é salva uma vez; banner e ícone guardam apenas o enquadramento.</small></div>
+      <div class="branding-editor-section logo-fit-editor" id="logoFitEditor">
+        <div class="logo-fit-title"><div><span class="section-overline">ENQUADRAMENTO</span><strong>Ajustar logotipo</strong><small>Arraste a imagem e defina um enquadramento independente para cada uso.</small></div><span class="logo-fit-status">V12.2.2</span></div>
+        <div class="logo-fit-tabs" role="tablist" aria-label="Formato do logotipo"><button type="button" class="logo-fit-tab active" data-logo-surface="banner">Banner</button><button type="button" class="logo-fit-tab" data-logo-surface="icon">Ícone</button></div>
+        <div class="logo-fit-stage-shell"><div class="logo-fit-stage brand-fitted-media" id="logoFitStage" data-surface="banner" style="${escapeHTML(logoFitVars(draft.logoFitBanner))}" aria-label="Prévia ajustável do logotipo"><img id="logoFitImage" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Logotipo para enquadramento" draggable="false"/><span class="logo-fit-center-line horizontal"></span><span class="logo-fit-center-line vertical"></span><span class="logo-fit-safe-area"></span></div><small id="logoFitHint">Banner • arraste para reposicionar. O quadro corresponde à proporção usada na tela de Identidade visual.</small></div>
+        <label class="logo-zoom-control"><span><strong>Zoom</strong><output id="logoZoomOutput">100%</output></span><input id="logoZoomRange" type="range" min="50" max="300" step="1" value="${Math.round(draft.logoFitBanner.scale*100)}" /></label>
+        <div class="logo-fit-quick-actions"><button type="button" class="btn btn-secondary btn-small" data-logo-fit="contain">Ajustar</button><button type="button" class="btn btn-secondary btn-small" data-logo-fit="cover">Preencher</button><button type="button" class="btn btn-secondary btn-small" id="centerLogoFit">Centralizar</button><button type="button" class="btn btn-secondary btn-small" id="resetLogoFit">Resetar</button></div>
+        <button type="button" class="logo-copy-fit" id="copyLogoFit"><strong>Copiar este ajuste para o outro formato</strong><span>Útil quando a mesma composição funciona bem no banner e no ícone.</span></button>
+        <div class="logo-fit-readout"><span id="logoFitModeReadout">Modo: preencher</span><span id="logoFitPositionReadout">X 0 • Y 0</span></div>
+      </div>
       <div class="form-grid branding-name-grid"><div class="field"><label>Nome do aplicativo</label><input id="brandAppNameInput" maxlength="36" value="${escapeHTML(draft.appName)}" placeholder="Ex.: Studio Pro" /></div><div class="field"><label>Nome do studio / negócio</label><input id="brandStudioNameInput" maxlength="60" value="${escapeHTML(draft.studioName)}" placeholder="Ex.: Studio Movimento" /></div><div class="field"><label>Nome do profissional</label><input id="brandTrainerNameInput" maxlength="60" value="${escapeHTML(draft.trainerName)}" placeholder="Ex.: Ana Silva" /></div></div>
       <div class="branding-editor-section"><span class="section-overline">CORES</span><div class="brand-color-grid"><label class="brand-color-field"><span>Cor principal</span><div><input id="brandPrimaryPicker" type="color" value="${escapeHTML(draft.primaryColor)}" /><input id="brandPrimaryHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.primaryColor)}" /></div></label><label class="brand-color-field"><span>Cor de destaque</span><div><input id="brandAccentPicker" type="color" value="${escapeHTML(draft.accentColor)}" /><input id="brandAccentHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.accentColor)}" /></div></label></div><div class="brand-palette-grid">${palettes.map((p,i)=>`<button type="button" class="brand-palette" data-brand-palette="${i}"><i style="--p1:${p.primary};--p2:${p.accent}"></i><span>${escapeHTML(p.name)}</span></button>`).join('')}</div></div>
-      <div class="brand-safety-note"><strong>Prévia segura</strong><span>Nada muda na identidade real até você tocar em “Salvar identidade”. Agenda, alunos, financeiro e avaliações não são alterados.</span></div>
+      <div class="brand-safety-note"><strong>Prévia segura</strong><span>Nada muda na identidade real até você tocar em “Salvar identidade”. A imagem original e os dois enquadramentos são preservados no backup.</span></div>
       <div class="modal-actions branding-actions">${recovery?'<button type="button" class="btn btn-secondary" id="recoverPreviousBranding">Recuperar anterior</button>':''}<button type="button" class="btn btn-secondary" id="restoreBrandingDefaults">Prévia padrão MB</button><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar identidade</button></div>
     </form>`);
     const root=$('#brandingForm');
-    const preview=$('#brandEditorPreview',root),logoPreview=$('#brandLogoPreview',root),appInput=$('#brandAppNameInput',root),studioInput=$('#brandStudioNameInput',root),trainerInput=$('#brandTrainerNameInput',root),primaryPicker=$('#brandPrimaryPicker',root),accentPicker=$('#brandAccentPicker',root),primaryHex=$('#brandPrimaryHex',root),accentHex=$('#brandAccentHex',root);
+    const preview=$('#brandEditorPreview',root),logoPreview=$('#brandLogoPreview',root),editorLogoFrame=$('#brandEditorLogoFrame',root),appInput=$('#brandAppNameInput',root),studioInput=$('#brandStudioNameInput',root),trainerInput=$('#brandTrainerNameInput',root),primaryPicker=$('#brandPrimaryPicker',root),accentPicker=$('#brandAccentPicker',root),primaryHex=$('#brandPrimaryHex',root),accentHex=$('#brandAccentHex',root),logoFitStage=$('#logoFitStage',root),logoFitImage=$('#logoFitImage',root),zoomRange=$('#logoZoomRange',root),zoomOutput=$('#logoZoomOutput',root),modeReadout=$('#logoFitModeReadout',root),positionReadout=$('#logoFitPositionReadout',root),fitHint=$('#logoFitHint',root);
     const draftInitials=()=>{const source=String(draft.appName||draft.studioName||'MB').replace(/[^\p{L}\p{N} ]/gu,' ').trim().split(/\s+/).filter(Boolean);return (source.length>1?`${source[0][0]}${source[1][0]}`:String(source[0]||'MB').slice(0,2)).toUpperCase()};
-    const refreshPreview=()=>{preview.style.setProperty('--preview-primary',draft.primaryColor);preview.style.setProperty('--preview-accent',draft.accentColor);logoPreview.src=draft.logoData||PRODUCT_LOGO_SRC;$('#brandPreviewApp',root).textContent=draft.appName||BRAND_DEFAULTS.appName;$('#brandPreviewStudio',root).textContent=draft.studioName||BRAND_DEFAULTS.studioName;$('#brandPreviewInitials',root).textContent=draftInitials();};
+    const fitKey=()=>activeLogoSurface==='banner'?'logoFitBanner':'logoFitIcon';
+    const activeFit=()=>normalizeLogoFit(draft[fitKey()],activeLogoSurface);
+    const setActiveFit=fit=>{draft[fitKey()]=normalizeLogoFit(fit,activeLogoSurface);refreshLogoFitEditor();};
+    const refreshPreview=()=>{preview.style.setProperty('--preview-primary',draft.primaryColor);preview.style.setProperty('--preview-accent',draft.accentColor);logoPreview.src=draft.logoData||PRODUCT_LOGO_SRC;applyLogoFitToFrame(editorLogoFrame,draft.logoFitIcon);$('#brandPreviewApp',root).textContent=draft.appName||BRAND_DEFAULTS.appName;$('#brandPreviewStudio',root).textContent=draft.studioName||BRAND_DEFAULTS.studioName;$('#brandPreviewInitials',root).textContent=draftInitials();};
+    const refreshLogoFitEditor=()=>{const fit=activeFit();logoFitImage.src=draft.logoData||PRODUCT_LOGO_SRC;logoFitStage.dataset.surface=activeLogoSurface;applyLogoFitToFrame(logoFitStage,fit);zoomRange.value=String(Math.round(fit.scale*100));zoomOutput.textContent=`${Math.round(fit.scale*100)}%`;modeReadout.textContent=`Modo: ${fit.fit==='contain'?'ajustar':'preencher'}`;positionReadout.textContent=`X ${Math.round(fit.x)} • Y ${Math.round(fit.y)}`;fitHint.textContent=activeLogoSurface==='banner'?'Banner • arraste para reposicionar. O quadro corresponde à proporção usada na tela de Identidade visual.':'Ícone • o círculo tracejado indica a área segura para avatares e miniaturas.';$$('[data-logo-surface]',root).forEach(btn=>btn.classList.toggle('active',btn.dataset.logoSurface===activeLogoSurface));refreshPreview();};
     const syncColors=(kind,value)=>{const fallback=kind==='primary'?current.primaryColor:current.accentColor,next=normalizeBrandColor(value,fallback);if(kind==='primary'){draft.primaryColor=next;primaryPicker.value=next;primaryHex.value=next}else{draft.accentColor=next;accentPicker.value=next;accentHex.value=next}refreshPreview();};
     appInput.addEventListener('input',()=>{draft.appName=appInput.value.slice(0,36);refreshPreview()});studioInput.addEventListener('input',()=>{draft.studioName=studioInput.value.slice(0,60);refreshPreview()});trainerInput.addEventListener('input',()=>{draft.trainerName=trainerInput.value.slice(0,60)});
     primaryPicker.addEventListener('input',()=>syncColors('primary',primaryPicker.value));accentPicker.addEventListener('input',()=>syncColors('accent',accentPicker.value));primaryHex.addEventListener('change',()=>syncColors('primary',primaryHex.value));accentHex.addEventListener('change',()=>syncColors('accent',accentHex.value));
     $$('[data-brand-palette]',root).forEach(btn=>btn.addEventListener('click',()=>{const p=palettes[Number(btn.dataset.brandPalette)];if(!p)return;draft.primaryColor=p.primary;draft.accentColor=p.accent;primaryPicker.value=p.primary;primaryHex.value=p.primary;accentPicker.value=p.accent;accentHex.value=p.accent;refreshPreview()}));
+    $$('[data-logo-surface]',root).forEach(btn=>btn.addEventListener('click',()=>{activeLogoSurface=btn.dataset.logoSurface==='icon'?'icon':'banner';refreshLogoFitEditor()}));
+    $$('[data-logo-fit]',root).forEach(btn=>btn.addEventListener('click',()=>setActiveFit({fit:btn.dataset.logoFit==='contain'?'contain':'cover',scale:1,x:0,y:0})));
+    zoomRange.addEventListener('input',()=>{const fit=activeFit();fit.scale=clampNumber(Number(zoomRange.value)/100,.5,3,1);setActiveFit(fit)});
+    $('#centerLogoFit',root).addEventListener('click',()=>{const fit=activeFit();fit.x=0;fit.y=0;setActiveFit(fit)});
+    $('#resetLogoFit',root).addEventListener('click',()=>setActiveFit(freshLogoFit(activeLogoSurface)));
+    $('#copyLogoFit',root).addEventListener('click',()=>{const source=activeFit(),target=activeLogoSurface==='banner'?'logoFitIcon':'logoFitBanner',targetKind=activeLogoSurface==='banner'?'icon':'banner';draft[target]=normalizeLogoFit(source,targetKind);toast(`Ajuste copiado para ${targetKind==='icon'?'Ícone':'Banner'}.`);refreshPreview()});
+    logoFitStage.addEventListener('pointerdown',e=>{if(e.button!==undefined&&e.button!==0)return;const rect=logoFitStage.getBoundingClientRect();dragState={pointerId:e.pointerId,lastX:e.clientX,lastY:e.clientY,w:Math.max(1,rect.width),h:Math.max(1,rect.height)};logoFitStage.setPointerCapture?.(e.pointerId);logoFitStage.classList.add('dragging');e.preventDefault()});
+    logoFitStage.addEventListener('pointermove',e=>{if(!dragState||dragState.pointerId!==e.pointerId)return;const fit=activeFit(),dx=e.clientX-dragState.lastX,dy=e.clientY-dragState.lastY;dragState.lastX=e.clientX;dragState.lastY=e.clientY;fit.x=clampNumber(fit.x+(dx/dragState.w*100),-85,85,0);fit.y=clampNumber(fit.y+(dy/dragState.h*100),-85,85,0);draft[fitKey()]=normalizeLogoFit(fit,activeLogoSurface);applyLogoFitToFrame(logoFitStage,draft[fitKey()]);positionReadout.textContent=`X ${Math.round(draft[fitKey()].x)} • Y ${Math.round(draft[fitKey()].y)}`;if(activeLogoSurface==='icon')applyLogoFitToFrame(editorLogoFrame,draft.logoFitIcon);e.preventDefault()});
+    const stopLogoDrag=e=>{if(!dragState)return;if(e?.pointerId!==undefined&&dragState.pointerId!==e.pointerId)return;try{logoFitStage.releasePointerCapture?.(dragState.pointerId)}catch{}dragState=null;logoFitStage.classList.remove('dragging')};
+    logoFitStage.addEventListener('pointerup',stopLogoDrag);logoFitStage.addEventListener('pointercancel',stopLogoDrag);
     $('#chooseBrandLogo',root).addEventListener('click',()=>$('#brandLogoFile',root).click());
-    $('#brandLogoFile',root).addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{draft.logoData=await brandLogoFileToData(file);refreshPreview();toast('Logotipo preparado para a prévia.');}catch(err){toast(err?.message||'Não foi possível preparar o logotipo.')}finally{e.target.value=''}});
-    $('#useDefaultBrandLogo',root).addEventListener('click',()=>{draft.logoData='';refreshPreview()});
+    $('#brandLogoFile',root).addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{draft.logoData=await brandLogoFileToData(file);draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');activeLogoSurface='banner';refreshLogoFitEditor();toast('Logotipo carregado. Ajuste primeiro o Banner e depois o Ícone.');}catch(err){toast(err?.message||'Não foi possível preparar o logotipo.')}finally{e.target.value=''}});
+    $('#useDefaultBrandLogo',root).addEventListener('click',()=>{draft.logoData='';draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');refreshLogoFitEditor()});
     $('#restoreBrandingDefaults',root).addEventListener('click',()=>{
-      // V12.2.1: restauração virou SOMENTE prévia. Nada é gravado sem "Salvar identidade".
-      draft.appName=BRAND_DEFAULTS.appName;draft.studioName=BRAND_DEFAULTS.studioName;draft.trainerName=BRAND_DEFAULTS.trainerName;draft.logoData='';draft.primaryColor=BRAND_DEFAULTS.primaryColor;draft.accentColor=BRAND_DEFAULTS.accentColor;
-      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;refreshPreview();
+      // V12.2.2: continua SOMENTE prévia; agora inclui os enquadramentos do logo.
+      draft.appName=BRAND_DEFAULTS.appName;draft.studioName=BRAND_DEFAULTS.studioName;draft.trainerName=BRAND_DEFAULTS.trainerName;draft.logoData='';draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');draft.primaryColor=BRAND_DEFAULTS.primaryColor;draft.accentColor=BRAND_DEFAULTS.accentColor;
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
       toast('Padrão MB preparado na prévia. Toque em “Salvar identidade” para aplicar.');
     });
     $('#recoverPreviousBranding',root)?.addEventListener('click',()=>{
       const previous=readBrandingRecovery();if(!previous)return toast('Nenhuma identidade anterior disponível.');
-      draft.appName=String(previous.appName||BRAND_DEFAULTS.appName);draft.studioName=String(previous.studioName||BRAND_DEFAULTS.studioName);draft.trainerName=String(previous.trainerName||BRAND_DEFAULTS.trainerName);draft.logoData=String(previous.brandLogoData||'');draft.primaryColor=normalizeBrandColor(previous.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);draft.accentColor=normalizeBrandColor(previous.brandAccentColor,BRAND_DEFAULTS.accentColor);
-      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;refreshPreview();
+      draft.appName=String(previous.appName||BRAND_DEFAULTS.appName);draft.studioName=String(previous.studioName||BRAND_DEFAULTS.studioName);draft.trainerName=String(previous.trainerName||BRAND_DEFAULTS.trainerName);draft.logoData=String(previous.brandLogoData||'');draft.logoFitBanner=normalizeLogoFit(previous.brandLogoFitBanner,'banner');draft.logoFitIcon=normalizeLogoFit(previous.brandLogoFitIcon,'icon');draft.primaryColor=normalizeBrandColor(previous.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);draft.accentColor=normalizeBrandColor(previous.brandAccentColor,BRAND_DEFAULTS.accentColor);
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
       toast('Identidade anterior carregada na prévia. Salve apenas se estiver correta.');
     });
-    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName}`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual salva.');});
+    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandLogoFitBanner=normalizeLogoFit(draft.logoFitBanner,'banner');state.settings.brandLogoFitIcon=normalizeLogoFit(draft.logoFitIcon,'icon');state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName} • enquadramento de logo`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual e enquadramentos salvos.');});
+    refreshLogoFitEditor();
   }
 
   function workspaceShortId(){
@@ -4225,9 +4299,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderSettings() {
     const m=metrics();
     viewEl.innerHTML=`
-      <section class="logo-feature"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
+      <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Personalização comercial • nome, logotipo e cores</p></div></div>
-      <section class="card brand-settings-card"><div class="brand-settings-preview"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /><div><span>${escapeHTML(brandAppName())}</span><strong>${escapeHTML(brandStudioName())}</strong><small>${escapeHTML(state.settings.trainerName||BRAND_DEFAULTS.trainerName)}</small></div><em>${escapeHTML(brandInitials())}</em></div><div class="brand-settings-footer"><div class="brand-swatches" aria-label="Cores atuais"><i style="--swatch:${escapeHTML(brandingSettings().primaryColor)}"></i><i style="--swatch:${escapeHTML(brandingSettings().accentColor)}"></i><span>${escapeHTML(brandingSettings().primaryColor)} • ${escapeHTML(brandingSettings().accentColor)}</span></div><button class="btn btn-primary btn-small" id="configureBranding">Personalizar</button></div></section>
+      <section class="card brand-settings-card"><div class="brand-settings-preview"><span class="brand-settings-logo-frame brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></span><div><span>${escapeHTML(brandAppName())}</span><strong>${escapeHTML(brandStudioName())}</strong><small>${escapeHTML(state.settings.trainerName||BRAND_DEFAULTS.trainerName)}</small></div><em>${escapeHTML(brandInitials())}</em></div><div class="brand-settings-footer"><div class="brand-swatches" aria-label="Cores atuais"><i style="--swatch:${escapeHTML(brandingSettings().primaryColor)}"></i><i style="--swatch:${escapeHTML(brandingSettings().accentColor)}"></i><span>${escapeHTML(brandingSettings().primaryColor)} • ${escapeHTML(brandingSettings().accentColor)}</span></div><button class="btn btn-primary btn-small" id="configureBranding">Personalizar</button></div></section>
       <div class="section-head"><div><h3>Aplicativo</h3><p>Operação local protegida neste dispositivo</p></div></div>
       <section class="card">
         <div class="settings-row"><div><strong>Versão instalada</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Agenda configurável</span></div>
