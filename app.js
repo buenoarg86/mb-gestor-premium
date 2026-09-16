@@ -1,12 +1,12 @@
-// MB Gestor Luxury Pro V12.4.0 — Professional Account Center • Owner & Device Foundation
+// MB Gestor Luxury Pro V12.5.0 — Plan & License Center • Clear Commercial Foundation
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.4.0 — Professional Account Center • Owner & Device Foundation
+  // MB Gestor Luxury Pro V12.5.0 — Plan & License Center • Clear Commercial Foundation
 
-  const APP_VERSION = '12.4.0';
+  const APP_VERSION = '12.5.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
-  const COMMERCIAL_SCHEMA_VERSION = 2;
+  const COMMERCIAL_SCHEMA_VERSION = 3;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
@@ -117,7 +117,7 @@
       accountMode: 'local',
       owner: {name:'',email:'',configuredAt:null,updatedAt:null},
       installation: {id:'',createdAt:'',label:'Este dispositivo'},
-      license: {status:'not-configured',plan:'local',checkedAt:null,source:'local'},
+      license: {schemaVersion:1,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,externalRef:null},
       sync: {mode:'off',lastSyncAt:null}
     },
     students: [],
@@ -241,8 +241,13 @@
     const installationSource=source.installation&&typeof source.installation==='object'?source.installation:{};
     const licenseSource=source.license&&typeof source.license==='object'?source.license:{};
     const syncSource=source.sync&&typeof source.sync==='object'?source.sync:{};
-    const allowedLicense=new Set(['not-configured','trial','active','past-due','suspended','expired']);
+    const allowedLicense=new Set(['not-configured','local-active','trial','active','past-due','suspended','expired']);
     const allowedPlan=new Set(['local','trial','starter','pro','studio']);
+    const plan=allowedPlan.has(String(licenseSource.plan||''))?String(licenseSource.plan):'local';
+    const licenseSourceMode=licenseSource.source==='online'?'online':'local';
+    let licenseStatus=allowedLicense.has(String(licenseSource.status||''))?String(licenseSource.status):'not-configured';
+    // V12.5.0 • instalações locais válidas deixam de parecer "sem licença". Não cria assinatura nem cobrança.
+    if(plan==='local'&&licenseSourceMode==='local'&&(licenseStatus==='not-configured'||!licenseStatus))licenseStatus='local-active';
     const ownerName=String(ownerSource.name||'').trim().slice(0,80);
     const ownerEmail=String(ownerSource.email||'').trim().slice(0,120);
     return {
@@ -265,10 +270,16 @@
       },
       license:{
         ...licenseSource,
-        status:allowedLicense.has(String(licenseSource.status||''))?String(licenseSource.status):'not-configured',
-        plan:allowedPlan.has(String(licenseSource.plan||''))?String(licenseSource.plan):'local',
+        schemaVersion:1,
+        status:licenseStatus,
+        plan,
         checkedAt:licenseSource.checkedAt||null,
-        source:licenseSource.source==='online'?'online':'local'
+        source:licenseSourceMode,
+        validFrom:licenseSource.validFrom||null,
+        validUntil:licenseSource.validUntil||null,
+        trialEndsAt:licenseSource.trialEndsAt||null,
+        renewalAt:licenseSource.renewalAt||null,
+        externalRef:licenseSource.externalRef||null
       },
       sync:{
         ...syncSource,
@@ -4383,11 +4394,44 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return ({local:'Local',trial:'Teste',starter:'Starter',pro:'Pro',studio:'Studio'})[plan]||'Local';
   }
 
+  function commercialLicense(){
+    state.commercial=normalizeCommercial(state.commercial);
+    return state.commercial.license;
+  }
+
+  function commercialLicenseStatusLabel(){
+    const status=String(commercialLicense()?.status||'local-active');
+    return ({'local-active':'Ativo local','not-configured':'Não vinculada',trial:'Período de teste',active:'Ativa','past-due':'Pagamento pendente',suspended:'Suspensa',expired:'Expirada'})[status]||'Ativo local';
+  }
+
+  function commercialLicenseTone(){
+    const status=String(commercialLicense()?.status||'local-active');
+    if(['active','trial','local-active'].includes(status))return 'good';
+    if(status==='past-due')return 'warn';
+    if(['suspended','expired'].includes(status))return 'danger';
+    return 'neutral';
+  }
+
+  function licenseDateLabel(value,fallback='Não aplicável'){
+    if(!value)return fallback;
+    const d=new Date(value);return Number.isNaN(d.getTime())?fallback:new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
+  }
+
+  function openPlanLicenseCenter(){
+    state.commercial=normalizeCommercial(state.commercial);
+    const license=commercialLicense(),local=license.plan==='local'&&license.source==='local',statusLabel=commercialLicenseStatusLabel(),tone=commercialLicenseTone();
+    const renewal=local?'Não aplicável':licenseDateLabel(license.renewalAt||license.validUntil,'Não informado');
+    const validation=license.checkedAt?formatDateTimeBR(license.checkedAt):(local?'Validação local':'Ainda não validada');
+    openModal('Plano e licença',`<div class="license-center-hero ${tone}"><span>${['good'].includes(tone)?'✓':tone==='warn'?'!':tone==='danger'?'×':'MB'}</span><div><small>ACESSO ATUAL</small><strong>Plano ${escapeHTML(commercialPlanLabel())}</strong><p>${local?'Uso neste dispositivo • sem assinatura ou cobrança vinculada.':`Status da licença: ${escapeHTML(statusLabel)}.`}</p></div></div><div class="license-center-grid"><div><span>Status</span><strong>${escapeHTML(statusLabel)}</strong></div><div><span>Licença online</span><strong>${license.source==='online'?'Vinculada':'Não vinculada'}</strong></div><div><span>Renovação</span><strong>${escapeHTML(renewal)}</strong></div><div><span>Última validação</span><strong>${escapeHTML(validation)}</strong></div></div><div class="account-center-section"><div class="section-overline">IDENTIFICAÇÃO</div><div class="account-device-grid"><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyLicenseSupportCode" type="button">Copiar código de suporte</button></div><div class="notice compact"><strong>Preparado para a próxima etapa comercial.</strong><br>Quando uma licença online for vinculada no futuro, esta mesma tela poderá mostrar plano, validade e renovação. Nada é simulado nesta versão e seus dados locais continuam funcionando normalmente.</div><div class="modal-actions"><button type="button" class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    $('#copyLicenseSupportCode')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(supportAccessCode());toast('Código de suporte copiado.')}catch{toast(`Código de suporte: ${supportAccessCode()}`)}});
+  }
+
   function openProfessionalAccountCenter(){
     state.commercial=normalizeCommercial(state.commercial);
     const owner=commercialOwner(),installation=commercialInstallation(),configured=commercialOwnerConfigured();
-    openModal('Conta e instalação',`<div class="account-center-hero ${configured?'ready':''}"><span>${configured?'✓':'MB'}</span><div><small>CONTA LOCAL</small><strong>${configured?escapeHTML(owner.name):'Configure o proprietário'}</strong><p>${configured?'Perfil comercial salvo somente neste dispositivo.':'Identifique quem administra este Studio sem criar login ou cobrança.'}</p></div></div><form id="commercialAccountForm" class="form-grid"><div class="account-center-section"><div class="section-overline">PROPRIETÁRIO</div><div class="field"><label>Nome do responsável</label><input name="ownerName" maxlength="80" autocomplete="name" value="${escapeHTML(owner.name||'')}" placeholder="Ex.: João Silva" /></div><div class="field"><label>E-mail <span class="muted">(opcional)</span></label><input name="ownerEmail" type="email" maxlength="120" autocomplete="email" value="${escapeHTML(owner.email||'')}" placeholder="contato@studio.com" /></div></div><div class="account-center-section"><div class="section-overline">ESTE DISPOSITIVO</div><div class="field"><label>Nome do dispositivo</label><input name="deviceLabel" maxlength="40" value="${escapeHTML(installation.label||'Este dispositivo')}" placeholder="Ex.: Celular principal" /></div><div class="account-device-grid"><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyAccountSupportCode" type="button">Copiar código de suporte</button></div><div class="account-center-section account-plan-box"><div><span>Plano atual</span><strong>${escapeHTML(commercialPlanLabel())}</strong><small>Operação local • nenhuma cobrança vinculada nesta etapa.</small></div><span class="pill">Ativo local</span></div><div class="notice compact">Conta online, assinatura e sincronização não são simuladas. Esta etapa cria uma identificação profissional e estável para o proprietário e para este aparelho, preparando a futura ativação comercial.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar conta local</button></div></form>`);
+    openModal('Conta e instalação',`<div class="account-center-hero ${configured?'ready':''}"><span>${configured?'✓':'MB'}</span><div><small>CONTA LOCAL</small><strong>${configured?escapeHTML(owner.name):'Configure o proprietário'}</strong><p>${configured?'Perfil comercial salvo somente neste dispositivo.':'Identifique quem administra este Studio sem criar login ou cobrança.'}</p></div></div><form id="commercialAccountForm" class="form-grid"><div class="account-center-section"><div class="section-overline">PROPRIETÁRIO</div><div class="field"><label>Nome do responsável</label><input name="ownerName" maxlength="80" autocomplete="name" value="${escapeHTML(owner.name||'')}" placeholder="Ex.: João Silva" /></div><div class="field"><label>E-mail <span class="muted">(opcional)</span></label><input name="ownerEmail" type="email" maxlength="120" autocomplete="email" value="${escapeHTML(owner.email||'')}" placeholder="contato@studio.com" /></div></div><div class="account-center-section"><div class="section-overline">ESTE DISPOSITIVO</div><div class="field"><label>Nome do dispositivo</label><input name="deviceLabel" maxlength="40" value="${escapeHTML(installation.label||'Este dispositivo')}" placeholder="Ex.: Celular principal" /></div><div class="account-device-grid"><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyAccountSupportCode" type="button">Copiar código de suporte</button></div><div class="account-center-section account-plan-box"><div><span>Plano atual</span><strong>${escapeHTML(commercialPlanLabel())}</strong><small>${escapeHTML(commercialLicenseStatusLabel())} • nenhuma cobrança vinculada nesta etapa.</small></div><button class="btn btn-secondary btn-small" id="openPlanLicenseFromAccount" type="button">Ver detalhes</button></div><div class="notice compact">Conta online, assinatura e sincronização não são simuladas. Esta etapa cria uma identificação profissional e estável para o proprietário e para este aparelho, preparando a futura ativação comercial.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar conta local</button></div></form>`);
     $('#copyAccountSupportCode')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(supportAccessCode());toast('Código de suporte copiado.')}catch{toast(`Código de suporte: ${supportAccessCode()}`)}});
+    $('#openPlanLicenseFromAccount')?.addEventListener('click',()=>{closeModal();openPlanLicenseCenter()});
     $('#commercialAccountForm')?.addEventListener('submit',e=>{
       e.preventDefault();
       const data=new FormData(e.currentTarget),now=new Date().toISOString();
@@ -4432,6 +4476,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('schema','Esquema de dados',Number(state.version)===DATA_SCHEMA_VERSION?'ok':'danger',`Estado V${Number(state.version)||'—'} • esperado V${DATA_SCHEMA_VERSION}.`);
     const commercialOk=Number(state.commercial?.schemaVersion)===COMMERCIAL_SCHEMA_VERSION&&Boolean(state.commercial?.installation?.id);
     push('commercial','Conta e instalação',commercialOk?'ok':'danger',commercialOk?`Estrutura V${COMMERCIAL_SCHEMA_VERSION} • instalação ${installationShortId()} • proprietário ${commercialOwnerConfigured()?'configurado':'ainda não informado'}.`:'Estrutura comercial ou identidade desta instalação ausente.');
+    const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
+    push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
     const arrays=['students','payments','expenses','physicalAssessments','auditLog','trash'];
     const objects=['schedule','attendance','makeups','settings'];
     const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
@@ -4465,7 +4511,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       `Esquema de dados: ${DATA_SCHEMA_VERSION}`,
       `Workspace: ${workspaceShortId()}`,
       `Modo: ${state.workspace?.mode||'local'}`,
-      `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • plano ${state.commercial?.license?.plan||'local'}`,
+      `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • plano ${state.commercial?.license?.plan||'local'} • licença ${state.commercial?.license?.status||'—'}`,
       `Instalação: ${installationShortId()} • proprietário configurado ${commercialOwnerConfigured()?'sim':'não'} • código de suporte ${supportAccessCode()}`,
       `Execução: ${standalone?'PWA instalada':'navegador'} • online ${navigator.onLine===false?'não':'sim'}`,
       `Armazenamento do estado: ${formatBytes(result.bytes)}`,
@@ -4525,7 +4571,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="settings-row commercial-settings-row"><div><strong>Agenda e modalidades</strong><span>${activeScheduleDays().length} dias ativos • ${operationConfig().modalities.filter(m=>m.enabled).length} modalidade${operationConfig().modalities.filter(m=>m.enabled).length===1?'':'s'} • edite quando precisar</span></div><button class="btn btn-primary btn-small" id="configureAgendaFlex">Configurar</button></div>
       </section>
       <div class="section-head"><div><h3>Conta e plano</h3><p>Identificação comercial simples, clara e sem bloqueios</p></div></div>
-      <section class="card professional-account-card"><div class="professional-account-head"><div class="professional-account-mark">${commercialOwnerConfigured()?'✓':'MB'}</div><div><span>CONTA LOCAL</span><strong>${escapeHTML(commercialOwnerConfigured()?commercialOwner().name:'Proprietário não configurado')}</strong><small>${commercialOwnerConfigured()?'Identidade do responsável salva neste aparelho.':'Configure uma vez para identificar esta instalação profissionalmente.'}</small></div><button class="btn ${commercialOwnerConfigured()?'btn-secondary':'btn-primary'} btn-small" id="openAccountCenter">${commercialOwnerConfigured()?'Gerenciar':'Configurar'}</button></div><div class="professional-account-meta"><div><span>Plano</span><strong>${escapeHTML(commercialPlanLabel())}</strong></div><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><div class="account-local-note">Operação local ativa • sem assinatura ou cobrança vinculada.</div></section>
+      <section class="card professional-account-card"><div class="professional-account-head"><div class="professional-account-mark">${commercialOwnerConfigured()?'✓':'MB'}</div><div><span>CONTA LOCAL</span><strong>${escapeHTML(commercialOwnerConfigured()?commercialOwner().name:'Proprietário não configurado')}</strong><small>${commercialOwnerConfigured()?'Identidade do responsável salva neste aparelho.':'Configure uma vez para identificar esta instalação profissionalmente.'}</small></div><button class="btn ${commercialOwnerConfigured()?'btn-secondary':'btn-primary'} btn-small" id="openAccountCenter">${commercialOwnerConfigured()?'Gerenciar':'Configurar'}</button></div><div class="professional-account-meta"><div><span>Plano</span><strong>${escapeHTML(commercialPlanLabel())}</strong></div><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="professional-license-row" id="openPlanLicense" type="button"><span><small>PLANO E LICENÇA</small><strong>${escapeHTML(commercialLicenseStatusLabel())}</strong><em>${state.commercial?.license?.source==='online'?'Licença online vinculada':'Operação local • sem cobrança vinculada'}</em></span><b>Detalhes ›</b></button></section>
       <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para dados financeiros</p></div></div>
       <section class="card">
         <div class="settings-row"><div><strong>PIN do Financeiro</strong><span>${financeLockEnabled()?'Ativado • solicitado ao abrir Financeiro e Cobranças':'Desativado • configure um PIN de 4 a 6 números'}</span></div><button class="btn ${financeLockEnabled()?'btn-secondary':'btn-primary'} btn-small" id="configureFinancePin">${financeLockEnabled()?'Alterar':'Ativar'}</button></div>
@@ -4546,7 +4592,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.4</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -4558,6 +4604,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#annualReportSettings')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
     $('#configureAgendaFlex')?.addEventListener('click',openAgendaFlexSettings);
     $('#openAccountCenter')?.addEventListener('click',openProfessionalAccountCenter);
+    $('#openPlanLicense')?.addEventListener('click',openPlanLicenseCenter);
     $('#configureFinancePin')?.addEventListener('click',configureFinancePin);
     $('#lockFinanceNow')?.addEventListener('click',()=>{financeUnlockedThisSession=false;toast('Financeiro bloqueado.');renderSettings();});
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
