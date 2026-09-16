@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.5.1 — Support Report UTF-8 Hotfix
-const CACHE='mb-gestor-luxury-pro-v12-5-1-support-report-utf8-hotfix';
-const ASSETS=['./','./index.html','./styles.css?v=12.5.1','./app.js?v=12.5.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.6.0 — External Body Fat Measurement • Method-Safe Reports
+const CACHE='mb-gestor-luxury-pro-v12-6-0-external-body-fat-method-safe-reports';
+const ASSETS=['./','./index.html','./styles.css?v=12.6.0','./app.js?v=12.6.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
