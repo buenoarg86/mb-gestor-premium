@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.6.1 — Assessment Update Guard Hotfix • External Body Fat Preserved
+// MB Gestor Luxury Pro V12.6.2 — Assessment Save Transition Hotfix • External Body Fat Preserved
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.6.1 — Assessment Update Guard Hotfix • External Body Fat Preserved
+  // MB Gestor Luxury Pro V12.6.2 — Assessment Save Transition Hotfix • External Body Fat Preserved
 
-  const APP_VERSION = '12.6.1';
+  const APP_VERSION = '12.6.2';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -197,9 +197,10 @@
   let assessmentSession = null;
   let assessmentHistoryIgnoreNextPop = false;
   let assessmentBackHandling = false;
-  // V12.6.1 • Update Guard: adia reload de Service Worker enquanto uma avaliação possui alterações não salvas.
+  // V12.6.2 • Save/Update Guard: protege a finalização da avaliação e nunca força reload automático na sessão ativa.
   let pendingSafeAppReload = false;
-  let safeAppReloadTimer = null;
+  let assessmentProgrammaticTransition = false;
+  let assessmentTransitionTimer = null;
   // Central Hoje 2.0: relógio vivo somente enquanto o dashboard estiver em tela.
   let dashboardClockTimer = null;
   // V12.0.5 • Simulação segura da Agenda.
@@ -2028,19 +2029,27 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return Boolean(assessmentSession?.dirty&&$('#physicalAssessmentForm',modalRoot));
   }
   function performSafeAppReload(){
+    // V12.6.2: atualizações nunca descarregam a página automaticamente.
+    // O novo worker/cache fica pronto e entra naturalmente no próximo fechamento/reabertura do app.
     if(hasUnsafeAssessmentEdit()){pendingSafeAppReload=true;return false}
     pendingSafeAppReload=false;
-    if(safeAppReloadTimer){clearTimeout(safeAppReloadTimer);safeAppReloadTimer=null}
-    safeAppReloadTimer=setTimeout(()=>{safeAppReloadTimer=null;location.reload()},80);
+    toast('Atualização pronta. Ela será aplicada ao fechar e abrir o app novamente.');
     return true;
   }
   function releasePendingSafeAppReload(){
     if(!pendingSafeAppReload||hasUnsafeAssessmentEdit())return false;
     return performSafeAppReload();
   }
+  function beginAssessmentProgrammaticTransition(){
+    assessmentProgrammaticTransition=true;
+    if(assessmentTransitionTimer){clearTimeout(assessmentTransitionTimer);assessmentTransitionTimer=null}
+    assessmentTransitionTimer=setTimeout(()=>{assessmentProgrammaticTransition=false;assessmentTransitionTimer=null},1200);
+  }
 
   function finishAssessmentSession({clearDraft=true,fromPopstate=false}={}){
     const session=assessmentSession;if(!session){closeModal();releasePendingSafeAppReload();return}
+    // Salvamento ou descarte já confirmado: qualquer limpeza de histórico a partir daqui é intencional.
+    if(clearDraft&&!fromPopstate)beginAssessmentProgrammaticTransition();
     if(clearDraft)clearAssessmentDraft(session.studentId,session.assessmentId);
     assessmentSession=null;closeSkinfoldGuide();closeAnatomicalGuide();closeModal();
     if(!fromPopstate&&session.historyToken&&history.state?.mbAssessmentGuard===session.historyToken){assessmentHistoryIgnoreNextPop=true;try{history.back()}catch{assessmentHistoryIgnoreNextPop=false}}
@@ -2982,7 +2991,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(!(record.weight>0&&record.heightCm>0&&record.measurements.waist>0&&record.measurements.hip>0))return toast('Informe peso, altura, cintura e quadril para salvar a avaliação.');
       const ext=record.bodyComposition.externalMeasurement||{},rawExternalPercent=String(fd.get('externalBodyFatPercent')||'').trim(),extPct=Number(ext.bodyFatPercent);if(rawExternalPercent&&!(extPct>0&&extPct<75))return toast('Informe um percentual de gordura externo válido entre 1% e 74,9%.');if(rawExternalPercent&&!String(ext.method||'').trim())return toast('Informe o método ou origem da medição externa.');if(!rawExternalPercent)record.bodyComposition.externalMeasurement={bodyFatPercent:null,method:'',equipment:'',date:'',notes:'',source:'external'};
       const compResult=bodyCompositionSnapshot(record,student);record.bodyComposition={...record.bodyComposition,result:{bodyFatPercent:compResult.bodyFatPercent,fatMassKg:compResult.fatMassKg,fatFreeMassKg:compResult.fatFreeMassKg,bodyDensity:compResult.bodyDensity,skinfoldSum:compResult.skinfoldSum,complete:compResult.complete,note:compResult.note},calculatedAt:compResult.calculatedAt};const extResult=bodyCompositionExternalResult(record);if(record.bodyComposition.referenceSource==='external'&&!extResult.complete)record.bodyComposition.referenceSource=compResult.complete?'estimated':'external';if(record.bodyComposition.referenceSource==='estimated'&&!compResult.complete&&extResult.complete)record.bodyComposition.referenceSource='external';
-      const commitAssessment=()=>{state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record),ref=bodyCompositionReferenceResult(record,student);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)}${ref.complete?` • ${ref.source==='external'?'Gordura medida':'Gordura est.'} ${assessmentNumber(ref.bodyFatPercent,1)}% • ${ref.methodLabel}`:''} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);saveState();if(assessmentSession)assessmentSession.dirty=false;finishAssessmentSession({clearDraft:true});render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');};
+      const commitAssessment=()=>{state.physicalAssessments=state.physicalAssessments||[];if(existing)state.physicalAssessments=state.physicalAssessments.map(a=>a.id===existing.id?record:a);else state.physicalAssessments.push(record);const bmi=assessmentBMI(record),ircq=assessmentIRCQ(record),ref=bodyCompositionReferenceResult(record,student);addAudit(existing?'Avaliação física atualizada':'Avaliação física registrada',`${student.name} • ${fmtDate(record.date)} • IMC ${assessmentNumber(bmi,1)} • IRCQ ${assessmentNumber(ircq,2)}${ref.complete?` • ${ref.source==='external'?'Gordura medida':'Gordura est.'} ${assessmentNumber(ref.bodyFatPercent,1)}% • ${ref.methodLabel}`:''} • ${assessmentOptionLabel(ASSESSMENT_STAGES,record.stage)}`);beginAssessmentProgrammaticTransition();saveState();if(assessmentSession)assessmentSession.dirty=false;finishAssessmentSession({clearDraft:true});render();toast(existing?'Avaliação atualizada.':'Avaliação física salva.');};
       const proceedAfterComposition=()=>{if(record.date>isoToday()){openPremiumConfirm({title:'Data futura na avaliação',message:`A avaliação está marcada para ${fmtDate(record.date)}. Confirme somente se essa data estiver correta.`,confirmLabel:'Salvar mesmo assim',cancelLabel:'Revisar data',onConfirm:commitAssessment});return;}commitAssessment();};
       if(record.bodyComposition.method&&!compResult.complete){openPremiumConfirm({title:'Composição corporal incompleta',message:`O protocolo “${bodyCompositionMethodLabel(record.bodyComposition.method)}” ainda não possui todos os dados necessários. A avaliação pode ser salva normalmente, mas o percentual de gordura ficará sem resultado até a edição ser concluída.`,confirmLabel:'Salvar sem resultado',cancelLabel:'Revisar composição',onConfirm:proceedAfterComposition});return;}proceedAfterComposition();});
   }
@@ -5004,6 +5013,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   // Última barreira: se o sistema tentar descarregar a página com rascunho sujo, preserve os dados e peça confirmação nativa.
   window.addEventListener('beforeunload',event=>{
+    // Salvamento/descarte já confirmado pelo usuário: não bloquear a transição interna do próprio app.
+    if(assessmentProgrammaticTransition)return;
     if(!assessmentSession?.dirty)return;
     const form=$('#physicalAssessmentForm',modalRoot);if(form)persistAssessmentDraftFromForm(form,{dirty:true});
     event.preventDefault();event.returnValue='';

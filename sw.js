@@ -1,7 +1,7 @@
-// MB Gestor Luxury Pro V12.6.1 — Assessment Update Guard Hotfix • External Body Fat Preserved
-const CACHE='mb-gestor-luxury-pro-v12-6-1-assessment-update-guard-hotfix';
-const ASSETS=['./','./index.html','./styles.css?v=12.6.1','./app.js?v=12.6.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
-// V12.6.1 • atualização segura: o worker instalado aguarda o fechamento da sessão ativa; não força troca de controlador no meio de formulários.
+// MB Gestor Luxury Pro V12.6.2 — Assessment Save Transition Hotfix • External Body Fat Preserved
+const CACHE='mb-gestor-luxury-pro-v12-6-2-assessment-save-transition-hotfix';
+const ASSETS=['./','./index.html','./styles.css?v=12.6.2','./app.js?v=12.6.2','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// V12.6.2 • atualização segura: o worker aguarda o fechamento da sessão ativa e nunca força recarga de formulário em edição.
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
