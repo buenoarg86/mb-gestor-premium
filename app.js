@@ -1,11 +1,12 @@
-// MB Gestor Luxury Pro V12.2.3 — Version Sync & Update Guard Hotfix
+// MB Gestor Luxury Pro V12.3.0 — Commercial Safety Center • Diagnostics & Backup Integrity
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.2.3 — Version Sync & Update Guard Hotfix
+  // MB Gestor Luxury Pro V12.3.0 — Commercial Safety Center • Diagnostics & Backup Integrity
 
-  const APP_VERSION = '12.2.3';
-  const DATA_SCHEMA_VERSION = 2;
+  const APP_VERSION = '12.3.0';
+  const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
+  const COMMERCIAL_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
@@ -110,6 +111,13 @@
   const DEFAULT_STATE = {
     version: DATA_SCHEMA_VERSION,
     workspace: {schemaVersion:WORKSPACE_SCHEMA_VERSION,id:'',createdAt:'',mode:'local'},
+    commercial: {
+      schemaVersion: COMMERCIAL_SCHEMA_VERSION,
+      product: 'mb-gestor-luxury-pro',
+      accountMode: 'local',
+      license: {status:'not-configured',plan:'local',checkedAt:null},
+      sync: {mode:'off',lastSyncAt:null}
+    },
     students: [],
     expenses: [],
     payments: [],
@@ -225,6 +233,31 @@
     };
   }
 
+  function normalizeCommercial(raw={}){
+    const source=raw&&typeof raw==='object'?raw:{};
+    const licenseSource=source.license&&typeof source.license==='object'?source.license:{};
+    const syncSource=source.sync&&typeof source.sync==='object'?source.sync:{};
+    const allowedLicense=new Set(['not-configured','trial','active','past-due','suspended','expired']);
+    const allowedPlan=new Set(['local','trial','starter','pro','studio']);
+    return {
+      ...source,
+      schemaVersion:COMMERCIAL_SCHEMA_VERSION,
+      product:'mb-gestor-luxury-pro',
+      accountMode:source.accountMode==='cloud'?'cloud':'local',
+      license:{
+        ...licenseSource,
+        status:allowedLicense.has(String(licenseSource.status||''))?String(licenseSource.status):'not-configured',
+        plan:allowedPlan.has(String(licenseSource.plan||''))?String(licenseSource.plan):'local',
+        checkedAt:licenseSource.checkedAt||null
+      },
+      sync:{
+        ...syncSource,
+        mode:syncSource.mode==='on'?'on':'off',
+        lastSyncAt:syncSource.lastSyncAt||null
+      }
+    };
+  }
+
   function stateHasBusinessData(source={}){
     return Boolean(
       (source.students||[]).length || (source.payments||[]).length || (source.expenses||[]).length ||
@@ -295,6 +328,7 @@
   function createFreshState(){
     const fresh=structuredClone(DEFAULT_STATE);
     fresh.workspace=normalizeWorkspace();
+    fresh.commercial=normalizeCommercial();
     fresh.settings.operationConfig=structuredClone(DEFAULT_OPERATION_CONFIG);
     return fresh;
   }
@@ -308,6 +342,7 @@
       ...parsed,
       version:DATA_SCHEMA_VERSION,
       workspace:normalizeWorkspace(workspaceSource),
+      commercial:normalizeCommercial(parsed.commercial),
       students:Array.isArray(parsed.students)?parsed.students:[],
       expenses:Array.isArray(parsed.expenses)?parsed.expenses:[],
       payments:Array.isArray(parsed.payments)?parsed.payments:[],
@@ -336,11 +371,11 @@
       if(!raw)return createFreshState();
       const parsed=JSON.parse(raw);
       const hydrated=hydrateState(parsed);
-      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||!parsed.settings?.operationConfig;
+      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||!parsed.settings?.operationConfig;
       if(needsFoundationMigration){
         // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
         // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
-        persistBrandingRecovery(parsed.settings||{},'pré-migração V12.2.1');
+        persistBrandingRecovery(parsed.settings||{},'pré-migração comercial');
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(hydrated));}catch(err){console.warn('Migração comercial carregada em memória; persistência adiada.',err);}
       }
       return hydrated;
@@ -4296,8 +4331,114 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return id?`…${id.slice(-8).toUpperCase()}`:'—';
   }
 
+  function approxStateBytes(source=state){
+    try{return new Blob([JSON.stringify(source)]).size}catch{return 0}
+  }
+
+  function formatBytes(bytes=0){
+    const n=Math.max(0,Number(bytes)||0);
+    if(n<1024)return `${n} B`;
+    if(n<1024*1024)return `${(n/1024).toFixed(n<10240?1:0)} KB`;
+    return `${(n/1024/1024).toFixed(2)} MB`;
+  }
+
+  function duplicateIds(rows=[]){
+    const seen=new Set(),dup=new Set();
+    (Array.isArray(rows)?rows:[]).forEach(row=>{const id=String(row?.id||'').trim();if(!id)return;if(seen.has(id))dup.add(id);else seen.add(id)});
+    return [...dup];
+  }
+
+  function backupAgeDays(){
+    const raw=state.settings?.lastBackupAt;if(!raw)return null;
+    const d=new Date(raw);if(Number.isNaN(d.getTime()))return null;
+    return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  }
+
+  function runCommercialIntegrityCheck(){
+    const checks=[];
+    const push=(id,label,status,detail)=>checks.push({id,label,status,detail});
+    const workspaceOk=Boolean(state.workspace?.id&&state.workspace?.createdAt);
+    push('workspace','Workspace do Studio',workspaceOk?'ok':'danger',workspaceOk?`Identidade ${workspaceShortId()} ativa.`:'Identidade lógica ausente. Faça backup antes de qualquer alteração.');
+    push('schema','Esquema de dados',Number(state.version)===DATA_SCHEMA_VERSION?'ok':'danger',`Estado V${Number(state.version)||'—'} • esperado V${DATA_SCHEMA_VERSION}.`);
+    push('commercial','Base comercial',Number(state.commercial?.schemaVersion)===COMMERCIAL_SCHEMA_VERSION?'ok':'danger',`Estrutura comercial V${Number(state.commercial?.schemaVersion)||'—'} • conta/licença ainda ${state.commercial?.license?.status==='not-configured'?'não ativada':'configurada'}.`);
+    const arrays=['students','payments','expenses','physicalAssessments','auditLog','trash'];
+    const objects=['schedule','attendance','makeups','settings'];
+    const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
+    push('structure','Estrutura principal',invalid.length?'danger':'ok',invalid.length?`Campos inválidos: ${invalid.join(', ')}.`:'Coleções essenciais estão no formato esperado.');
+    const duplicateGroups=[['alunos',duplicateIds(state.students)],['receitas',duplicateIds(state.payments)],['gastos',duplicateIds(state.expenses)],['avaliações',duplicateIds(state.physicalAssessments)]].filter(([,ids])=>ids.length);
+    push('ids','Identificadores únicos',duplicateGroups.length?'danger':'ok',duplicateGroups.length?`Duplicidades detectadas em ${duplicateGroups.map(([name,ids])=>`${name} (${ids.length})`).join(', ')}.`:'Nenhuma duplicidade crítica de ID encontrada.');
+    const op=state.settings?.operationConfig,mods=Array.isArray(op?.modalities)?op.modalities:[];
+    const modDup=duplicateIds(mods);
+    push('agenda','Configuração da Agenda',(!op||!mods.length||modDup.length)?'danger':'ok',!op?'Configuração operacional ausente.':!mods.length?'Nenhuma modalidade configurada.':modDup.length?`${modDup.length} modalidade(s) com ID duplicado.`:`${activeScheduleDays().length} dia(s) ativo(s) • ${mods.filter(x=>x.enabled).length} modalidade(s) habilitada(s).`);
+    const bytes=approxStateBytes();
+    const storageStatus=bytes>=4.5*1024*1024?'danger':bytes>=3.5*1024*1024?'warn':'ok';
+    push('storage','Tamanho local',storageStatus,`${formatBytes(bytes)} utilizados pelo estado principal${storageStatus==='warn'?' • atenção ao crescimento de imagens e histórico.':storageStatus==='danger'?' • próximo do limite comum de armazenamento local.':''}`);
+    const age=backupAgeDays();
+    const backupStatus=age===null?'warn':age>30?'danger':age>7?'warn':'ok';
+    push('backup','Backup recente',backupStatus,age===null?'Nenhum backup registrado neste aparelho.':age===0?'Backup realizado hoje.':`Último backup há ${age} dia(s) • V${state.settings?.lastBackupVersion||'—'}.`);
+    const swSupported='serviceWorker' in navigator,swControlled=Boolean(navigator.serviceWorker?.controller);
+    push('pwa','Camada de atualização',!swSupported?'warn':swControlled?'ok':'warn',!swSupported?'Service Worker não suportado neste navegador.':swControlled?'Service Worker ativo e controlando esta instalação.':'Service Worker disponível, mas ainda sem controle desta sessão.');
+    const cryptoOk=Boolean(globalThis.crypto?.subtle&&globalThis.TextEncoder);
+    push('crypto','Validação criptográfica de backup',cryptoOk?'ok':'warn',cryptoOk?'SHA-256 disponível para novos backups.':'SHA-256 indisponível neste ambiente; backups continuam compatíveis, mas sem verificação criptográfica local.');
+    const danger=checks.filter(x=>x.status==='danger').length,warn=checks.filter(x=>x.status==='warn').length;
+    const status=danger?'danger':warn?'warn':'ok';
+    return {checks,status,danger,warn,bytes,summaryLabel:danger?'Ação necessária':warn?'Atenção':'Tudo certo'};
+  }
+
+  function supportReportText(result=runCommercialIntegrityCheck()){
+    const counts=backupSummaryFor(state),standalone=window.matchMedia?.('(display-mode: standalone)')?.matches||navigator.standalone===true;
+    const lines=[
+      'MB Gestor Luxury Pro — Relatório de suporte',
+      `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+      `Versão do app: ${APP_VERSION}`,
+      `Esquema de dados: ${DATA_SCHEMA_VERSION}`,
+      `Workspace: ${workspaceShortId()}`,
+      `Modo: ${state.workspace?.mode||'local'}`,
+      `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • licença ${state.commercial?.license?.status||'not-configured'}`,
+      `Execução: ${standalone?'PWA instalada':'navegador'} • online ${navigator.onLine===false?'não':'sim'}`,
+      `Armazenamento do estado: ${formatBytes(result.bytes)}`,
+      `Último backup: ${state.settings?.lastBackupAt?formatDateTimeBR(state.settings.lastBackupAt):'não registrado'} • versão ${state.settings?.lastBackupVersion||'—'}`,
+      '',
+      'CONTAGENS (sem nomes, telefones ou valores)',
+      `Alunos: ${counts.students}`,
+      `Receitas: ${counts.payments}`,
+      `Gastos: ${counts.expenses}`,
+      `Registros de aula: ${counts.attendanceRecords}`,
+      `Avaliações físicas: ${(state.physicalAssessments||[]).length}`,
+      '',
+      `DIAGNÓSTICO: ${result.summaryLabel} • ${result.danger} crítico(s) • ${result.warn} atenção(ões)`,
+      ...result.checks.map(c=>`[${c.status.toUpperCase()}] ${c.label}: ${c.detail}`),
+      '',
+      'Privacidade: este relatório não inclui nomes de alunos, contatos, valores financeiros, fotos, logotipos ou conteúdo clínico/avaliativo.'
+    ];
+    return lines.join('\n');
+  }
+
+  function downloadText(name,text){
+    const blob=new Blob([text],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1200);
+  }
+
+  function openCommercialDiagnostics(){
+    const result=runCommercialIntegrityCheck();
+    const iconFor=status=>status==='ok'?'✓':status==='warn'?'!':'×';
+    openModal('Segurança e diagnóstico',`<div class="diagnostic-hero ${result.status}"><span>${iconFor(result.status)}</span><div><strong>${escapeHTML(result.summaryLabel)}</strong><small>${result.danger} crítico(s) • ${result.warn} atenção(ões) • ${escapeHTML(formatBytes(result.bytes))} locais</small></div></div><div class="diagnostic-list">${result.checks.map(c=>`<div class="diagnostic-row ${c.status}"><b>${iconFor(c.status)}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div></div>`).join('')}</div><div class="notice compact">Verificação somente leitura: esta tela não altera alunos, agenda, financeiro, avaliações ou configurações.</div><div class="modal-actions diagnostic-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button><button class="btn btn-secondary" id="copySupportReport">Copiar relatório</button><button class="btn btn-primary" id="downloadSupportReport">Baixar relatório</button></div>`);
+    const report=supportReportText(result);
+    $('#downloadSupportReport')?.addEventListener('click',()=>{downloadText(`MB_Gestor_Diagnostico_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.txt`,report);addAudit('Relatório de suporte gerado',`V${APP_VERSION} • ${result.summaryLabel}`);saveState();toast('Relatório de suporte gerado sem dados pessoais.');});
+    $('#copySupportReport')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(report);toast('Relatório copiado.')}catch{toast('Não foi possível copiar automaticamente. Use “Baixar relatório”.')}});
+  }
+
+  async function sha256Hex(text=''){
+    try{
+      if(!globalThis.crypto?.subtle||!globalThis.TextEncoder)return '';
+      const data=new TextEncoder().encode(String(text)),hash=await crypto.subtle.digest('SHA-256',data);
+      return Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
+    }catch{return ''}
+  }
+
   function renderSettings() {
     const m=metrics();
+    const diagnostic=runCommercialIntegrityCheck();
     viewEl.innerHTML=`
       <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Personalização comercial • nome, logotipo e cores</p></div></div>
@@ -4322,10 +4463,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="settings-row"><div><strong>Exportar backup completo</strong><span>Salva alunos, agenda, presenças, reposições, financeiro e preferências em um único arquivo.</span></div><button class="btn btn-primary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
         <div class="settings-row"><div><strong>Importar / restaurar</strong><span>Valida o arquivo antes de substituir os dados atuais.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
       </section>
+      <div class="section-head"><div><h3>Integridade e suporte</h3><p>Diagnóstico local sem expor dados pessoais</p></div></div>
+      <section class="card commercial-safety-card">
+        <div class="commercial-safety-summary ${diagnostic.status}"><span>${diagnostic.status==='ok'?'✓':diagnostic.status==='warn'?'!':'×'}</span><div><strong>${escapeHTML(diagnostic.summaryLabel)}</strong><small>${diagnostic.danger} crítico(s) • ${diagnostic.warn} atenção(ões) • ${escapeHTML(formatBytes(diagnostic.bytes))} no estado principal</small></div></div>
+        <div class="settings-row"><div><strong>Verificar integridade</strong><span>Confere Workspace, esquema, IDs, configuração operacional, backup, armazenamento e camada de atualização.</span></div><button class="btn btn-primary btn-small" id="openDiagnostics">Executar</button></div>
+        <div class="settings-row"><div><strong>Relatório de suporte</strong><span>Gera um arquivo técnico sem nomes, contatos, valores financeiros, fotos ou avaliações.</span></div><button class="btn btn-secondary btn-small" id="quickSupportReport">Gerar</button></div>
+      </section>
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com origem identificada</strong><span>Novos backups registram Workspace, versão do app e esquema de dados para reduzir restaurações acidentais.</span></div><span class="pill">V12.2</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Base de conta e licença</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} preparada, sem login, cobrança ou bloqueio nesta etapa.</span></div><span class="pill">Preparada</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.3</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -4341,6 +4488,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
+    $('#openDiagnostics')?.addEventListener('click',openCommercialDiagnostics);
+    $('#quickSupportReport')?.addEventListener('click',()=>{const result=runCommercialIntegrityCheck();downloadText(`MB_Gestor_Diagnostico_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.txt`,supportReportText(result));addAudit('Relatório de suporte gerado',`V${APP_VERSION} • ${result.summaryLabel}`);saveState();toast('Relatório técnico gerado sem dados pessoais.');});
     $('#openTrash')?.addEventListener('click',openTrash);
     $('#openAudit')?.addEventListener('click',openAuditHistory);
     $('#settingsMonthClose')?.addEventListener('click',openMonthlyClose);
@@ -4567,22 +4716,25 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,expenses:(sourceState.expenses||[]).length,attendanceRecords,present,absent,makeups};
   }
 
-  function exportBackup(){
+  async function exportBackup(){
     const now=new Date(),summary=backupSummaryFor(state);
     state.settings.lastBackupAt=now.toISOString();state.settings.lastBackupExportedAt=now.toISOString();state.settings.lastBackupVersion=APP_VERSION;state.settings.lastBackupSummary=summary;
     addAudit('Backup gerado',`V${APP_VERSION} • Workspace ${workspaceShortId()} • ${summary.students} alunos • ${summary.payments} receitas • ${summary.attendanceRecords} registros de aula`);
     saveState();
+    const stateDigest=await sha256Hex(JSON.stringify(state));
     const payload={
       app:'MB Gestor Luxury Pro',
-      backupFormatVersion:2,
+      backupFormatVersion:3,
       appVersion:APP_VERSION,
       dataSchemaVersion:DATA_SCHEMA_VERSION,
+      commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,
       exportedAt:now.toISOString(),
       workspace:{...state.workspace},
+      integrity:stateDigest?{algorithm:'SHA-256',stateDigest}:null,
       summary,
       state
     };
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(`Backup completo V${APP_VERSION} gerado.`);renderSettings();
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(stateDigest?`Backup completo V${APP_VERSION} gerado e verificado.`:`Backup completo V${APP_VERSION} gerado.`);renderSettings();
   }
 
   async function importBackup(e){
@@ -4590,6 +4742,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     try{
       const data=JSON.parse(await file.text()),incoming=data.state||data;
       if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');
+      const expectedDigest=String(data.integrity?.stateDigest||'').trim().toLowerCase();
+      let integrityLabel='Backup legado',integrityTone='';
+      if(expectedDigest){
+        const actualDigest=await sha256Hex(JSON.stringify(incoming));
+        if(actualDigest&&actualDigest!==expectedDigest)throw new Error('Integridade SHA-256 inválida');
+        integrityLabel=actualDigest?'SHA-256 verificado':'SHA-256 presente';
+        integrityTone=actualDigest?'':'warn';
+      }
       const sm=data.summary||backupSummaryFor(incoming),version=data.appVersion||incoming?.settings?.lastBackupVersion||'não informada',exportedAt=data.exportedAt||incoming?.settings?.lastBackupExportedAt||incoming?.settings?.lastBackupAt||null;
       const incomingWorkspaceId=String(data.workspace?.id||incoming.workspace?.id||'').trim();
       const currentWorkspaceId=String(state.workspace?.id||'').trim();
@@ -4608,7 +4768,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           :guardNeeded
             ?'ATENÇÃO: o backup pertence a outro Workspace. A restauração só será liberada após sua confirmação explícita.'
             :'Workspace conferido. Ao continuar, os dados atuais serão substituídos pelo conteúdo deste backup.';
-      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>Restaurar</button></div>`);
+      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>Restaurar</button></div>`);
       const confirmBtn=$('#confirmImport'),guard=$('#confirmCrossWorkspace');
       if(guard)guard.addEventListener('change',()=>{confirmBtn.disabled=!guard.checked});
       confirmBtn.addEventListener('click',()=>{
@@ -4619,7 +4779,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         addAudit('Backup restaurado',`V${version} • Workspace ${workspaceShortId()} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);
         saveState();closeModal();applyBranding();render();toast('Backup restaurado com validação de origem.');
       });
-    }catch(err){console.error(err);toast('Não foi possível importar esse arquivo.');}finally{e.target.value='';}
+    }catch(err){console.error(err);toast(String(err?.message||'').includes('Integridade SHA-256')?'Backup bloqueado: a integridade do arquivo não confere.':'Não foi possível importar esse arquivo.');}finally{e.target.value='';}
   }
 
   function enhanceDateInputs(root){
@@ -4702,7 +4862,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   $('#installBtnSide')?.addEventListener('click',installApp);
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    // V12.2.3 • atualização segura: evita que HTML novo rode com JS/CSS antigos em WebViews/PWA Android.
+    // V12.3.0 • atualização segura: evita que HTML novo rode com JS/CSS antigos em WebViews/PWA Android.
     window.addEventListener('load',async()=>{
       const hadController=!!navigator.serviceWorker.controller;
       try{
