@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.8.4 — Avaliação Postural Premium • Evolution Compare + Lateral D Head Precision Hotfix
+// MB Gestor Luxury Pro V12.9.0 — Recibos Premium • Etapa 1
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.8.4 — Avaliação Postural Premium • Evolution Compare + Lateral D Head Precision Hotfix
+  // MB Gestor Luxury Pro V12.9.0 — Recibos Premium • Etapa 1
 
-  const APP_VERSION = '12.8.4';
+  const APP_VERSION = '12.9.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -123,6 +123,7 @@
     students: [],
     expenses: [],
     payments: [],
+    receipts: [],
     schedule: {},
     attendance: {},
     makeups: {},
@@ -292,7 +293,7 @@
 
   function stateHasBusinessData(source={}){
     return Boolean(
-      (source.students||[]).length || (source.payments||[]).length || (source.expenses||[]).length ||
+      (source.students||[]).length || (source.payments||[]).length || (source.receipts||[]).length || (source.expenses||[]).length ||
       (source.physicalAssessments||[]).length || (source.posturalAssessments||[]).length || (source.prospects||[]).length || (source.trials||[]).length ||
       Object.values(source.schedule||{}).some(ids=>Array.isArray(ids)&&ids.length) ||
       Object.keys(source.attendance||{}).length || Object.keys(source.makeups||{}).length
@@ -378,6 +379,7 @@
       students:Array.isArray(parsed.students)?parsed.students:[],
       expenses:Array.isArray(parsed.expenses)?parsed.expenses:[],
       payments:Array.isArray(parsed.payments)?parsed.payments:[],
+      receipts:Array.isArray(parsed.receipts)?parsed.receipts:[],
       schedule:(parsed.schedule&&typeof parsed.schedule==='object')?parsed.schedule:{},
       attendance:(parsed.attendance&&typeof parsed.attendance==='object')?parsed.attendance:{},
       makeups:(parsed.makeups&&typeof parsed.makeups==='object')?parsed.makeups:{},
@@ -640,7 +642,7 @@ function openHolidayQuick(){
   $('#holidayQuickForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),label=String(fd.get('label')||'Feriado').trim();state.studioClosures.push({id:uid('close'),startDate:date,endDate:date,type:'Feriado',label});addAudit('Feriado marcado',`${label} • ${fmtDate(date)}`);saveState();closeModal();toast('Feriado marcado no calendário.');if(currentView==='schedule')renderSchedule();});
 }
 
-function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,160);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')||a.includes('gasto')?'money':a.includes('backup')?'backup':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
+function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,160);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')||a.includes('recibo')||a.includes('gasto')?'money':a.includes('backup')?'backup':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
 function trashTypeLabel(type){return type==='student'?'Aluno':type==='prospect'?'Interessado':type==='payment'?'Receita':type==='expense'?'Gasto':'Item'}
 function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||trashTypeLabel(x.type))}</strong><span>${x.type==='student'?'Cadastro':escapeHTML(trashTypeLabel(x.type))} removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar aluno</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado com sucesso.');render()}))}
 
@@ -3774,9 +3776,88 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return `<article class="card finance-trend-card"><div class="premium-card-title"><span>Últimos 6 meses</span>${icon('chart')}</div><div class="finance-bars">${rows.map(x=>`<div class="finance-bar-col"><div class="finance-bars-stack"><span class="finance-bar received" style="height:${Math.max(3,Math.round(x.received/max*100))}%" title="Recebido: ${fmtMoney(x.received)}"></span><span class="finance-bar expense" style="height:${Math.max(3,Math.round(x.expenses/max*100))}%" title="Gastos: ${fmtMoney(x.expenses)}"></span></div><strong>${escapeHTML(x.label)}</strong><small>${fmtMoney(x.net)}</small></div>`).join('')}</div><div class="finance-legend"><span>▮ Recebido</span><span>▮ Gastos</span><span>Saldo abaixo de cada mês</span></div></article>`;
   }
 
+  // ================================================================
+  // V12.9.0 — Recibos Premium • Etapa 1
+  // Recibos são snapshots independentes do lançamento financeiro.
+  // Um recibo emitido nunca é alterado silenciosamente junto com a receita.
+  // ================================================================
+  function receiptMethodLabel(value){return String(value||'pix')==='cash'?'Dinheiro':'PIX'}
+  function receiptCompetenceLabel(value){
+    const v=String(value||'');if(!/^\d{4}-\d{2}$/.test(v))return '—';
+    const [y,m]=v.split('-').map(Number);return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1,12));
+  }
+  function receiptStatusLabel(receipt){return receipt?.status==='cancelled'?'Cancelado':'Emitido'}
+  function activeReceiptForPayment(paymentId){return (state.receipts||[]).find(r=>String(r.paymentId)===String(paymentId)&&r.status!=='cancelled')||null}
+  function receiptsForPayment(paymentId){return (state.receipts||[]).filter(r=>String(r.paymentId)===String(paymentId)).sort((a,b)=>String(b.issuedAt||'').localeCompare(String(a.issuedAt||'')))}
+  function nextReceiptNumber(){
+    const year=new Date().getFullYear(),re=new RegExp(`^REC-${year}-(\\d+)$`),max=(state.receipts||[]).reduce((highest,r)=>{const match=String(r.number||'').match(re);return match?Math.max(highest,Number(match[1])||0):highest},0);
+    return `REC-${year}-${String(max+1).padStart(4,'0')}`;
+  }
+  function receiptPaymentSnapshot(payment,{payerName='',competence='',notes=''}={}){
+    const student=state.students.find(x=>String(x.id)===String(payment.studentId)),brand=brandingSettings(),issuedAt=new Date().toISOString();
+    return {
+      id:uid('rec'),number:nextReceiptNumber(),paymentId:String(payment.id),status:'issued',issuedAt,cancelledAt:null,cancelReason:'',
+      paymentDate:String(payment.date||isoToday()),amount:Number(payment.amount)||0,paymentMethod:String(payment.paymentMethod||student?.paymentMethod||'pix'),
+      reference:String(payment.reference||payment.type||'Mensalidade').trim()||'Mensalidade',competence:String(competence||monthKey(payment.date)||monthKey()),notes:String(notes||'').trim().slice(0,240),
+      studentId:String(payment.studentId||''),studentName:String(student?.name||payment.studentName||'Aluno').trim(),studentWhatsapp:String(student?.whatsapp||''),studentEmail:String(student?.email||''),
+      payerName:String(payerName||student?.name||payment.studentName||'Aluno').trim(),studioName:brand.studioName,professionalName:brand.trainerName,appName:brand.appName,
+      brandPrimaryColor:brand.primaryColor,brandAccentColor:brand.accentColor
+    };
+  }
+  function openReceiptIssueModal(paymentId){
+    if(!financialValuesVisible)return toast('Mostre os valores antes de emitir um recibo.');
+    const payment=state.payments.find(x=>String(x.id)===String(paymentId));if(!payment)return toast('Receita não encontrada.');
+    const active=activeReceiptForPayment(paymentId);if(active)return openReceiptPreview(active.id);
+    const student=state.students.find(x=>String(x.id)===String(payment.studentId)),defaultCompetence=monthKey(payment.date)||monthKey();
+    openModal('Emitir recibo',`<section class="receipt-issue-hero"><span>${icon('receipt')}</span><div><strong>Recibo de pagamento</strong><small>${escapeHTML(student?.name||payment.studentName||'Aluno')} • ${fmtDate(payment.date)} • ${fmtMoney(payment.amount)}</small></div></section><form id="receiptIssueForm" class="form-grid"><div class="field"><label>Recebido de *</label><input name="payerName" maxlength="100" required value="${escapeHTML(student?.name||payment.studentName||'')}" /></div><div class="form-grid two"><div class="field"><label>Competência</label><input name="competence" type="month" value="${escapeHTML(defaultCompetence)}" /></div><div class="field"><label>Forma de pagamento</label><input value="${escapeHTML(receiptMethodLabel(payment.paymentMethod||student?.paymentMethod))}" disabled /></div></div><div class="field"><label>Referente a</label><input value="${escapeHTML(payment.reference||payment.type||'Mensalidade')}" disabled /></div><div class="field"><label>Observação <span class="muted">(opcional)</span></label><textarea name="notes" maxlength="240" rows="3" placeholder="Ex.: Mensalidade referente ao período informado."></textarea></div><div class="notice compact">O recibo salva uma fotografia deste pagamento. Depois de emitido, ele não muda silenciosamente se o cadastro do aluno for alterado.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">${icon('receipt')} Emitir recibo</button></div></form>`);
+    $('#receiptIssueForm')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),receipt=receiptPaymentSnapshot(payment,{payerName:String(fd.get('payerName')||''),competence:String(fd.get('competence')||defaultCompetence),notes:String(fd.get('notes')||'')});state.receipts=Array.isArray(state.receipts)?state.receipts:[];state.receipts.push(receipt);addAudit('Recibo emitido',`${receipt.number} • ${receipt.studentName} • ${fmtMoney(receipt.amount)}`);saveState();closeModal();toast('Recibo emitido.');renderFinance();setTimeout(()=>openReceiptPreview(receipt.id),80);});
+  }
+  function receiptDocumentHTML(receipt){
+    const cancelled=receipt.status==='cancelled',logo=brandingLogoSrc();
+    return `<section class="receipt-document ${cancelled?'is-cancelled':''}"><header class="receipt-doc-head"><div class="receipt-doc-brand"><span class="receipt-doc-logo brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img src="${escapeHTML(logo)}" alt="Logo ${escapeHTML(receipt.studioName||brandStudioName())}" /></span><div><span>${escapeHTML(receipt.studioName||brandStudioName())}</span><strong>RECIBO DE PAGAMENTO</strong><small>${escapeHTML(receipt.professionalName||brandingSettings().trainerName)}</small></div></div><div class="receipt-doc-id"><span class="receipt-status ${cancelled?'cancelled':'issued'}">${receiptStatusLabel(receipt)}</span><strong>${escapeHTML(receipt.number||'Recibo')}</strong><small>Emitido em ${formatDateTimeBR(receipt.issuedAt)}</small></div></header><div class="receipt-doc-value"><span>VALOR RECEBIDO</span><strong>${fmtMoney(receipt.amount)}</strong><small>${receiptMethodLabel(receipt.paymentMethod)}</small></div><div class="receipt-doc-statement">Recebemos de <strong>${escapeHTML(receipt.payerName||receipt.studentName||'Aluno')}</strong> o valor acima identificado, referente a <strong>${escapeHTML(receipt.reference||'Mensalidade')}</strong>.</div><div class="receipt-doc-grid"><div><span>Aluno</span><strong>${escapeHTML(receipt.studentName||'—')}</strong></div><div><span>Data do pagamento</span><strong>${fmtDate(receipt.paymentDate)}</strong></div><div><span>Competência</span><strong>${escapeHTML(receiptCompetenceLabel(receipt.competence))}</strong></div><div><span>Forma de pagamento</span><strong>${escapeHTML(receiptMethodLabel(receipt.paymentMethod))}</strong></div></div>${receipt.notes?`<div class="receipt-doc-note"><span>Observação</span><p>${escapeHTML(receipt.notes)}</p></div>`:''}<footer class="receipt-doc-footer"><div><strong>${escapeHTML(receipt.studioName||brandStudioName())}</strong><span>${escapeHTML(receipt.professionalName||brandingSettings().trainerName)}</span></div><p>Comprovante de pagamento. Este documento não é nota fiscal.</p></footer>${cancelled?`<div class="receipt-cancel-watermark">CANCELADO</div>`:''}</section>`;
+  }
+  function openReceiptPreview(receiptId){
+    if(!financialValuesVisible)return toast('Mostre os valores antes de abrir um recibo.');
+    const receipt=(state.receipts||[]).find(x=>String(x.id)===String(receiptId));if(!receipt)return toast('Recibo não encontrado.');
+    openModal(`Recibo • ${receipt.number}`,`<div class="receipt-preview-shell">${receiptDocumentHTML(receipt)}</div><div class="receipt-share-note"><strong>Compartilhamento</strong><span>Use “Compartilhar PDF” para enviar o arquivo pelo WhatsApp ou outro aplicativo. “WhatsApp” abre um resumo em texto.</span></div><div class="receipt-preview-actions"><button class="btn btn-primary" id="receiptSharePdf">${icon('share')} Compartilhar PDF</button><button class="btn btn-secondary" id="receiptWhatsapp">${icon('message')} WhatsApp</button>${receipt.status!=='cancelled'?`<button class="btn btn-secondary receipt-cancel-action" id="receiptCancel">Cancelar recibo</button>`:''}<button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#receiptSharePdf')?.addEventListener('click',async e=>{const btn=e.currentTarget,label=btn.innerHTML;btn.disabled=true;btn.innerHTML=`${icon('share')} Preparando…`;try{const file=await receiptCreatePdfFile(receipt);await receiptNativeShare(file,receipt)}catch(err){console.error('Receipt PDF',err);toast('Não foi possível preparar o PDF deste recibo.')}finally{btn.disabled=false;btn.innerHTML=label}});
+    $('#receiptWhatsapp')?.addEventListener('click',()=>shareReceiptWhatsapp(receipt));
+    $('#receiptCancel')?.addEventListener('click',()=>openReceiptCancelModal(receipt.id));
+  }
+  function openReceiptCancelModal(receiptId){
+    const receipt=(state.receipts||[]).find(x=>String(x.id)===String(receiptId));if(!receipt||receipt.status==='cancelled')return;
+    openModal('Cancelar recibo',`<form id="receiptCancelForm" class="form-grid"><div class="notice">O recibo <strong>${escapeHTML(receipt.number)}</strong> continuará no histórico marcado como cancelado. O lançamento financeiro não será excluído.</div><div class="field"><label>Motivo <span class="muted">(opcional)</span></label><input name="reason" maxlength="120" placeholder="Ex.: correção de dados" /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Manter recibo</button><button type="submit" class="btn btn-danger">Cancelar recibo</button></div></form>`);
+    $('#receiptCancelForm')?.addEventListener('submit',e=>{e.preventDefault();const reason=String(new FormData(e.currentTarget).get('reason')||'Cancelamento manual').trim()||'Cancelamento manual';receipt.status='cancelled';receipt.cancelledAt=new Date().toISOString();receipt.cancelReason=reason;addAudit('Recibo cancelado',`${receipt.number} • ${receipt.studentName} • ${reason}`);saveState();closeModal();toast('Recibo cancelado e preservado no histórico.');renderFinance();});
+  }
+  function renderReceipts(c){
+    const receipts=[...(state.receipts||[])].sort((a,b)=>String(b.issuedAt||'').localeCompare(String(a.issuedAt||''))),issued=receipts.filter(r=>r.status!=='cancelled').length,cancelled=receipts.length-issued;
+    c.innerHTML=`<div class="section-head"><div><h3>Recibos</h3><p>Comprovantes vinculados às receitas registradas</p></div><span class="pill">${issued} emitido${issued===1?'':'s'}</span></div><section class="receipt-summary-grid"><article class="card"><span>Emitidos</span><strong>${issued}</strong><small>recibos ativos</small></article><article class="card"><span>Cancelados</span><strong>${cancelled}</strong><small>preservados no histórico</small></article></section><div class="finance-history-tools"><div class="search-wrap">${icon('search')}<input id="receiptSearch" type="search" placeholder="Buscar aluno ou nº do recibo" /></div><select id="receiptStatusFilter" aria-label="Status do recibo"><option value="all">Todos</option><option value="issued">Emitidos</option><option value="cancelled">Cancelados</option></select></div><div id="receiptHistoryRoot"></div>`;
+    const draw=()=>{const q=String($('#receiptSearch')?.value||'').trim().toLowerCase(),status=$('#receiptStatusFilter')?.value||'all',filtered=receipts.filter(r=>(status==='all'||(status==='issued'?r.status!=='cancelled':r.status==='cancelled'))&&(!q||[r.number,r.studentName,r.payerName,r.reference].some(v=>String(v||'').toLowerCase().includes(q))));const root=$('#receiptHistoryRoot');if(!filtered.length){root.innerHTML=emptyState('Nenhum recibo encontrado',receipts.length?'Ajuste a busca ou o filtro.':'Emita um recibo a partir de uma receita registrada.');return;}root.innerHTML=`<section class="cards receipt-history-list">${filtered.map(r=>`<article class="card receipt-history-card ${r.status==='cancelled'?'is-cancelled':''}"><div class="receipt-history-main"><div><span class="receipt-status ${r.status==='cancelled'?'cancelled':'issued'}">${receiptStatusLabel(r)}</span><strong>${escapeHTML(r.number)}</strong><small>${escapeHTML(r.studentName||r.payerName||'Aluno')} • ${fmtDate(r.paymentDate)} • ${escapeHTML(receiptCompetenceLabel(r.competence))}</small></div><div class="receipt-history-value"><strong>${privateMoney(r.amount)}</strong><span>${escapeHTML(receiptMethodLabel(r.paymentMethod))}</span></div></div><div class="receipt-history-actions"><button class="btn btn-secondary btn-small js-open-receipt" data-id="${r.id}">${icon('eye')} Ver recibo</button>${r.status!=='cancelled'?`<button class="btn btn-secondary btn-small js-cancel-receipt" data-id="${r.id}">Cancelar</button>`:''}</div></article>`).join('')}</section>`;$$('.js-open-receipt',root).forEach(b=>b.addEventListener('click',()=>openReceiptPreview(b.dataset.id)));$$('.js-cancel-receipt',root).forEach(b=>b.addEventListener('click',()=>openReceiptCancelModal(b.dataset.id)));};
+    $('#receiptSearch')?.addEventListener('input',draw);$('#receiptStatusFilter')?.addEventListener('change',draw);draw();
+  }
+  function receiptSafeFilePart(value){return String(value||'recibo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'recibo'}
+  function receiptLoadImage(src){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src})}
+  function receiptCanvasWrap(ctx,text,x,y,maxWidth,lineHeight,maxLines=5){const words=String(text||'').split(/\s+/),lines=[];let line='';for(const word of words){const test=line?`${line} ${word}`:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word;if(lines.length>=maxLines-1)break}else line=test}if(line&&lines.length<maxLines)lines.push(line);lines.forEach((l,i)=>ctx.fillText(l,x,y+i*lineHeight));return y+lines.length*lineHeight}
+  async function receiptRenderCanvas(receipt){
+    const canvas=document.createElement('canvas');canvas.width=1240;canvas.height=1754;const ctx=canvas.getContext('2d'),primary=receipt.brandPrimaryColor||brandingSettings().primaryColor||'#d7a33d';ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#111318';ctx.fillRect(0,0,canvas.width,330);ctx.fillStyle=primary;ctx.fillRect(0,322,canvas.width,8);
+    try{const img=await receiptLoadImage(brandingLogoSrc());ctx.drawImage(img,82,72,150,150)}catch{ctx.fillStyle=primary;ctx.font='900 54px Arial';ctx.fillText(brandInitials(),90,165)}
+    ctx.fillStyle='#ffffff';ctx.font='700 34px Arial';ctx.fillText(receipt.studioName||brandStudioName(),270,112);ctx.fillStyle=primary;ctx.font='900 58px Arial';ctx.fillText('RECIBO DE PAGAMENTO',270,181);ctx.fillStyle='#b9bdc6';ctx.font='500 28px Arial';ctx.fillText(receipt.professionalName||brandingSettings().trainerName,270,225);ctx.textAlign='right';ctx.fillStyle='#ffffff';ctx.font='800 30px Arial';ctx.fillText(receipt.number||'RECIBO',1156,92);ctx.fillStyle='#b9bdc6';ctx.font='500 23px Arial';ctx.fillText(`Emitido em ${formatDateTimeBR(receipt.issuedAt)}`,1156,130);ctx.textAlign='left';
+    let y=420;ctx.fillStyle='#6f737b';ctx.font='800 24px Arial';ctx.fillText('VALOR RECEBIDO',82,y);ctx.fillStyle='#15171b';ctx.font='900 76px Arial';ctx.fillText(fmtMoney(receipt.amount),82,y+82);ctx.fillStyle=primary;ctx.font='800 26px Arial';ctx.fillText(receiptMethodLabel(receipt.paymentMethod),82,y+125);ctx.strokeStyle='#e7e8ea';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(82,y+176);ctx.lineTo(1158,y+176);ctx.stroke();
+    y+=250;ctx.fillStyle='#15171b';ctx.font='500 30px Arial';const statement=`Recebemos de ${receipt.payerName||receipt.studentName||'Aluno'} o valor acima identificado, referente a ${receipt.reference||'Mensalidade'}.`;y=receiptCanvasWrap(ctx,statement,82,y,1076,44,4)+38;
+    const fields=[['ALUNO',receipt.studentName||'—'],['DATA DO PAGAMENTO',fmtDate(receipt.paymentDate)],['COMPETÊNCIA',receiptCompetenceLabel(receipt.competence)],['FORMA DE PAGAMENTO',receiptMethodLabel(receipt.paymentMethod)]];for(let i=0;i<fields.length;i++){const col=i%2,row=Math.floor(i/2),x=82+col*548,fy=y+row*150;ctx.fillStyle='#777b83';ctx.font='800 21px Arial';ctx.fillText(fields[i][0],x,fy);ctx.fillStyle='#15171b';ctx.font='700 29px Arial';receiptCanvasWrap(ctx,fields[i][1],x,fy+42,480,36,2)}y+=330;
+    if(receipt.notes){ctx.fillStyle='#777b83';ctx.font='800 21px Arial';ctx.fillText('OBSERVAÇÃO',82,y);ctx.fillStyle='#33363d';ctx.font='500 26px Arial';y=receiptCanvasWrap(ctx,receipt.notes,82,y+42,1076,38,4)+35}
+    ctx.strokeStyle='#e7e8ea';ctx.beginPath();ctx.moveTo(82,1460);ctx.lineTo(1158,1460);ctx.stroke();ctx.fillStyle='#15171b';ctx.font='800 28px Arial';ctx.fillText(receipt.studioName||brandStudioName(),82,1520);ctx.fillStyle='#696d75';ctx.font='500 23px Arial';ctx.fillText(receipt.professionalName||brandingSettings().trainerName,82,1558);ctx.font='500 21px Arial';ctx.fillText('Comprovante de pagamento. Este documento não é nota fiscal.',82,1635);ctx.textAlign='right';ctx.fillStyle='#8b8f96';ctx.fillText(receipt.number||'',1158,1635);ctx.textAlign='left';
+    if(receipt.status==='cancelled'){ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(-.35);ctx.globalAlpha=.13;ctx.fillStyle='#b4232d';ctx.font='900 150px Arial';ctx.textAlign='center';ctx.fillText('CANCELADO',0,0);ctx.restore()}
+    return canvas;
+  }
+  function receiptCanvasJpegBytes(canvas){return new Promise((resolve,reject)=>canvas.toBlob(async blob=>{if(!blob)return reject(new Error('Canvas indisponível.'));resolve(new Uint8Array(await blob.arrayBuffer()));},'image/jpeg',.92))}
+  async function receiptCreatePdfFile(receipt){const canvas=await receiptRenderCanvas(receipt),bytes=await receiptCanvasJpegBytes(canvas),blob=assessmentReportBuildImagePDF([{bytes,width:canvas.width,height:canvas.height}]),name=`Recibo_${receiptSafeFilePart(receipt.number)}_${receiptSafeFilePart(receipt.studentName)}.pdf`;return new File([blob],name,{type:'application/pdf',lastModified:Date.now()})}
+  async function receiptNativeShare(file,receipt){const data={files:[file],title:`Recibo ${receipt.number}`,text:`Recibo de pagamento • ${receipt.studioName||brandStudioName()}`};if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){try{await navigator.share(data);toast('Recibo enviado ao compartilhamento do aparelho.');return true}catch(error){if(error?.name==='AbortError'){toast('Compartilhamento cancelado.');return false}throw error}}assessmentReportDownloadShareFile(file);toast('PDF do recibo salvo para compartilhar pelo aparelho.');return true}
+  function shareReceiptWhatsapp(receipt){const student=state.students.find(x=>String(x.id)===String(receipt.studentId)),phone=cleanPhone(student?.whatsapp||receipt.studentWhatsapp);if(!phone)return toast('Aluno sem WhatsApp válido cadastrado.');const text=`Olá, ${firstName(receipt.studentName||receipt.payerName)}! Confirmamos o pagamento de ${fmtMoney(receipt.amount)} em ${fmtDate(receipt.paymentDate)}, referente a ${receipt.reference||'Mensalidade'}. Recibo ${receipt.number}. ${receipt.studioName||brandStudioName()}`;window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`,'_blank','noopener,noreferrer')}
+
   function renderFinance() {
     const m = metrics();
-    const tabs = [['summary','Resumo'],['payments','Receitas'],['expenses','Gastos']];
+    const tabs = [['summary','Resumo'],['payments','Receitas'],['receipts','Recibos'],['expenses','Gastos']];
     viewEl.innerHTML = `
       ${intelligenceReturnBarHTML('Financeiro')}
       <section class="finance-privacy-hero">
@@ -3806,6 +3887,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         </section>
         <section class="cards grid2"><article class="card"><div class="list-row"><div class="list-main"><strong>Cadastros faturáveis</strong><span>Base de mensalidades, inclusive pausas vigentes</span></div><strong>${m.students}</strong></div><div class="list-row"><div class="list-main"><strong>Ticket médio</strong><span>Média por cadastro faturável</span></div><strong>${privateMoney(m.students?m.expected/m.students:0)}</strong></div><div class="list-row"><div class="list-main"><strong>Em atraso</strong><span>${m.overdue} aluno${m.overdue===1?'':'s'} • valor pendente</span></div><strong>${privateMoney(m.overdueValue)}</strong></div></article><article class="card"><div class="notice">A receita prevista é a soma das mensalidades cadastradas. A receita recebida só aumenta quando você registra um pagamento na aba Cobranças ou Receitas.</div></article></section>`;
     } else if (financeTab==='payments') renderPayments(c);
+    else if (financeTab==='receipts') renderReceipts(c);
     else renderExpenses(c);
   }
 
@@ -3874,6 +3956,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
                   </div>
                   <div class="finance-row-actions">
                     <strong class="money-positive">${privateMoney(p.amount)}</strong>
+                    <button class="mini-icon js-receipt-payment ${activeReceiptForPayment(p.id)?'receipt-issued':''}" data-id="${p.id}" title="${activeReceiptForPayment(p.id)?'Ver recibo':'Emitir recibo'}">${icon('receipt')}</button>
                     <button class="mini-icon js-edit-payment" data-id="${p.id}" title="Editar">${icon('edit')}</button>
                     <button class="mini-icon danger js-del-payment" data-id="${p.id}" title="Excluir">${icon('trash')}</button>
                   </div>
@@ -3886,6 +3969,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
       $$('.js-del-payment', c).forEach(b => b.addEventListener('click', () => {
         const payment = state.payments.find(x => x.id === b.dataset.id);
+        const issuedReceipt=activeReceiptForPayment(b.dataset.id);if(issuedReceipt){toast(`Cancele o recibo ${issuedReceipt.number} antes de excluir esta receita.`);return;}
         openModal('Excluir receita',`
           <div class="notice">Confirma a exclusão desta receita${payment?` de <strong>${privateMoney(payment.amount)}</strong>`:''}? Esta ação altera os totais financeiros.</div>
           <div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmDeletePayment">Excluir</button></div>
@@ -3897,6 +3981,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         });
       }));
       $$('.js-edit-payment', c).forEach(b => b.addEventListener('click', () => openPaymentEditModal(b.dataset.id)));
+      $$('.js-receipt-payment', c).forEach(b => b.addEventListener('click', () => {const receipt=activeReceiptForPayment(b.dataset.id);receipt?openReceiptPreview(receipt.id):openReceiptIssueModal(b.dataset.id)}));
     };
 
     $('#paymentSearch').addEventListener('input', draw);
@@ -3931,6 +4016,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openPaymentEditModal(id){
     if(!financialValuesVisible){toast('Mostre os valores antes de editar uma receita.');return;}
+    const issuedReceipt=activeReceiptForPayment(id);if(issuedReceipt){toast(`Cancele o recibo ${issuedReceipt.number} antes de editar esta receita.`);return;}
     const p=state.payments.find(x=>String(x.id)===String(id));if(!p)return;
     const students=[...state.students].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')),original=structuredClone(p);
     openModal('Editar receita',`<form id="editPaymentForm" class="form-grid"><div class="field"><label>Aluno *</label><select name="studentId" required>${students.map(st=>`<option value="${st.id}" ${String(st.id)===String(p.studentId)?'selected':''}>${escapeHTML(st.name)}</option>`).join('')}</select></div><div class="field"><label>Data *</label><input name="date" type="date" required value="${escapeHTML(p.date||isoToday())}" /></div><div class="field"><label>Valor *</label><input name="amount" type="number" min="0" step="0.01" required value="${Number(p.amount)||0}" /></div><div class="field"><label>Forma de pagamento *</label><select name="paymentMethod"><option value="pix" ${(p.paymentMethod||'pix')==='pix'?'selected':''}>PIX</option><option value="cash" ${p.paymentMethod==='cash'?'selected':''}>Dinheiro</option></select></div><div class="field"><label>Referência</label><input name="reference" value="${escapeHTML(p.reference||p.type||'Mensalidade')}" /></div><label class="toggle-row"><input id="editAdvanceDue" type="checkbox"><span>Avançar vencimento do aluno em 1 mês <small>Somente se você quiser executar esta ação agora.</small></span></label><div class="notice compact">A edição altera este lançamento existente. Nenhuma nova receita será criada.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar alterações</button></div></form>`);
@@ -4773,11 +4859,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('commercial','Conta e instalação',commercialOk?'ok':'danger',commercialOk?`Estrutura V${COMMERCIAL_SCHEMA_VERSION} • instalação ${installationShortId()} • proprietário ${commercialOwnerConfigured()?'configurado':'ainda não informado'}.`:'Estrutura comercial ou identidade desta instalação ausente.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
-    const arrays=['students','payments','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
+    const arrays=['students','payments','receipts','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
     const objects=['schedule','attendance','makeups','settings'];
     const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
     push('structure','Estrutura principal',invalid.length?'danger':'ok',invalid.length?`Campos inválidos: ${invalid.join(', ')}.`:'Coleções essenciais estão no formato esperado.');
-    const duplicateGroups=[['alunos',duplicateIds(state.students)],['receitas',duplicateIds(state.payments)],['gastos',duplicateIds(state.expenses)],['avaliações físicas',duplicateIds(state.physicalAssessments)],['avaliações posturais',duplicateIds(state.posturalAssessments)]].filter(([,ids])=>ids.length);
+    const duplicateGroups=[['alunos',duplicateIds(state.students)],['receitas',duplicateIds(state.payments)],['recibos',duplicateIds(state.receipts)],['gastos',duplicateIds(state.expenses)],['avaliações físicas',duplicateIds(state.physicalAssessments)],['avaliações posturais',duplicateIds(state.posturalAssessments)]].filter(([,ids])=>ids.length);
     push('ids','Identificadores únicos',duplicateGroups.length?'danger':'ok',duplicateGroups.length?`Duplicidades detectadas em ${duplicateGroups.map(([name,ids])=>`${name} (${ids.length})`).join(', ')}.`:'Nenhuma duplicidade crítica de ID encontrada.');
     const op=state.settings?.operationConfig,mods=Array.isArray(op?.modalities)?op.modalities:[];
     const modDup=duplicateIds(mods);
@@ -4815,6 +4901,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       'CONTAGENS (sem nomes, telefones ou valores)',
       `Alunos: ${counts.students}`,
       `Receitas: ${counts.payments}`,
+      `Recibos: ${counts.receipts||0}`,
       `Gastos: ${counts.expenses}`,
       `Registros de aula: ${counts.attendanceRecords}`,
       `Avaliações físicas: ${(state.physicalAssessments||[]).length}`,
@@ -4865,7 +4952,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="settings-row"><div><strong>Instalar na tela inicial</strong><span>Abre como aplicativo com o seu ícone.</span></div><button class="btn btn-primary btn-small" id="installSettings">Instalar</button></div>
         <div class="settings-row"><div><strong>Dias para aviso de vencimento</strong><span>Hoje: ${state.settings.chargeDaysBefore} dia(s) antes.</span></div><button class="btn btn-secondary btn-small" id="changeDays">Alterar</button></div>
         <div class="settings-row"><div><strong>Notificações de aniversário</strong><span>Avisa quando houver aniversariante do dia enquanto o app estiver ativo.</span></div><button class="btn btn-secondary btn-small" id="birthdayNotify">${state.birthdayNotifications?.enabled?'Ativadas':'Ativar'}</button></div>
-        <div class="settings-row"><div><strong>Feriados e recesso</strong><span>${(state.studioClosures||[]).length} período${(state.studioClosures||[]).length===1?'':'s'} cadastrado${(state.studioClosures||[]).length===1?'':'s'}</span></div><button class="btn btn-secondary btn-small" id="manageClosuresSettings">Gerenciar</button></div><div class="settings-row"><div><strong>Relatório anual</strong><span>Financeiro, presenças, faltas e reposições por mês.</span></div><button class="btn btn-secondary btn-small" id="annualReportSettings">Abrir</button></div><div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
+        <div class="settings-row"><div><strong>Feriados e recesso</strong><span>${(state.studioClosures||[]).length} período${(state.studioClosures||[]).length===1?'':'s'} cadastrado${(state.studioClosures||[]).length===1?'':'s'}</span></div><button class="btn btn-secondary btn-small" id="manageClosuresSettings">Gerenciar</button></div><div class="settings-row"><div><strong>Relatório anual</strong><span>Financeiro, presenças, faltas e reposições por mês.</span></div><button class="btn btn-secondary btn-small" id="annualReportSettings">Abrir</button></div><div class="settings-row"><div><strong>Dados cadastrados</strong><span>${state.students.length} alunos • ${state.payments.length} receitas • ${(state.receipts||[]).length} recibos • ${state.expenses.length} gastos</span></div><span class="pill">Local</span></div>
         <div class="settings-row commercial-settings-row"><div><strong>Agenda e modalidades</strong><span>${activeScheduleDays().length} dias ativos • ${operationConfig().modalities.filter(m=>m.enabled).length} modalidade${operationConfig().modalities.filter(m=>m.enabled).length===1?'':'s'} • edite quando precisar</span></div><button class="btn btn-primary btn-small" id="configureAgendaFlex">Configurar</button></div>
       </section>
       <div class="section-head"><div><h3>Conta e plano</h3><p>Identificação comercial simples, clara e sem bloqueios</p></div></div>
@@ -5133,7 +5220,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function backupSummaryFor(sourceState=state){
     const attendanceRecords=Object.keys(sourceState.attendance||{}).length;let present=0,absent=0,makeups=0;
     Object.entries(sourceState.attendance||{}).forEach(([k,map])=>Object.entries(map||{}).forEach(([id,status])=>{if(status==='present'){present++;const raw=sourceState.makeups?.[k];const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(ids.map(String).includes(String(id)))makeups++;}if(status==='absent')absent++;}));
-    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,attendanceRecords,present,absent,makeups};
+    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,receipts:(sourceState.receipts||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,attendanceRecords,present,absent,makeups};
   }
 
   async function exportBackup(){
@@ -5188,7 +5275,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           :guardNeeded
             ?'ATENÇÃO: o backup pertence a outro Workspace. A restauração só será liberada após sua confirmação explícita.'
             :'Workspace conferido. Ao continuar, os dados atuais serão substituídos pelo conteúdo deste backup.';
-      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>Restaurar</button></div>`);
+      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Recibos</span><strong>${sm.receipts??(incoming.receipts||[]).length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>Restaurar</button></div>`);
       const confirmBtn=$('#confirmImport'),guard=$('#confirmCrossWorkspace');
       if(guard)guard.addEventListener('change',()=>{confirmBtn.disabled=!guard.checked});
       confirmBtn.addEventListener('click',()=>{
