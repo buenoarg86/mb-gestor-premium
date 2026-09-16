@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.6.0 — External Body Fat Measurement • Method-Safe Reports
+// MB Gestor Luxury Pro V12.6.1 — Assessment Update Guard Hotfix • External Body Fat Preserved
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.6.0 — External Body Fat Measurement • Method-Safe Reports
+  // MB Gestor Luxury Pro V12.6.1 — Assessment Update Guard Hotfix • External Body Fat Preserved
 
-  const APP_VERSION = '12.6.0';
+  const APP_VERSION = '12.6.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -197,6 +197,9 @@
   let assessmentSession = null;
   let assessmentHistoryIgnoreNextPop = false;
   let assessmentBackHandling = false;
+  // V12.6.1 • Update Guard: adia reload de Service Worker enquanto uma avaliação possui alterações não salvas.
+  let pendingSafeAppReload = false;
+  let safeAppReloadTimer = null;
   // Central Hoje 2.0: relógio vivo somente enquanto o dashboard estiver em tela.
   let dashboardClockTimer = null;
   // V12.0.5 • Simulação segura da Agenda.
@@ -2021,11 +2024,27 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       setTimeout(()=>{assessmentBackHandling=false},120);
     }
   }
+  function hasUnsafeAssessmentEdit(){
+    return Boolean(assessmentSession?.dirty&&$('#physicalAssessmentForm',modalRoot));
+  }
+  function performSafeAppReload(){
+    if(hasUnsafeAssessmentEdit()){pendingSafeAppReload=true;return false}
+    pendingSafeAppReload=false;
+    if(safeAppReloadTimer){clearTimeout(safeAppReloadTimer);safeAppReloadTimer=null}
+    safeAppReloadTimer=setTimeout(()=>{safeAppReloadTimer=null;location.reload()},80);
+    return true;
+  }
+  function releasePendingSafeAppReload(){
+    if(!pendingSafeAppReload||hasUnsafeAssessmentEdit())return false;
+    return performSafeAppReload();
+  }
+
   function finishAssessmentSession({clearDraft=true,fromPopstate=false}={}){
-    const session=assessmentSession;if(!session){closeModal();return}
+    const session=assessmentSession;if(!session){closeModal();releasePendingSafeAppReload();return}
     if(clearDraft)clearAssessmentDraft(session.studentId,session.assessmentId);
     assessmentSession=null;closeSkinfoldGuide();closeAnatomicalGuide();closeModal();
     if(!fromPopstate&&session.historyToken&&history.state?.mbAssessmentGuard===session.historyToken){assessmentHistoryIgnoreNextPop=true;try{history.back()}catch{assessmentHistoryIgnoreNextPop=false}}
+    releasePendingSafeAppReload();
   }
   function confirmDiscardAssessment(){
     if(!assessmentSession)return closeModal();
@@ -5000,14 +5019,21 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     window.addEventListener('load',async()=>{
       const hadController=!!navigator.serviceWorker.controller;
       try{
-        const reg=await navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(APP_VERSION)}`,{updateViaCache:'none'});
+        const reg=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
         await reg.update?.();
         if(hadController){
-          let reloading=false;
+          let handledControllerChange=false;
           navigator.serviceWorker.addEventListener('controllerchange',()=>{
-            if(reloading)return;
-            reloading=true;
-            location.reload();
+            if(handledControllerChange)return;
+            handledControllerChange=true;
+            if(hasUnsafeAssessmentEdit()){
+              pendingSafeAppReload=true;
+              const form=$('#physicalAssessmentForm',modalRoot);
+              if(form)persistAssessmentDraftFromForm(form,{dirty:true});
+              toast('Atualização pronta. Ela será aplicada após salvar ou descartar a avaliação.');
+              return;
+            }
+            performSafeAppReload();
           },{once:true});
         }
       }catch(err){console.warn('Service worker não registrado',err)}
