@@ -1863,3 +1863,8 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 .account-center-section .license-center-grid{margin-top:12px}
 .account-center-section .notice.danger{border-color:rgba(239,103,103,.38);background:rgba(239,103,103,.08)}
 @media (max-width:560px){.account-center-section .license-center-grid{grid-template-columns:1fr}.account-center-section .form-grid.two{grid-template-columns:1fr}}
+
+
+/* V12.11.4 — Composição corporal: seleção guiada de aluno */
+#assessmentStudentsSection.is-composition-target{padding:11px 12px;border:1px solid rgba(var(--brand-accent-rgb),.18);border-radius:15px;background:rgba(var(--brand-accent-rgb),.035);box-shadow:inset 0 1px rgba(255,255,255,.02)}
+#assessmentStudentsSection.is-composition-target h3{color:var(--gold2)}
