@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.5 — Composição Corporal • Polimento da Seleção Guiada
+// MB Gestor Luxury Pro V12.11.6 — Avaliação • Evolução 360° em Destaque
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.5 — Composição Corporal • Polimento da Seleção Guiada
+  // MB Gestor Luxury Pro V12.11.6 — Avaliação • Evolução 360° em Destaque
 
-  const APP_VERSION = '12.11.5';
+  const APP_VERSION = '12.11.6';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -2927,6 +2927,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <button type="button" class="assessment-guide-entry" id="assessmentGuideEntry"><span class="assessment-guide-entry-icon">${icon('body')}</span><span><b>Guia anatômico premium</b><small>Consulte os pontos de mensuração antes ou durante a avaliação.</small></span><i>${icon('eye')}</i></button>
         <button type="button" class="assessment-guide-entry assessment-composition-entry" id="assessmentCompositionEntry"><span class="assessment-guide-entry-icon">${icon('chart')}</span><span><b>Composição corporal</b><small>% de gordura, massa gorda e massa livre com origem e método rastreáveis.</small></span><i class="assessment-entry-arrow">›</i></button>
         <button type="button" class="assessment-guide-entry assessment-postural-entry" id="assessmentPosturalEntry"><span class="assessment-guide-entry-icon">${icon('body')}</span><span><b>Avaliação Postural Premium</b><small>Quatro vistas, achados estruturados, histórico e evolução postural.</small></span><i class="assessment-entry-arrow">›</i></button>
+        <button type="button" class="assessment-guide-entry assessment-evolution-entry" id="assessmentEvolutionEntry"><span class="assessment-guide-entry-icon">${icon('chart')}</span><span><b>Evolução 360°</b><small>Comparativos, gráficos, relatórios e compartilhamento da evolução.</small></span><i class="assessment-entry-arrow">›</i></button>
       </div>
       <section class="metrics assessment-top-metrics">${metricCard('users',students.length,'Alunos cadastrados')}${metricCard('check',withAssessment,'Com avaliação','good')}${metricCard('chart',total,'Avaliações salvas')}${metricCard('chart',withEvolution,'Com evolução')}</section>
       <div class="assessment-guidance"><strong>Base antropométrica responsável</strong><span>IMC = peso ÷ altura² • IRCQ = cintura ÷ quadril. A composição corporal preserva a origem do resultado — estimado pelo MB Gestor ou medido externamente — sem classificação estética automática.</span></div>
@@ -2941,6 +2942,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#assessmentGuideEntry')?.addEventListener('click',()=>{if(readAssessmentGuideMode()==='skinfold'){openSkinfoldGuide();return}openAnatomicalGuide()});
     $('#assessmentCompositionEntry')?.addEventListener('click',()=>setCompositionMode(true));
     $('#assessmentPosturalEntry')?.addEventListener('click',renderPosturalAssessments);
+    $('#assessmentEvolutionEntry')?.addEventListener('click',()=>{setCompositionMode(false);assessmentFilter='evolution';$$('[data-assessment-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.assessmentFilter==='evolution'));draw();toast('Evolução 360°: escolha um aluno e toque em Evolução.');setTimeout(()=>document.getElementById('assessmentStudentsSection')?.scrollIntoView({behavior:'smooth',block:'start'}),80)});
     $('#assessmentCompositionModeExit')?.addEventListener('click',()=>setCompositionMode(false));
     $('#assessmentSearch')?.addEventListener('input',draw);$$('[data-assessment-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{assessmentFilter=b.dataset.assessmentFilter;$$('[data-assessment-filter]',viewEl).forEach(x=>x.classList.toggle('active',x===b));draw()}));draw();
   }
