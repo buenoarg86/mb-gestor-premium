@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.6 — Avaliação • Evolução 360° em Destaque
+// MB Gestor Luxury Pro V12.11.7 — Avaliação • Apresentação Integrada
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.6 — Avaliação • Evolução 360° em Destaque
+  // MB Gestor Luxury Pro V12.11.7 — Avaliação • Apresentação Integrada
 
-  const APP_VERSION = '12.11.6';
+  const APP_VERSION = '12.11.7';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -2922,7 +2922,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderAssessments(){
     const students=[...state.students].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
     const withAssessment=students.filter(s=>latestAssessment(s.id)).length,total=(state.physicalAssessments||[]).filter(a=>students.some(s=>String(s.id)===String(a.studentId))).length,withEvolution=students.filter(s=>assessmentsForStudent(s.id).length>1).length,reviewList=reassessmentAttentionStudents(90),reviewIds=new Set(reviewList.map(x=>String(x.s.id)));
-    viewEl.innerHTML=`<section class="assessment-hero"><div><span class="section-overline">AVALIAÇÃO FÍSICA</span><h2>Antropometria & composição</h2><p>Perímetros, composição corporal estimada ou medida externamente, histórico comparável e evolução — sem interferir nas demais áreas do app.</p></div><span class="assessment-hero-icon">${icon('chart')}</span></section>
+    viewEl.innerHTML=`<section class="assessment-hero"><div><span class="section-overline">AVALIAÇÃO FÍSICA</span><h2>Avaliação integrada</h2><p>Antropometria, composição corporal, postura e evolução em um só fluxo — com histórico comparável e acompanhamento profissional.</p></div><span class="assessment-hero-icon">${icon('chart')}</span></section>
       <div class="assessment-feature-grid">
         <button type="button" class="assessment-guide-entry" id="assessmentGuideEntry"><span class="assessment-guide-entry-icon">${icon('body')}</span><span><b>Guia anatômico premium</b><small>Consulte os pontos de mensuração antes ou durante a avaliação.</small></span><i>${icon('eye')}</i></button>
         <button type="button" class="assessment-guide-entry assessment-composition-entry" id="assessmentCompositionEntry"><span class="assessment-guide-entry-icon">${icon('chart')}</span><span><b>Composição corporal</b><small>% de gordura, massa gorda e massa livre com origem e método rastreáveis.</small></span><i class="assessment-entry-arrow">›</i></button>
