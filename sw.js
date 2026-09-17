@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.13.0 — Multiusuário e Permissões • Etapa 1
-const CACHE='mb-gestor-luxury-pro-v12-13-0-multiuser-permissions-foundation';
-const ASSETS=['./','./index.html','./styles.css?v=12.13.0','./app.js?v=12.13.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.13.1 — Permissões • Seletor Premium de Função
+const CACHE='mb-gestor-luxury-pro-v12-13-1-premium-role-picker';
+const ASSETS=['./','./index.html','./styles.css?v=12.13.1','./app.js?v=12.13.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
