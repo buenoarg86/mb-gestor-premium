@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.9.0 — Recibos Premium • Etapa 1
+// MB Gestor Luxury Pro V12.10.1 — Desktop Readiness • Polimento Visual
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.9.0 — Recibos Premium • Etapa 1
+  // MB Gestor Luxury Pro V12.10.1 — Desktop Readiness • Polimento Visual
 
-  const APP_VERSION = '12.9.0';
+  const APP_VERSION = '12.10.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 3;
@@ -1186,19 +1186,26 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   const MOBILE_NAV_IDS=['dashboard','schedule','students','finance'];
   const MORE_NAV_IDS=['intelligence','assessments','charges','reminders','consent','settings'];
+  // V12.10.0 • ordem e atalhos pensados para teclado/mouse no desktop sem alterar a navegação mobile.
+  const DESKTOP_NAV_IDS=['dashboard','schedule','students','assessments','intelligence','finance','charges','reminders','consent','settings'];
+  const DESKTOP_NAV_SHORTCUTS={dashboard:'1',schedule:'2',students:'3',assessments:'4',intelligence:'5',finance:'6',charges:'7',reminders:'8',consent:'9',settings:'0'};
 
   function renderNav() {
     const desktop = $('#desktopNav');
     const mobile = $('#mobileNav');
-    desktop.innerHTML = NAV.map(n=>navButton(n)).join('');
+    const desktopItems=DESKTOP_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
+    desktop.innerHTML = desktopItems.map(n=>navButton(n,{desktop:true})).join('');
     const primary=MOBILE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
     mobile.innerHTML = primary.map(n=>navButton(n)).join('') + `<button class="nav-btn ${MORE_NAV_IDS.includes(currentView)?'active':''}" id="mobileMore" type="button">${icon('more')}<span>Mais</span></button>`;
     $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
     $('#mobileMore')?.addEventListener('click',openMoreMenu);
   }
 
-  function navButton(n) {
-    return `<button class="nav-btn ${currentView===n.id?'active':''}" data-nav="${n.id}" type="button">${icon(n.icon)}<span>${n.label}</span></button>`;
+  function navButton(n,{desktop=false}={}) {
+    const shortcut=desktop?DESKTOP_NAV_SHORTCUTS[n.id]:'';
+    const shortcutHTML=shortcut?`<kbd class="nav-shortcut">Alt+${shortcut}</kbd>`:'';
+    const ariaShortcut=shortcut?` aria-keyshortcuts="Alt+${shortcut}"`:'';
+    return `<button class="nav-btn ${currentView===n.id?'active':''}" data-nav="${n.id}" type="button"${ariaShortcut}>${icon(n.icon)}<span>${n.label}</span>${shortcutHTML}</button>`;
   }
 
   function openMoreMenu(){
@@ -1652,7 +1659,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
           <div class="hero-copy">
             <span class="badge">${escapeHTML(brandAppName())} • Private Edition</span>
             <p class="luxury-kicker">${greetingText()}, ${escapeHTML(firstName)}</p>
-            <h2>Seu Studio.<br><em>Sob controle.</em></h2>
+            <h2>Sua gestão.<br><em>Sob controle.</em></h2>
             <p>Uma visão elegante e objetiva do que importa hoje.</p>
             <div class="hero-actions"><button class="btn btn-primary btn-small" data-nav="schedule">${icon('calendar')} Ver agenda</button><button class="btn btn-ghost btn-small" data-nav="students">${icon('users')} Alunos</button></div>
           </div>
@@ -3036,6 +3043,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const student=state.students.find(s=>String(s.id)===String(studentId));if(!student)return;const existing=assessmentId?(state.posturalAssessments||[]).find(a=>String(a.id)===String(assessmentId)):null;
     const restoredDraft=!existing?readPosturalDraft():null,initialView=existing?posturalInitialView(existing):(restoredDraft&&String(restoredDraft.studentId)===String(studentId)&&String(restoredDraft.assessmentId)==='new'&&POSTURAL_VIEW_CONFIG[restoredDraft.activeView]?restoredDraft.activeView:'anterior');
     openModal(`${existing?'Editar':'Nova'} avaliação postural • ${student.name}`,`<form id="posturalAssessmentForm" class="postural-form"><section class="postural-form-hero"><div><span class="section-overline">AVALIAÇÃO POSTURAL PREMIUM</span><strong>${escapeHTML(student.name)}</strong><small>Quatro vistas • boneco anatômico premium • histórico independente da antropometria</small></div><div class="field"><label>Data</label><input type="date" name="posturalDate" value="${escapeHTML(existing?.date||isoToday())}" required /></div></section><div class="postural-capture-card"><label class="toggle-row"><input type="checkbox" name="captureStandardized" ${existing?.capture?.standardized?'checked':''}><span>Captura realizada em condições padronizadas</span></label><div class="field"><label>Condições / observação de captura</label><input name="captureNotes" maxlength="180" value="${escapeHTML(existing?.capture?.notes||'')}" placeholder="Ex.: câmera nivelada, mesma distância, pés descalços" /></div></div><div class="postural-view-tabs">${Object.entries(POSTURAL_VIEW_CONFIG).map(([key,cfg])=>`<button type="button" class="${key===initialView?'active':''}" data-postural-view="${key}">${escapeHTML(cfg.label)}</button>`).join('')}</div><div class="postural-view-panels">${Object.keys(POSTURAL_VIEW_CONFIG).map(key=>posturalViewPanel(key,existing||{},initialView)).join('')}</div><div class="field postural-general-notes"><label>Observação geral da avaliação</label><textarea name="posturalGeneralNotes" rows="4" maxlength="1200" placeholder="Síntese profissional, contexto ou pontos para reavaliar">${escapeHTML(existing?.notes||'')}</textarea></div><div class="postural-form-method"><strong>Registro observacional</strong><span>Os termos “leve”, “moderada” e “acentuada” representam a graduação escolhida pelo avaliador. O MB Gestor não converte esses achados em diagnóstico clínico.</span></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Fechar</button><button type="submit" class="btn btn-primary">${icon('check')} Salvar avaliação postural</button></div></form>`);
+    $('.modal',modalRoot)?.classList.add('postural-assessment-modal');
     const form=$('#posturalAssessmentForm');if(!form)return;
     if(!existing&&restoredDraft&&String(restoredDraft.studentId)===String(studentId)&&String(restoredDraft.assessmentId)==='new'){applyPosturalDraft(form,restoredDraft);toast('Rascunho postural restaurado.')}
     const setVisualFocus=(viewKey,key,{scrollToFigure=false}={})=>{const panel=form.querySelector(`[data-postural-panel="${viewKey}"]`),cfg=POSTURAL_VIEW_CONFIG[viewKey];if(!panel||!cfg)return;const valid=cfg.segments.some(([k])=>k===String(key));const activeKey=valid?String(key):cfg.segments[0][0];panel.dataset.activeSegment=activeKey;panel.querySelectorAll('[data-postural-segment-pick]').forEach(b=>b.classList.toggle('active',b.dataset.posturalSegmentPick===activeKey));panel.querySelectorAll('[data-postural-card-key]').forEach(c=>c.classList.toggle('is-visual-active',c.dataset.posturalCardKey===activeKey));const root=panel.querySelector('[data-postural-figure-root]');if(root)root.innerHTML=posturalFigureHTML(viewKey,activeKey);if(scrollToFigure)panel.querySelector('.postural-view-intro')?.scrollIntoView({behavior:'smooth',block:'start'})};
@@ -5367,6 +5375,21 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;updateInstallButtons();toast('Aplicativo instalado.');});
   $('#installBtnTop')?.addEventListener('click',installApp);
   $('#installBtnSide')?.addEventListener('click',installApp);
+
+  // V12.10.0 • produtividade no desktop. Atalhos só atuam em telas largas e nunca capturam digitação em campos.
+  function desktopKeyboardEligible(){return window.matchMedia?.('(min-width: 1024px)').matches}
+  function isTypingTarget(target){return Boolean(target?.closest?.('input,textarea,select,[contenteditable="true"]'))}
+  function firstVisibleSearch(){return $$('input[type="search"]',viewEl).find(el=>el.offsetParent!==null&&!el.disabled)}
+  window.addEventListener('keydown',event=>{
+    if(!desktopKeyboardEligible()||event.defaultPrevented)return;
+    if(event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey){
+      const entry=Object.entries(DESKTOP_NAV_SHORTCUTS).find(([,key])=>key===event.key);
+      if(entry&&!isTypingTarget(event.target)){event.preventDefault();navigate(entry[0]);return;}
+    }
+    if(event.key==='/'&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!isTypingTarget(event.target)&&!modalRoot.children.length){
+      const search=firstVisibleSearch();if(search){event.preventDefault();search.focus();search.select?.();}
+    }
+  });
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     // V12.3.0 • atualização segura: evita que HTML novo rode com JS/CSS antigos em WebViews/PWA Android.
