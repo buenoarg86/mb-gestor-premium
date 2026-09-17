@@ -2047,7 +2047,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 .access-role-choice.role-finance.selected strong{color:#f1d27f}
 @media(max-width:380px){.access-role-picker{grid-template-columns:1fr}.access-role-choice{min-height:78px}}
 
-/* MB Gestor Luxury Pro V12.14.0 — Equipe • Sessão Local e Permissões Reais */
+/* MB Gestor Luxury Pro V12.14.1 — Hotfix • Rotação de Credenciais e Feedback de Acesso */
 body.access-session-locked{overflow:hidden;background:#070708}
 body.access-session-locked #appShell{visibility:hidden;pointer-events:none;user-select:none}
 .team-access-hero.session-on{border-color:rgba(98,205,144,.28);background:linear-gradient(145deg,rgba(57,139,97,.12),rgba(15,17,19,.96))}
@@ -2071,6 +2071,9 @@ body.access-session-locked #appShell{visibility:hidden;pointer-events:none;user-
 .access-gate-brand>div{display:grid;gap:4px}.access-gate-brand small{font-size:.69rem;font-weight:900;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase}.access-gate-brand strong{font-size:1.4rem;line-height:1.08}.access-gate-brand p{margin:0;color:#92969f;font-size:.82rem;line-height:1.4}
 .access-gate-profiles{display:grid;gap:9px;margin-top:16px}.access-gate-profiles>button{width:100%;display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 13px;border-radius:17px;border:1px solid #292c32;background:#111216;color:var(--text);text-align:left;cursor:pointer}.access-gate-profiles>button:active{transform:scale(.99)}.access-gate-profiles>button>span{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;font-weight:950;color:var(--gold2);background:rgba(var(--brand-primary-rgb),.12);border:1px solid rgba(var(--brand-accent-rgb),.15)}.access-gate-profiles>button>div{display:grid;gap:3px}.access-gate-profiles strong{font-size:.94rem}.access-gate-profiles small{font-size:.75rem;color:#8b9098}.access-gate-profiles em{font-style:normal;color:var(--gold2);font-size:1.35rem}
 .access-gate-pin{display:grid;gap:10px;margin-top:16px}.access-gate-pin input{min-height:58px;border-radius:17px;border:1px solid #30343b;background:#0d0e11;color:var(--text);font:inherit;font-size:1.2rem;font-weight:850;letter-spacing:.14em;text-align:center;padding:0 16px;outline:none}.access-gate-pin input:focus{border-color:rgba(var(--brand-accent-rgb),.56);box-shadow:0 0 0 3px rgba(var(--brand-primary-rgb),.1)}.access-gate-pin .btn{width:100%;min-height:50px}
+.access-gate-error{display:block;min-height:0;padding:9px 11px;border-radius:12px;border:1px solid rgba(233,104,104,.28);background:rgba(233,104,104,.08);color:#ffadad;font-size:.76rem;font-weight:800;line-height:1.35;text-align:center}
+.access-gate-error:empty{display:none}
+body.access-session-locked .toast-root{z-index:5200}
 .access-recovery-link{border:0;background:transparent;color:var(--gold2);font:inherit;font-size:.76rem;font-weight:800;padding:7px;cursor:pointer}
 .access-gate-foot{text-align:center;margin-top:14px;color:#696e77;font-size:.68rem;line-height:1.35}
 @media(max-width:620px){.access-session-status{align-items:stretch;flex-direction:column}.access-session-status>.btn,.access-session-status-actions,.access-session-status-actions .btn{width:100%}.access-session-status-actions{display:grid;grid-template-columns:1fr}.access-gate-layer{place-items:center;padding-left:14px;padding-right:14px}.access-gate-card{padding:17px;border-radius:24px}.access-gate-brand{grid-template-columns:58px minmax(0,1fr)}.access-gate-logo{width:58px;height:58px;border-radius:18px}.access-gate-brand strong{font-size:1.22rem}}
