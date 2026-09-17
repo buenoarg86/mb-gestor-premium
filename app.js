@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.9 — Alunos • Cards Recolhíveis
+// MB Gestor Luxury Pro V12.12.0 — Backup Comercial Protegido • Etapa 1
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.9 — Alunos • Cards Recolhíveis
+  // MB Gestor Luxury Pro V12.12.0 — Backup Comercial Protegido • Etapa 1
 
-  const APP_VERSION = '12.11.9';
+  const APP_VERSION = '12.12.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -11,6 +11,8 @@
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DATA_FOUNDATION_BACKUP_TAG = 'workspace-foundation-v1';
+  const BACKUP_FORMAT_VERSION = 5;
+  const RESTORE_SAFETY_BACKUP_KEY = `${STORAGE_KEY}_restore_safety_v1`;
   // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
   const BRAND_IDENTITY_RECOVERY_KEY = `${STORAGE_KEY}_brand_identity_recovery_v1`;
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
@@ -173,6 +175,9 @@
       lastBackupSummary: null,
       lastBackupVersion: '',
       lastBackupExportedAt: null,
+      backupHistory: [],
+      lastRestoreAt: null,
+      lastRestoreSource: '',
       operationConfig: structuredClone(DEFAULT_OPERATION_CONFIG)
     }
   };
@@ -486,7 +491,7 @@
       posturalAssessments:Array.isArray(parsed.posturalAssessments)?parsed.posturalAssessments:[],
       auditLog:Array.isArray(parsed.auditLog)?parsed.auditLog:[],
       trash:Array.isArray(parsed.trash)?parsed.trash:[],
-      settings:{...DEFAULT_STATE.settings,...(parsed.settings||{}),operationConfig:normalizeOperationConfig(operationSource)}
+      settings:{...DEFAULT_STATE.settings,...(parsed.settings||{}),backupHistory:normalizeBackupHistory(parsed.settings?.backupHistory),operationConfig:normalizeOperationConfig(operationSource)}
     };
   }
 
@@ -5120,6 +5125,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const m=metrics();
     const diagnostic=runCommercialIntegrityCheck();
     const ownership=workspaceOwnershipAudit(state);
+    const backupProtection=backupProtectionState();
+    const restoreSafety=restoreSafetySnapshotMeta();
     viewEl.innerHTML=`
       <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Personalização comercial • nome, logotipo e cores</p></div></div>
@@ -5140,11 +5147,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="settings-row"><div><strong>PIN do Financeiro</strong><span>${financeLockEnabled()?'Ativado • solicitado ao abrir Financeiro e Cobranças':'Desativado • configure um PIN de 4 a 6 números'}</span></div><button class="btn ${financeLockEnabled()?'btn-secondary':'btn-primary'} btn-small" id="configureFinancePin">${financeLockEnabled()?'Alterar':'Ativar'}</button></div>
         ${financeLockEnabled()?`<div class="settings-row"><div><strong>Bloquear agora</strong><span>Encerra o acesso financeiro liberado nesta sessão.</span></div><button class="btn btn-secondary btn-small" id="lockFinanceNow">${icon('lock')} Bloquear</button></div><div class="settings-row"><div><strong>Remover PIN</strong><span>O Financeiro volta a abrir sem senha.</span></div><button class="btn btn-danger btn-small" id="removeFinancePin">Desativar</button></div>`:''}
       </section>
-      <div class="section-head"><div><h3>Backup</h3><p>Proteja seus dados • ${state.settings.lastBackupAt?`último backup em ${new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(new Date(state.settings.lastBackupAt))}`:'nenhum backup registrado neste aparelho'}</p></div></div>
-      <section class="card backup-premium">
-        <div class="backup-health"><span class="backup-health-icon">${icon('download')}</span><div><strong>${state.settings.lastBackupAt?'Backup registrado':'Faça seu primeiro backup'}</strong><span>${state.settings.lastBackupSummary?`${state.settings.lastBackupSummary.students} alunos • ${state.settings.lastBackupSummary.payments} receitas • ${state.settings.lastBackupSummary.attendanceRecords} registros de aula`:`${state.students.length} alunos • ${state.payments.length} receitas • ${Object.keys(state.attendance||{}).length} registros de aula atuais`}</span>${state.settings.lastBackupAt?`<small>Snapshot V${escapeHTML(state.settings.lastBackupVersion||APP_VERSION)} • ${formatDateTimeBR(state.settings.lastBackupExportedAt||state.settings.lastBackupAt)}</small>`:''}</div></div>
-        <div class="settings-row"><div><strong>Exportar backup completo</strong><span>Salva alunos, agenda, presenças, reposições, financeiro e preferências em um único arquivo.</span></div><button class="btn btn-primary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
-        <div class="settings-row"><div><strong>Importar / restaurar</strong><span>Valida o arquivo antes de substituir os dados atuais.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
+      <div class="section-head"><div><h3>Backup comercial</h3><p>Proteção do Workspace • histórico local • restauração assistida</p></div></div>
+      <section class="card backup-premium backup-commercial-card">
+        <div class="backup-commercial-status ${backupProtection.tone}"><span class="backup-commercial-shield">${backupProtection.icon}</span><div><small>STATUS DOS DADOS</small><strong>${escapeHTML(backupProtection.label)}</strong><em>${escapeHTML(backupProtection.detail)}</em></div><span class="backup-workspace-chip">${escapeHTML(workspaceShortId())}</span></div>
+        <div class="backup-health"><span class="backup-health-icon">${icon('download')}</span><div><strong>${state.settings.lastBackupAt?'Último backup registrado':'Backup ainda não registrado'}</strong><span>${state.settings.lastBackupSummary?`${state.settings.lastBackupSummary.students} alunos • ${state.settings.lastBackupSummary.payments} receitas • ${state.settings.lastBackupSummary.attendanceRecords} registros de aula`:`${state.students.length} alunos • ${state.payments.length} receitas • ${Object.keys(state.attendance||{}).length} registros de aula atuais`}</span>${state.settings.lastBackupAt?`<small>V${escapeHTML(state.settings.lastBackupVersion||APP_VERSION)} • ${formatDateTimeBR(state.settings.lastBackupExportedAt||state.settings.lastBackupAt)}</small>`:''}${restoreSafety?`<small>Cópia pré-restauração disponível • ${formatDateTimeBR(restoreSafety.exportedAt)}</small>`:''}</div></div>
+        <div class="settings-row backup-center-row"><div><strong>Central de Backup Comercial</strong><span>Veja histórico, identidade do Studio/Workspace, segurança antes de restaurar e compatibilidade.</span></div><button class="btn btn-primary btn-small" id="openBackupCenter">Abrir central</button></div>
+        <div class="settings-row"><div><strong>Backup rápido</strong><span>Gera agora um arquivo completo com SHA-256 e metadados comerciais.</span></div><button class="btn btn-secondary btn-small" id="exportBackup">${icon('download')} Fazer backup</button></div>
+        <div class="settings-row"><div><strong>Restaurar arquivo</strong><span>Pré-visualiza conteúdo e cria uma cópia de segurança local antes de substituir os dados.</span></div><button class="btn btn-secondary btn-small" id="importBackup">${icon('upload')} Restaurar</button><input id="backupFile" type="file" accept="application/json" class="hidden" /></div>
       </section>
       <div class="section-head"><div><h3>Integridade e suporte</h3><p>Diagnóstico local sem expor dados pessoais</p></div></div>
       <section class="card commercial-safety-card">
@@ -5172,6 +5181,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#configureFinancePin')?.addEventListener('click',configureFinancePin);
     $('#lockFinanceNow')?.addEventListener('click',()=>{financeUnlockedThisSession=false;toast('Financeiro bloqueado.');renderSettings();});
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
+    $('#openBackupCenter')?.addEventListener('click',openBackupCenter);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
     $('#openDataFoundation')?.addEventListener('click',openDataFoundationCenter);
@@ -5397,6 +5407,90 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function changeChargeDays(){openModal('Aviso de vencimento',`<form id="daysForm"><div class="field"><label>Quantos dias antes deseja destacar a mensalidade?</label><input name="days" type="number" min="0" max="30" value="${Number(state.settings.chargeDaysBefore||3)}" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#daysForm').addEventListener('submit',e=>{e.preventDefault();state.settings.chargeDaysBefore=Math.max(0,Math.min(30,Number(new FormData(e.currentTarget).get('days'))||0));saveState();closeModal();render();toast('Preferência atualizada.');});}
 
+  function normalizeBackupHistory(rows=[]){
+    return (Array.isArray(rows)?rows:[]).filter(x=>x&&typeof x==='object').slice(0,8).map(x=>({
+      id:String(x.id||uid('bkh')),at:String(x.at||''),kind:String(x.kind||'manual'),version:String(x.version||''),workspaceId:String(x.workspaceId||''),studioName:String(x.studioName||''),summary:x.summary&&typeof x.summary==='object'?{students:Number(x.summary.students)||0,payments:Number(x.summary.payments)||0,receipts:Number(x.summary.receipts)||0,attendanceRecords:Number(x.summary.attendanceRecords)||0}:null
+    }));
+  }
+
+  function backupHistoryKindLabel(kind='manual'){
+    if(kind==='pre-restore')return 'Segurança pré-restauração';
+    if(kind==='pre-migration')return 'Pré-migração';
+    if(kind==='post-migration')return 'Pós-migração';
+    return 'Backup manual';
+  }
+
+  function backupStudioName(sourceState=state,data=null){
+    return String(data?.studio?.studioName||sourceState?.commercial?.studioProfile?.studioName||sourceState?.settings?.studioName||'Studio não informado').trim()||'Studio não informado';
+  }
+
+  function backupProfessionalName(sourceState=state,data=null){
+    return String(data?.studio?.professionalName||sourceState?.commercial?.studioProfile?.professionalName||sourceState?.settings?.trainerName||'Profissional não informado').trim()||'Profissional não informado';
+  }
+
+  function pushBackupHistory(entry={},targetState=state){
+    if(!targetState?.settings)return;
+    const row={
+      id:uid('bkh'),at:String(entry.at||new Date().toISOString()),kind:String(entry.kind||'manual'),version:String(entry.version||APP_VERSION),workspaceId:String(entry.workspaceId||targetState.workspace?.id||''),studioName:String(entry.studioName||backupStudioName(targetState)),summary:entry.summary&&typeof entry.summary==='object'?entry.summary:backupSummaryFor(targetState)
+    };
+    targetState.settings.backupHistory=normalizeBackupHistory([row,...normalizeBackupHistory(targetState.settings.backupHistory)]);
+  }
+
+  function backupProtectionState(){
+    const age=backupAgeDays();
+    if(age===null)return {status:'recommended',tone:'recommended',icon:'!',label:'Backup recomendado',detail:'Ainda não existe um backup registrado neste aparelho.'};
+    if(age<=7)return {status:'protected',tone:'protected',icon:'✓',label:'Protegido',detail:age===0?'Backup realizado hoje.':`Último backup há ${age} dia(s).`};
+    if(age<=30)return {status:'outdated',tone:'outdated',icon:'!',label:'Backup desatualizado',detail:`Último backup há ${age} dias. Gere uma cópia atualizada.`};
+    return {status:'recommended',tone:'recommended',icon:'!',label:'Backup recomendado',detail:`Último backup há ${age} dias. Faça uma nova cópia antes de alterações importantes.`};
+  }
+
+  function backupFileAgeDays(value){
+    if(!value)return null;const d=new Date(value);if(Number.isNaN(d.getTime()))return null;return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  }
+
+  function compareAppVersions(a='',b=''){
+    const pa=String(a).split('.').map(x=>Number(x)||0),pb=String(b).split('.').map(x=>Number(x)||0),n=Math.max(pa.length,pb.length);
+    for(let i=0;i<n;i++){const d=(pa[i]||0)-(pb[i]||0);if(d)return d>0?1:-1}return 0;
+  }
+
+  function backupCompatibility(data={},incoming={}){
+    const format=Number(data.backupFormatVersion||1),dataSchema=Number(data.dataSchemaVersion||incoming.version||0),commercialSchema=Number(data.commercialSchemaVersion||incoming.commercial?.schemaVersion||0),ownershipSchema=Number(data.dataOwnershipSchemaVersion||incoming.dataFoundation?.schemaVersion||0),issues=[];
+    if(format>BACKUP_FORMAT_VERSION)issues.push(`Formato de backup V${format} é mais novo que o suportado V${BACKUP_FORMAT_VERSION}.`);
+    if(dataSchema>DATA_SCHEMA_VERSION)issues.push(`Esquema de dados V${dataSchema} é mais novo que o suportado V${DATA_SCHEMA_VERSION}.`);
+    if(commercialSchema>COMMERCIAL_SCHEMA_VERSION)issues.push(`Estrutura comercial V${commercialSchema} é mais nova que a suportada V${COMMERCIAL_SCHEMA_VERSION}.`);
+    if(ownershipSchema>DATA_OWNERSHIP_SCHEMA_VERSION)issues.push(`Estrutura de propriedade V${ownershipSchema} é mais nova que a suportada V${DATA_OWNERSHIP_SCHEMA_VERSION}.`);
+    return {compatible:issues.length===0,issues,format,dataSchema,commercialSchema,ownershipSchema};
+  }
+
+  function readRestoreSafetySnapshot(){
+    try{const raw=localStorage.getItem(RESTORE_SAFETY_BACKUP_KEY);if(!raw)return null;const data=JSON.parse(raw);return data&&data.state?data:null}catch{return null}
+  }
+
+  function restoreSafetySnapshotMeta(){
+    const data=readRestoreSafetySnapshot();if(!data)return null;return {exportedAt:data.exportedAt||null,appVersion:data.appVersion||'',workspaceId:String(data.workspace?.id||data.state?.workspace?.id||''),studioName:backupStudioName(data.state,data),summary:data.summary||backupSummaryFor(data.state)};
+  }
+
+  async function createRestoreSafetySnapshot(){
+    const now=new Date(),snapshotState=structuredClone(state),summary=backupSummaryFor(snapshotState),digest=await sha256Hex(JSON.stringify(snapshotState));
+    const payload={app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,backupType:'pre-restore-safety',appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshotState.workspace},studio:{studioName:backupStudioName(snapshotState),professionalName:backupProfessionalName(snapshotState)},integrity:digest?{algorithm:'SHA-256',stateDigest:digest}:null,summary,state:snapshotState};
+    try{localStorage.setItem(RESTORE_SAFETY_BACKUP_KEY,JSON.stringify(payload));return payload}catch(err){console.error('Falha ao criar cópia pré-restauração',err);throw new Error('Não foi possível criar a cópia de segurança pré-restauração. Faça um backup manual antes de continuar.');}
+  }
+
+  function backupHistoryRowsHTML(){
+    const rows=normalizeBackupHistory(state.settings?.backupHistory);
+    if(!rows.length)return emptyState('Histórico ainda vazio','Os próximos backups feitos neste aparelho aparecerão aqui.');
+    return `<div class="backup-history-list">${rows.map(row=>`<div class="backup-history-row"><span class="backup-history-mark">${row.kind==='pre-restore'?'↺':'↓'}</span><div><strong>${escapeHTML(backupHistoryKindLabel(row.kind))}</strong><small>${row.at?formatDateTimeBR(row.at):'Data não informada'} • V${escapeHTML(row.version||'—')} • Workspace …${escapeHTML(String(row.workspaceId||'').slice(-8).toUpperCase()||'—')}</small>${row.summary?`<em>${row.summary.students} alunos • ${row.summary.payments} receitas • ${row.summary.attendanceRecords} registros de aula</em>`:''}</div></div>`).join('')}</div>`;
+  }
+
+  function openBackupCenter(){
+    const protection=backupProtectionState(),summary=backupSummaryFor(state),safety=restoreSafetySnapshotMeta(),history=backupHistoryRowsHTML();
+    openModal('Central de Backup Comercial',`<section class="backup-center-hero ${protection.tone}"><span>${protection.icon}</span><div><small>PROTEÇÃO DOS DADOS</small><strong>${escapeHTML(protection.label)}</strong><p>${escapeHTML(protection.detail)}</p></div></section><div class="backup-center-identity"><div><span>Studio</span><strong>${escapeHTML(backupStudioName())}</strong></div><div><span>Profissional</span><strong>${escapeHTML(backupProfessionalName())}</strong></div><div><span>Workspace</span><strong>${escapeHTML(workspaceShortId())}</strong></div><div><span>Versão</span><strong>V${APP_VERSION}</strong></div></div><section class="backup-center-actions"><button class="btn btn-primary" id="backupCenterExport">${icon('download')} Fazer backup agora</button><button class="btn btn-secondary" id="backupCenterImport">${icon('upload')} Restaurar arquivo</button><input id="backupCenterFile" type="file" accept="application/json" class="hidden" /></section><div class="notice">Backup atual: ${summary.students} alunos • ${summary.payments} receitas • ${summary.receipts} recibos • ${summary.physicalAssessments} avaliações físicas • ${summary.posturalAssessments} avaliações posturais.</div>${safety?`<section class="backup-safety-card"><div><small>CÓPIA AUTOMÁTICA PRÉ-RESTAURAÇÃO</small><strong>${escapeHTML(safety.studioName)} • ${formatDateTimeBR(safety.exportedAt)}</strong><span>Workspace …${escapeHTML(String(safety.workspaceId||'').slice(-8).toUpperCase())} • V${escapeHTML(safety.appVersion||'—')}</span></div><button class="btn btn-secondary btn-small" id="restoreSafetyCopy">Recuperar</button></section>`:''}<div class="section-head backup-center-history-head"><div><h3>Histórico neste aparelho</h3><p>Últimos backups registrados localmente</p></div></div>${history}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#backupCenterExport')?.addEventListener('click',()=>{closeModal();exportBackup()});
+    $('#backupCenterImport')?.addEventListener('click',()=>$('#backupCenterFile')?.click());
+    $('#backupCenterFile')?.addEventListener('change',importBackup);
+    $('#restoreSafetyCopy')?.addEventListener('click',()=>{const data=readRestoreSafetySnapshot();if(!data)return toast('Cópia de segurança não encontrada.');prepareBackupRestore(data,{source:'safety'});});
+  }
+
   function backupSummaryFor(sourceState=state){
     const attendanceRecords=Object.keys(sourceState.attendance||{}).length;let present=0,absent=0,makeups=0;
     Object.entries(sourceState.attendance||{}).forEach(([k,map])=>Object.entries(map||{}).forEach(([id,status])=>{if(status==='present'){present++;const raw=sourceState.makeups?.[k];const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(ids.map(String).includes(String(id)))makeups++;}if(status==='absent')absent++;}));
@@ -5409,12 +5503,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(phase==='pre-migration')state.dataFoundation.preMigrationBackupAt=now.toISOString();
     if(phase==='post-migration')state.dataFoundation.postMigrationBackupAt=now.toISOString();
     state.settings.lastBackupAt=now.toISOString();state.settings.lastBackupExportedAt=now.toISOString();state.settings.lastBackupVersion=APP_VERSION;state.settings.lastBackupSummary=summary;
+    pushBackupHistory({at:now.toISOString(),kind:phase||'manual',version:APP_VERSION,workspaceId:state.workspace?.id,studioName:backupStudioName(),summary});
     addAudit('Backup gerado',`V${APP_VERSION} • Workspace ${workspaceShortId()} • ${summary.students} alunos • ${summary.payments} receitas • ${summary.attendanceRecords} registros de aula`);
     saveState();
     const stateDigest=await sha256Hex(JSON.stringify(state));
     const payload={
       app:'MB Gestor Luxury Pro',
-      backupFormatVersion:4,
+      backupFormatVersion:BACKUP_FORMAT_VERSION,
       appVersion:APP_VERSION,
       dataSchemaVersion:DATA_SCHEMA_VERSION,
       commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,
@@ -5422,6 +5517,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       foundationTag:DATA_FOUNDATION_BACKUP_TAG,
       exportedAt:now.toISOString(),
       workspace:{...state.workspace},
+      studio:{studioName:backupStudioName(),professionalName:backupProfessionalName()},
+      backupType:phase||'manual',
       dataFoundation:{...state.dataFoundation},
       integrity:stateDigest?{algorithm:'SHA-256',stateDigest}:null,
       summary,
@@ -5434,47 +5531,51 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   async function importBackup(e){
     const file=e.target.files?.[0];if(!file)return;
-    try{
-      const data=JSON.parse(await file.text()),incoming=data.state||data;
-      if(!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');
-      const expectedDigest=String(data.integrity?.stateDigest||'').trim().toLowerCase();
-      let integrityLabel='Backup legado',integrityTone='';
-      if(expectedDigest){
-        const actualDigest=await sha256Hex(JSON.stringify(incoming));
-        if(actualDigest&&actualDigest!==expectedDigest)throw new Error('Integridade SHA-256 inválida');
-        integrityLabel=actualDigest?'SHA-256 verificado':'SHA-256 presente';
-        integrityTone=actualDigest?'':'warn';
+    try{const data=JSON.parse(await file.text());await prepareBackupRestore(data,{source:'file',fileName:file.name||''});}
+    catch(err){console.error(err);toast('Não foi possível importar esse arquivo.');}
+    finally{e.target.value='';}
+  }
+
+  async function prepareBackupRestore(data,{source='file',fileName=''}={}){
+    const incoming=data?.state||data;
+    if(!incoming||!Array.isArray(incoming.students)||!Array.isArray(incoming.expenses)||!Array.isArray(incoming.payments))throw new Error('Formato inválido');
+    const compatibility=backupCompatibility(data,incoming);
+    const version=data.appVersion||incoming?.settings?.lastBackupVersion||'não informada',exportedAt=data.exportedAt||incoming?.settings?.lastBackupExportedAt||incoming?.settings?.lastBackupAt||null;
+    if(!compatibility.compatible){
+      openModal('Backup incompatível',`<div class="backup-incompatible-hero"><span>×</span><div><strong>Restauração bloqueada</strong><small>Este arquivo contém uma estrutura mais nova do que a instalada.</small></div></div><div class="diagnostic-list">${compatibility.issues.map(x=>`<div class="diagnostic-row danger"><b>!</b><div><strong>Compatibilidade</strong><span>${escapeHTML(x)}</span></div></div>`).join('')}</div><div class="notice danger">Atualize o MB Gestor antes de tentar restaurar este backup. Nenhum dado atual foi alterado.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+      return;
+    }
+    const expectedDigest=String(data.integrity?.stateDigest||'').trim().toLowerCase();
+    let integrityLabel='Backup legado',integrityTone='warn';
+    if(expectedDigest){const actualDigest=await sha256Hex(JSON.stringify(incoming));if(actualDigest&&actualDigest!==expectedDigest)throw new Error('Integridade SHA-256 inválida');integrityLabel=actualDigest?'SHA-256 verificado':'SHA-256 presente';integrityTone=actualDigest?'ok':'warn';}
+    const sm=data.summary||backupSummaryFor(incoming),incomingWorkspaceId=String(data.workspace?.id||incoming.workspace?.id||'').trim(),currentWorkspaceId=String(state.workspace?.id||'').trim();
+    const currentHasData=stateHasBusinessData(state),crossWorkspace=Boolean(incomingWorkspaceId&&currentWorkspaceId&&incomingWorkspaceId!==currentWorkspaceId),legacyBackup=!incomingWorkspaceId,willAdoptWorkspace=crossWorkspace&&!currentHasData,guardNeeded=crossWorkspace&&currentHasData;
+    const workspaceLabel=legacyBackup?'Legado':crossWorkspace?'Diferente':'Mesmo',workspaceTone=guardNeeded?'danger':'',guardHTML=guardNeeded?`<label class="toggle-row backup-workspace-guard"><input id="confirmCrossWorkspace" type="checkbox"><span>Confirmo que este backup pertence a outro Workspace e autorizo substituir os dados atuais deste Studio.</span></label>`:'';
+    const age=backupFileAgeDays(exportedAt),veryOld=age!==null&&age>90,old=age!==null&&age>30,newerApp=compareAppVersions(version,APP_VERSION)>0,legacyFormat=Number(data.backupFormatVersion||1)<BACKUP_FORMAT_VERSION;
+    const notices=[];
+    if(veryOld)notices.push({tone:'danger',text:`Backup muito antigo: ${age} dias desde a criação. Revise as contagens antes de restaurar.`});
+    else if(old)notices.push({tone:'warn',text:`Backup antigo: ${age} dias desde a criação.`});
+    if(newerApp)notices.push({tone:'warn',text:`O arquivo foi criado no app V${version}, mais novo que a versão instalada V${APP_VERSION}. A estrutura declarada ainda é compatível.`});
+    if(legacyFormat)notices.push({tone:'warn',text:`Formato legado V${compatibility.format}. A restauração é compatível, mas o arquivo não possui todos os metadados comerciais da V${BACKUP_FORMAT_VERSION}.`});
+    const note=legacyBackup?'Backup criado antes da identificação por Workspace. Ele continua compatível e será associado com segurança ao Workspace deste aparelho.':willAdoptWorkspace?'Este aparelho ainda não possui dados de operação. O Workspace do backup será adotado para permitir recuperação em um novo dispositivo.':guardNeeded?'ATENÇÃO: o backup pertence a outro Workspace. A restauração só será liberada após sua confirmação explícita.':'Workspace conferido. Antes de substituir os dados, o app criará automaticamente uma cópia local de segurança do estado atual.';
+    const studioName=backupStudioName(incoming,data),professionalName=backupProfessionalName(incoming,data),sourceLabel=source==='safety'?'Cópia pré-restauração':(fileName||'Arquivo selecionado');
+    openModal('Restaurar backup',`<div class="backup-restore-source"><span>ORIGEM</span><strong>${escapeHTML(sourceLabel)}</strong><small>${escapeHTML(studioName)} • ${escapeHTML(professionalName)}</small></div><div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas / recibos</span><strong>${sm.payments??incoming.payments.length} / ${sm.receipts??(incoming.receipts||[]).length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div><div><span>Avaliações físicas</span><strong>${sm.physicalAssessments??(incoming.physicalAssessments||[]).length}</strong></div><div><span>Avaliações posturais</span><strong>${sm.posturalAssessments??(incoming.posturalAssessments||[]).length}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${notices.map(n=>`<div class="notice ${n.tone}">${escapeHTML(n.text)}</div>`).join('')}${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>${source==='safety'?'Recuperar cópia':'Restaurar'}</button></div>`);
+    const confirmBtn=$('#confirmImport'),guard=$('#confirmCrossWorkspace');if(guard)guard.addEventListener('change',()=>{confirmBtn.disabled=!guard.checked});
+    confirmBtn.addEventListener('click',async()=>{
+      confirmBtn.disabled=true;const deviceHistory=normalizeBackupHistory(state.settings?.backupHistory);let safetyPayload=null;
+      if(source!=='safety'){
+        try{safetyPayload=await createRestoreSafetySnapshot();deviceHistory.unshift({id:uid('bkh'),at:safetyPayload.exportedAt,kind:'pre-restore',version:APP_VERSION,workspaceId:String(safetyPayload.workspace?.id||''),studioName:backupStudioName(safetyPayload.state,safetyPayload),summary:safetyPayload.summary});}
+        catch(err){console.error(err);confirmBtn.disabled=false;toast(err.message||'Não foi possível criar a cópia de segurança.');return;}
       }
-      const sm=data.summary||backupSummaryFor(incoming),version=data.appVersion||incoming?.settings?.lastBackupVersion||'não informada',exportedAt=data.exportedAt||incoming?.settings?.lastBackupExportedAt||incoming?.settings?.lastBackupAt||null;
-      const incomingWorkspaceId=String(data.workspace?.id||incoming.workspace?.id||'').trim();
-      const currentWorkspaceId=String(state.workspace?.id||'').trim();
-      const crossWorkspace=Boolean(incomingWorkspaceId&&currentWorkspaceId&&incomingWorkspaceId!==currentWorkspaceId);
-      const currentHasData=stateHasBusinessData(state);
-      const legacyBackup=!incomingWorkspaceId;
-      const willAdoptWorkspace=crossWorkspace&&!currentHasData;
-      const guardNeeded=crossWorkspace&&currentHasData;
-      const workspaceLabel=legacyBackup?'Legado':crossWorkspace?'Diferente':'Mesmo';
-      const workspaceTone=guardNeeded?'danger':'';
-      const guardHTML=guardNeeded?`<label class="toggle-row backup-workspace-guard"><input id="confirmCrossWorkspace" type="checkbox"><span>Confirmo que este backup pertence a outro Workspace e autorizo substituir os dados atuais deste Studio.</span></label>`:'';
-      const note=legacyBackup
-        ?'Backup criado antes da identificação por Workspace. Ele continua compatível e será associado com segurança ao Workspace deste aparelho.'
-        :willAdoptWorkspace
-          ?'Este aparelho ainda não possui dados de operação. O Workspace do backup será adotado para permitir recuperação em um novo dispositivo.'
-          :guardNeeded
-            ?'ATENÇÃO: o backup pertence a outro Workspace. A restauração só será liberada após sua confirmação explícita.'
-            :'Workspace conferido. Ao continuar, os dados atuais serão substituídos pelo conteúdo deste backup.';
-      openModal('Restaurar backup',`<div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas</span><strong>${sm.payments??incoming.payments.length}</strong></div><div><span>Recibos</span><strong>${sm.receipts??(incoming.receipts||[]).length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>Restaurar</button></div>`);
-      const confirmBtn=$('#confirmImport'),guard=$('#confirmCrossWorkspace');
-      if(guard)guard.addEventListener('change',()=>{confirmBtn.disabled=!guard.checked});
-      confirmBtn.addEventListener('click',()=>{
-        const workspaceForRestore=incomingWorkspaceId?(data.workspace||incoming.workspace):state.workspace;
-        state=hydrateState(incoming,{preserveWorkspace:workspaceForRestore});
-        if(incomingWorkspaceId)state.workspace=normalizeWorkspace(data.workspace||incoming.workspace);
-        Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});
-        addAudit('Backup restaurado',`V${version} • Workspace ${workspaceShortId()} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);
-        saveState();closeModal();applyBranding();render();toast('Backup restaurado com validação de origem.');
-      });
-    }catch(err){console.error(err);toast(String(err?.message||'').includes('Integridade SHA-256')?'Backup bloqueado: a integridade do arquivo não confere.':'Não foi possível importar esse arquivo.');}finally{e.target.value='';}
+      const workspaceForRestore=incomingWorkspaceId?(data.workspace||incoming.workspace):state.workspace;
+      state=hydrateState(incoming,{preserveWorkspace:workspaceForRestore});
+      if(incomingWorkspaceId)state.workspace=normalizeWorkspace(data.workspace||incoming.workspace);
+      state.settings.backupHistory=normalizeBackupHistory(deviceHistory);
+      state.settings.lastRestoreAt=new Date().toISOString();state.settings.lastRestoreSource=source==='safety'?'cópia pré-restauração':(fileName||'arquivo externo');
+      Object.keys(state.makeups||{}).forEach(k=>{const raw=state.makeups[k];state.makeups[k]=Array.isArray(raw)?[...new Set(raw.filter(Boolean).map(String))]:(raw?[String(raw)]:[]);if(!state.makeups[k].length)delete state.makeups[k]});
+      addAudit(source==='safety'?'Cópia pré-restauração recuperada':'Backup restaurado',`V${version} • Workspace ${workspaceShortId()} • ${sm.students??incoming.students.length} alunos • ${sm.payments??incoming.payments.length} receitas`);
+      saveState();closeModal();applyBranding();render();toast(source==='safety'?'Cópia de segurança recuperada com sucesso.':'Backup restaurado; cópia pré-restauração criada e preservada.');
+    });
   }
 
   function enhanceDateInputs(root){
