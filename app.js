@@ -1,18 +1,31 @@
-// MB Gestor Luxury Pro V12.12.0 — Backup Comercial Protegido • Etapa 1
+// MB Gestor Luxury Pro V12.13.0 — Multiusuário e Permissões • Etapa 1
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.12.0 — Backup Comercial Protegido • Etapa 1
+  // MB Gestor Luxury Pro V12.13.0 — Multiusuário e Permissões • Etapa 1
 
-  const APP_VERSION = '12.12.0';
+  const APP_VERSION = '12.13.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
-  const COMMERCIAL_SCHEMA_VERSION = 4;
+  const COMMERCIAL_SCHEMA_VERSION = 5;
+  const ACCESS_SCHEMA_VERSION = 1;
   const DATA_OWNERSHIP_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const DATA_FOUNDATION_BACKUP_TAG = 'workspace-foundation-v1';
   const BACKUP_FORMAT_VERSION = 5;
   const RESTORE_SAFETY_BACKUP_KEY = `${STORAGE_KEY}_restore_safety_v1`;
+  const ACCESS_MODULES = [
+    {id:'dashboard',label:'Início'}, {id:'schedule',label:'Agenda'}, {id:'students',label:'Alunos'},
+    {id:'assessments',label:'Avaliação'}, {id:'intelligence',label:'Inteligência'}, {id:'finance',label:'Financeiro'},
+    {id:'charges',label:'Cobranças'}, {id:'reminders',label:'Lembretes'}, {id:'consent',label:'Termos'}, {id:'settings',label:'Ajustes'}
+  ];
+  const ACCESS_ROLE_PRESETS = {
+    owner:{label:'Proprietário',description:'Controle total do Workspace e da configuração comercial.',modules:ACCESS_MODULES.map(x=>x.id)},
+    admin:{label:'Administrador',description:'Operação completa do Studio, incluindo financeiro e ajustes.',modules:ACCESS_MODULES.map(x=>x.id)},
+    trainer:{label:'Professor',description:'Agenda, alunos, avaliações, inteligência, lembretes e termos.',modules:['dashboard','schedule','students','assessments','intelligence','reminders','consent']},
+    reception:{label:'Recepção',description:'Atendimento, agenda, alunos, cobranças e lembretes.',modules:['dashboard','schedule','students','charges','reminders']},
+    finance:{label:'Financeiro',description:'Resumo, financeiro e cobranças sem acesso às avaliações.',modules:['dashboard','finance','charges']}
+  };
   // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
   const BRAND_IDENTITY_RECOVERY_KEY = `${STORAGE_KEY}_brand_identity_recovery_v1`;
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
@@ -123,7 +136,8 @@
       studioProfile: {studioName:'',professionalName:'',whatsapp:'',email:'',document:'',updatedAt:null},
       installation: {id:'',createdAt:'',label:'Este dispositivo'},
       license: {schemaVersion:1,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,externalRef:null},
-      sync: {mode:'off',lastSyncAt:null}
+      sync: {mode:'off',lastSyncAt:null},
+      access: {schemaVersion:ACCESS_SCHEMA_VERSION,mode:'local-prepared',ownerMemberId:'owner',members:[],updatedAt:null}
     },
     dataFoundation: {
       schemaVersion: DATA_OWNERSHIP_SCHEMA_VERSION,
@@ -258,6 +272,31 @@
     };
   }
 
+  function accessRoleModules(role='reception'){
+    const key=Object.prototype.hasOwnProperty.call(ACCESS_ROLE_PRESETS,role)?role:'reception';
+    return [...ACCESS_ROLE_PRESETS[key].modules];
+  }
+
+  function normalizeAccessFoundation(raw={},ownerName='',ownerEmail=''){
+    const source=raw&&typeof raw==='object'?raw:{},now=new Date().toISOString();
+    const rows=Array.isArray(source.members)?source.members:[];
+    const ownerRaw=rows.find(x=>String(x?.id||'')==='owner'||x?.role==='owner')||{};
+    const members=[{
+      ...ownerRaw,id:'owner',name:String(ownerName||ownerRaw.name||'Proprietário').trim().slice(0,80)||'Proprietário',
+      email:String(ownerEmail||ownerRaw.email||'').trim().slice(0,120),role:'owner',status:'active',permissions:accessRoleModules('owner'),
+      createdAt:ownerRaw.createdAt||source.createdAt||now,updatedAt:ownerRaw.updatedAt||source.updatedAt||null
+    }];
+    const used=new Set(['owner']);
+    rows.forEach((row,index)=>{
+      if(!row||row===ownerRaw)return;
+      let id=String(row.id||'').trim();if(!id||used.has(id))id=makeSecureId('member');used.add(id);
+      let role=String(row.role||'reception');if(!ACCESS_ROLE_PRESETS[role]||role==='owner')role='reception';
+      const name=String(row.name||'').trim().slice(0,80);if(!name)return;
+      members.push({...row,id,name,email:String(row.email||'').trim().slice(0,120),role,status:row.status==='inactive'?'inactive':'active',permissions:accessRoleModules(role),createdAt:row.createdAt||now,updatedAt:row.updatedAt||null});
+    });
+    return {schemaVersion:ACCESS_SCHEMA_VERSION,mode:'local-prepared',ownerMemberId:'owner',members,updatedAt:source.updatedAt||null};
+  }
+
   function normalizeCommercial(raw={}, settings={}){
     const source=raw&&typeof raw==='object'?raw:{};
     const ownerSource=source.owner&&typeof source.owner==='object'?source.owner:{};
@@ -265,6 +304,7 @@
     const installationSource=source.installation&&typeof source.installation==='object'?source.installation:{};
     const licenseSource=source.license&&typeof source.license==='object'?source.license:{};
     const syncSource=source.sync&&typeof source.sync==='object'?source.sync:{};
+    const accessSource=source.access&&typeof source.access==='object'?source.access:{};
     const allowedLicense=new Set(['not-configured','local-active','trial','active','past-due','suspended','expired']);
     const allowedPlan=new Set(['local','trial','starter','pro','studio']);
     const plan=allowedPlan.has(String(licenseSource.plan||''))?String(licenseSource.plan):'local';
@@ -322,7 +362,8 @@
         ...syncSource,
         mode:syncSource.mode==='on'?'on':'off',
         lastSyncAt:syncSource.lastSyncAt||null
-      }
+      },
+      access:normalizeAccessFoundation(accessSource,ownerName,ownerEmail)
     };
   }
 
@@ -4939,6 +4980,60 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const d=new Date(value);return Number.isNaN(d.getTime())?fallback:new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
   }
 
+  function commercialAccess(){
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
+    return state.commercial.access;
+  }
+
+  function accessRoleLabel(role='reception'){return ACCESS_ROLE_PRESETS[role]?.label||ACCESS_ROLE_PRESETS.reception.label}
+  function accessRoleDescription(role='reception'){return ACCESS_ROLE_PRESETS[role]?.description||ACCESS_ROLE_PRESETS.reception.description}
+  function accessModuleLabel(id=''){return ACCESS_MODULES.find(x=>x.id===id)?.label||id}
+  function accessMemberStats(){
+    const rows=commercialAccess().members||[];
+    return {total:rows.length,active:rows.filter(x=>x.status!=='inactive').length,team:rows.filter(x=>x.id!=='owner').length};
+  }
+  function accessPermissionChips(role){return accessRoleModules(role).map(id=>`<span>${escapeHTML(accessModuleLabel(id))}</span>`).join('')}
+
+  function openPermissionsMatrix(){
+    const roles=['owner','admin','trainer','reception','finance'];
+    openModal('Matriz de permissões',`<div class="access-matrix-intro"><strong>Permissões por função</strong><span>Esta etapa salva os perfis e a matriz no Workspace local. Login individual e sincronização online continuam desligados.</span></div><div class="access-role-list">${roles.map(role=>{const item=ACCESS_ROLE_PRESETS[role];return `<article class="access-role-card"><div><span class="access-role-badge role-${role}">${escapeHTML(item.label)}</span><p>${escapeHTML(item.description)}</p></div><div class="access-permission-chips">${accessPermissionChips(role)}</div></article>`}).join('')}</div><div class="notice compact"><strong>Importante.</strong><br>Nesta Etapa 1, a matriz prepara a estrutura comercial e documenta o acesso de cada membro. O bloqueio por login/senha será ativado apenas quando a autenticação multiusuário for implementada.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+  }
+
+  function openTeamMemberEditor(memberId=''){
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
+    const access=commercialAccess(),existing=memberId?access.members.find(x=>x.id===memberId):null;
+    if(memberId&&!existing)return toast('Perfil não encontrado.');
+    const isOwner=existing?.id==='owner',role=existing?.role||'trainer';
+    const roleOptions=['admin','trainer','reception','finance'].map(key=>`<option value="${key}" ${role===key?'selected':''}>${escapeHTML(accessRoleLabel(key))}</option>`).join('');
+    openModal(isOwner?'Proprietário do Workspace':existing?'Editar membro':'Adicionar membro',`<form id="teamMemberForm" class="form-grid"><div class="access-editor-hero ${isOwner?'owner':''}"><span>${isOwner?'★':'+'}</span><div><small>${isOwner?'PERFIL PRINCIPAL':'EQUIPE LOCAL'}</small><strong>${escapeHTML(isOwner?'Proprietário protegido':existing?'Atualizar acesso':'Novo perfil de acesso')}</strong><p>${escapeHTML(isOwner?'O proprietário mantém controle total do Workspace.':'Defina a função para aplicar uma matriz de permissões clara e previsível.')}</p></div></div><div class="field"><label>Nome *</label><input name="name" maxlength="80" value="${escapeHTML(existing?.name||'')}" placeholder="Ex.: Ana Souza" required ${isOwner?'readonly':''}/></div><div class="field"><label>E-mail <span class="muted">(opcional)</span></label><input name="email" type="email" maxlength="120" value="${escapeHTML(existing?.email||'')}" placeholder="ana@studio.com" ${isOwner?'readonly':''}/></div>${isOwner?`<div class="access-owner-lock"><span>★</span><div><strong>Função fixa: Proprietário</strong><small>Controle total • não pode ser removido ou desativado.</small></div></div>`:`<div class="field"><label>Função</label><select name="role">${roleOptions}</select></div><label class="access-status-toggle"><input type="checkbox" name="active" ${existing?.status==='inactive'?'':'checked'} /><span><strong>Perfil ativo</strong><small>Membros inativos permanecem no histórico, mas ficam sinalizados como sem acesso.</small></span></label>`}<div class="access-preview"><small>PERMISSÕES DA FUNÇÃO</small><div class="access-permission-chips" id="teamPermissionPreview">${accessPermissionChips(role)}</div></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button>${isOwner?'':`<button class="btn btn-primary" type="submit">${existing?'Salvar alterações':'Adicionar membro'}</button>`}</div></form>`);
+    const form=$('#teamMemberForm');
+    form?.elements.role?.addEventListener('change',()=>{const box=$('#teamPermissionPreview');if(box)box.innerHTML=accessPermissionChips(String(form.elements.role.value||'reception'))});
+    form?.addEventListener('submit',e=>{
+      e.preventDefault();if(isOwner)return;const data=new FormData(e.currentTarget),name=String(data.get('name')||'').trim().slice(0,80),email=String(data.get('email')||'').trim().slice(0,120),newRole=String(data.get('role')||'trainer'),now=new Date().toISOString();
+      if(!name)return toast('Informe o nome do membro.');if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Confira o e-mail informado.');
+      if(!ACCESS_ROLE_PRESETS[newRole]||newRole==='owner')return toast('Selecione uma função válida.');
+      if(existing){Object.assign(existing,{name,email,role:newRole,status:data.get('active')?'active':'inactive',permissions:accessRoleModules(newRole),updatedAt:now});addAudit('Permissão de equipe atualizada',`${name} • ${accessRoleLabel(newRole)} • ${existing.status}`)}
+      else{access.members.push({id:makeSecureId('member'),name,email,role:newRole,status:data.get('active')?'active':'inactive',permissions:accessRoleModules(newRole),createdAt:now,updatedAt:now});addAudit('Membro da equipe adicionado',`${name} • ${accessRoleLabel(newRole)}`)}
+      access.updatedAt=now;state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);saveState();closeModal();renderSettings();setTimeout(openTeamAccessCenter,70);toast(existing?'Permissões atualizadas.':'Membro adicionado à equipe local.');
+    });
+  }
+
+  function confirmRemoveTeamMember(memberId){
+    const access=commercialAccess(),member=access.members.find(x=>x.id===memberId);if(!member||member.id==='owner')return toast('O proprietário não pode ser removido.');
+    openModal('Remover perfil da equipe',`<div class="notice"><strong>${escapeHTML(member.name)}</strong><br>Este perfil local será removido da equipe. Os dados do Studio, histórico e registros do Workspace não serão apagados.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmTeamMemberRemoval">Remover perfil</button></div>`);
+    $('#confirmTeamMemberRemoval')?.addEventListener('click',()=>{access.members=access.members.filter(x=>x.id!==memberId);access.updatedAt=new Date().toISOString();state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);addAudit('Membro da equipe removido',`${member.name} • ${accessRoleLabel(member.role)}`);saveState();closeModal();renderSettings();setTimeout(openTeamAccessCenter,70);toast('Perfil removido da equipe local.')});
+  }
+
+  function openTeamAccessCenter(){
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
+    const access=commercialAccess(),stats=accessMemberStats(),rows=access.members||[];
+    openModal('Equipe e permissões',`<div class="team-access-hero"><span class="team-access-shield">${icon('users')}</span><div><small>WORKSPACE ${escapeHTML(workspaceShortId())}</small><strong>Base de acessos preparada</strong><p>${stats.total} ${stats.total===1?'perfil':'perfis'} • ${stats.active} ativo${stats.active===1?'':'s'} • regras salvas localmente.</p></div></div><div class="team-access-actions"><button class="btn btn-primary" id="addTeamMember">${icon('plus')} Adicionar membro</button><button class="btn btn-secondary" id="openPermissionMatrix">Ver matriz</button></div><div class="team-member-list">${rows.map(member=>`<article class="team-member-card ${member.status==='inactive'?'inactive':''} ${member.id==='owner'?'owner':''}"><div class="team-member-avatar">${escapeHTML(String(member.name||'?').trim().slice(0,1).toUpperCase()||'?')}</div><div class="team-member-main"><div class="team-member-title"><strong>${escapeHTML(member.name||'Perfil')}</strong><span class="access-role-badge role-${escapeHTML(member.role)}">${escapeHTML(accessRoleLabel(member.role))}</span>${member.status==='inactive'?'<span class="access-inactive-badge">Inativo</span>':''}</div><small>${escapeHTML(member.email||'Sem e-mail informado')}</small><div class="access-permission-chips compact">${accessPermissionChips(member.role)}</div></div><div class="team-member-actions"><button class="mini-icon js-edit-team" data-id="${escapeHTML(member.id)}" title="${member.id==='owner'?'Ver proprietário':'Editar membro'}">${icon('edit')}</button>${member.id==='owner'?'':`<button class="mini-icon danger js-remove-team" data-id="${escapeHTML(member.id)}" title="Remover perfil">${icon('trash')}</button>`}</div></article>`).join('')}</div><div class="access-local-note"><span>i</span><div><strong>Etapa 1 • estrutura local</strong><small>Perfis, funções e permissões já acompanham o Workspace e entram no backup. Ainda não há login individual, senha de membro ou sincronização em nuvem.</small></div></div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    $('#addTeamMember')?.addEventListener('click',()=>{closeModal();openTeamMemberEditor()});
+    $('#openPermissionMatrix')?.addEventListener('click',()=>{closeModal();openPermissionsMatrix()});
+    $$('.js-edit-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();openTeamMemberEditor(id)}));
+    $$('.js-remove-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();confirmRemoveTeamMember(id)}));
+  }
+
   function openPlanLicenseCenter(){
     state.commercial=normalizeCommercial(state.commercial,state.settings||{});
     const license=commercialLicense(),local=license.plan==='local'&&license.source==='local',statusLabel=commercialLicenseStatusLabel(),tone=commercialLicenseTone();
@@ -5040,6 +5135,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('profile','Perfil do Studio',profileOk?'ok':'warn',profileOk?`${profile.studioName} • identidade documental preparada.`:'Complete nome do Studio e profissional responsável em Conta e plano.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
+    const access=commercialAccess(),accessMembers=Array.isArray(access.members)?access.members:[],ownerCount=accessMembers.filter(x=>x.id==='owner'&&x.role==='owner'&&x.status==='active').length,accessOk=Number(access.schemaVersion)===ACCESS_SCHEMA_VERSION&&ownerCount===1;
+    push('access','Equipe e permissões',accessOk?'ok':'danger',accessOk?`${accessMembers.length} ${accessMembers.length===1?'perfil local':'perfis locais'} • ${accessMembers.filter(x=>x.status!=='inactive').length} ativo(s) • matriz de permissões V${ACCESS_SCHEMA_VERSION}.`:'Estrutura de acesso inválida ou proprietário principal ausente.');
     const arrays=['students','payments','receipts','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
     const objects=['schedule','attendance','makeups','settings'];
     const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
@@ -5075,6 +5172,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       `Modo: ${state.workspace?.mode||'local'}`,
       `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • plano ${state.commercial?.license?.plan||'local'} • licença ${state.commercial?.license?.status||'—'}`,
       `Instalação: ${installationShortId()} • proprietário configurado ${commercialOwnerConfigured()?'sim':'não'} • código de suporte ${supportAccessCode()}`,
+      `Equipe e permissões: V${commercialAccess().schemaVersion||'—'} • ${commercialAccess().members.length} perfil(is) local(is) • ${commercialAccess().members.filter(x=>x.status!=='inactive').length} ativo(s) • modo ${commercialAccess().mode||'local-prepared'}`,
       `Fundação de dados: V${state.dataFoundation?.schemaVersion||'—'} • modo ${state.dataFoundation?.ownershipMode||'—'} • cobertura ${workspaceOwnershipAudit(state).coverage}%`,
       `Execução: ${standalone?'PWA instalada':'navegador'} • online ${navigator.onLine===false?'não':'sim'}`,
       `Armazenamento do estado: ${formatBytes(result.bytes)}`,
@@ -5127,6 +5225,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const ownership=workspaceOwnershipAudit(state);
     const backupProtection=backupProtectionState();
     const restoreSafety=restoreSafetySnapshotMeta();
+    const accessStats=accessMemberStats();
     viewEl.innerHTML=`
       <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Personalização comercial • nome, logotipo e cores</p></div></div>
@@ -5142,6 +5241,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
       <div class="section-head"><div><h3>Conta e plano</h3><p>Identificação comercial simples, clara e sem bloqueios</p></div></div>
       <section class="card professional-account-card"><div class="professional-account-head"><div class="professional-account-mark">${commercialOwnerConfigured()?'✓':'MB'}</div><div><span>CONTA LOCAL</span><strong>${escapeHTML(commercialOwnerConfigured()?commercialOwner().name:'Proprietário não configurado')}</strong><small>${commercialOwnerConfigured()?'Identidade do responsável salva neste aparelho.':'Configure uma vez para identificar esta instalação profissionalmente.'}</small></div><button class="btn ${commercialOwnerConfigured()?'btn-secondary':'btn-primary'} btn-small" id="openAccountCenter">${commercialOwnerConfigured()?'Gerenciar':'Configurar'}</button></div><div class="professional-account-meta"><div><span>Plano</span><strong>${escapeHTML(commercialPlanLabel())}</strong></div><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="professional-license-row" id="openPlanLicense" type="button"><span><small>PLANO E LICENÇA</small><strong>${escapeHTML(commercialLicenseStatusLabel())}</strong><em>${state.commercial?.license?.source==='online'?'Licença online vinculada':'Operação local • sem cobrança vinculada'}</em></span><b>Detalhes ›</b></button></section>
+      <div class="section-head"><div><h3>Equipe e permissões</h3><p>Perfis locais preparados para a futura autenticação multiusuário</p></div></div>
+      <section class="card team-access-settings-card">
+        <div class="team-access-settings-head"><span>${icon('users')}</span><div><small>ACESSOS DO WORKSPACE</small><strong>${accessStats.total} ${accessStats.total===1?'perfil configurado':'perfis configurados'}</strong><em>${accessStats.active} ativo${accessStats.active===1?'':'s'} • proprietário protegido • matriz V${ACCESS_SCHEMA_VERSION}</em></div><button class="btn btn-primary btn-small" id="openTeamAccess">Gerenciar</button></div>
+        <div class="settings-row"><div><strong>Modo atual</strong><span>Estrutura local de funções e permissões • login individual ainda não ativado.</span></div><span class="pill">Etapa 1</span></div>
+      </section>
       <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para dados financeiros</p></div></div>
       <section class="card">
         <div class="settings-row"><div><strong>PIN do Financeiro</strong><span>${financeLockEnabled()?'Ativado • solicitado ao abrir Financeiro e Cobranças':'Desativado • configure um PIN de 4 a 6 números'}</span></div><button class="btn ${financeLockEnabled()?'btn-secondary':'btn-primary'} btn-small" id="configureFinancePin">${financeLockEnabled()?'Alterar':'Ativar'}</button></div>
@@ -5165,7 +5269,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Equipe e permissões</strong><span>V${ACCESS_SCHEMA_VERSION} • ${accessStats.total} ${accessStats.total===1?'perfil local':'perfis locais'} • matriz por função preparada para autenticação futura.</span></div><span class="pill">V12.13</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -5178,6 +5282,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#configureAgendaFlex')?.addEventListener('click',openAgendaFlexSettings);
     $('#openAccountCenter')?.addEventListener('click',openProfessionalAccountCenter);
     $('#openPlanLicense')?.addEventListener('click',openPlanLicenseCenter);
+    $('#openTeamAccess')?.addEventListener('click',openTeamAccessCenter);
     $('#configureFinancePin')?.addEventListener('click',configureFinancePin);
     $('#lockFinanceNow')?.addEventListener('click',()=>{financeUnlockedThisSession=false;toast('Financeiro bloqueado.');renderSettings();});
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
@@ -5454,12 +5559,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function backupCompatibility(data={},incoming={}){
-    const format=Number(data.backupFormatVersion||1),dataSchema=Number(data.dataSchemaVersion||incoming.version||0),commercialSchema=Number(data.commercialSchemaVersion||incoming.commercial?.schemaVersion||0),ownershipSchema=Number(data.dataOwnershipSchemaVersion||incoming.dataFoundation?.schemaVersion||0),issues=[];
+    const format=Number(data.backupFormatVersion||1),dataSchema=Number(data.dataSchemaVersion||incoming.version||0),commercialSchema=Number(data.commercialSchemaVersion||incoming.commercial?.schemaVersion||0),accessSchema=Number(data.accessSchemaVersion||incoming.commercial?.access?.schemaVersion||0),ownershipSchema=Number(data.dataOwnershipSchemaVersion||incoming.dataFoundation?.schemaVersion||0),issues=[];
     if(format>BACKUP_FORMAT_VERSION)issues.push(`Formato de backup V${format} é mais novo que o suportado V${BACKUP_FORMAT_VERSION}.`);
     if(dataSchema>DATA_SCHEMA_VERSION)issues.push(`Esquema de dados V${dataSchema} é mais novo que o suportado V${DATA_SCHEMA_VERSION}.`);
     if(commercialSchema>COMMERCIAL_SCHEMA_VERSION)issues.push(`Estrutura comercial V${commercialSchema} é mais nova que a suportada V${COMMERCIAL_SCHEMA_VERSION}.`);
+    if(accessSchema>ACCESS_SCHEMA_VERSION)issues.push(`Estrutura de permissões V${accessSchema} é mais nova que a suportada V${ACCESS_SCHEMA_VERSION}.`);
     if(ownershipSchema>DATA_OWNERSHIP_SCHEMA_VERSION)issues.push(`Estrutura de propriedade V${ownershipSchema} é mais nova que a suportada V${DATA_OWNERSHIP_SCHEMA_VERSION}.`);
-    return {compatible:issues.length===0,issues,format,dataSchema,commercialSchema,ownershipSchema};
+    return {compatible:issues.length===0,issues,format,dataSchema,commercialSchema,accessSchema,ownershipSchema};
   }
 
   function readRestoreSafetySnapshot(){
@@ -5472,7 +5578,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   async function createRestoreSafetySnapshot(){
     const now=new Date(),snapshotState=structuredClone(state),summary=backupSummaryFor(snapshotState),digest=await sha256Hex(JSON.stringify(snapshotState));
-    const payload={app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,backupType:'pre-restore-safety',appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshotState.workspace},studio:{studioName:backupStudioName(snapshotState),professionalName:backupProfessionalName(snapshotState)},integrity:digest?{algorithm:'SHA-256',stateDigest:digest}:null,summary,state:snapshotState};
+    const payload={app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,backupType:'pre-restore-safety',appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,accessSchemaVersion:ACCESS_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshotState.workspace},studio:{studioName:backupStudioName(snapshotState),professionalName:backupProfessionalName(snapshotState)},integrity:digest?{algorithm:'SHA-256',stateDigest:digest}:null,summary,state:snapshotState};
     try{localStorage.setItem(RESTORE_SAFETY_BACKUP_KEY,JSON.stringify(payload));return payload}catch(err){console.error('Falha ao criar cópia pré-restauração',err);throw new Error('Não foi possível criar a cópia de segurança pré-restauração. Faça um backup manual antes de continuar.');}
   }
 
@@ -5484,7 +5590,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openBackupCenter(){
     const protection=backupProtectionState(),summary=backupSummaryFor(state),safety=restoreSafetySnapshotMeta(),history=backupHistoryRowsHTML();
-    openModal('Central de Backup Comercial',`<section class="backup-center-hero ${protection.tone}"><span>${protection.icon}</span><div><small>PROTEÇÃO DOS DADOS</small><strong>${escapeHTML(protection.label)}</strong><p>${escapeHTML(protection.detail)}</p></div></section><div class="backup-center-identity"><div><span>Studio</span><strong>${escapeHTML(backupStudioName())}</strong></div><div><span>Profissional</span><strong>${escapeHTML(backupProfessionalName())}</strong></div><div><span>Workspace</span><strong>${escapeHTML(workspaceShortId())}</strong></div><div><span>Versão</span><strong>V${APP_VERSION}</strong></div></div><section class="backup-center-actions"><button class="btn btn-primary" id="backupCenterExport">${icon('download')} Fazer backup agora</button><button class="btn btn-secondary" id="backupCenterImport">${icon('upload')} Restaurar arquivo</button><input id="backupCenterFile" type="file" accept="application/json" class="hidden" /></section><div class="notice">Backup atual: ${summary.students} alunos • ${summary.payments} receitas • ${summary.receipts} recibos • ${summary.physicalAssessments} avaliações físicas • ${summary.posturalAssessments} avaliações posturais.</div>${safety?`<section class="backup-safety-card"><div><small>CÓPIA AUTOMÁTICA PRÉ-RESTAURAÇÃO</small><strong>${escapeHTML(safety.studioName)} • ${formatDateTimeBR(safety.exportedAt)}</strong><span>Workspace …${escapeHTML(String(safety.workspaceId||'').slice(-8).toUpperCase())} • V${escapeHTML(safety.appVersion||'—')}</span></div><button class="btn btn-secondary btn-small" id="restoreSafetyCopy">Recuperar</button></section>`:''}<div class="section-head backup-center-history-head"><div><h3>Histórico neste aparelho</h3><p>Últimos backups registrados localmente</p></div></div>${history}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    openModal('Central de Backup Comercial',`<section class="backup-center-hero ${protection.tone}"><span>${protection.icon}</span><div><small>PROTEÇÃO DOS DADOS</small><strong>${escapeHTML(protection.label)}</strong><p>${escapeHTML(protection.detail)}</p></div></section><div class="backup-center-identity"><div><span>Studio</span><strong>${escapeHTML(backupStudioName())}</strong></div><div><span>Profissional</span><strong>${escapeHTML(backupProfessionalName())}</strong></div><div><span>Workspace</span><strong>${escapeHTML(workspaceShortId())}</strong></div><div><span>Versão</span><strong>V${APP_VERSION}</strong></div></div><section class="backup-center-actions"><button class="btn btn-primary" id="backupCenterExport">${icon('download')} Fazer backup agora</button><button class="btn btn-secondary" id="backupCenterImport">${icon('upload')} Restaurar arquivo</button><input id="backupCenterFile" type="file" accept="application/json" class="hidden" /></section><div class="notice">Backup atual: ${summary.students} alunos • ${summary.payments} receitas • ${summary.receipts} recibos • ${summary.physicalAssessments} avaliações físicas • ${summary.posturalAssessments} avaliações posturais • ${summary.accessProfiles} perfil(is) de acesso.</div>${safety?`<section class="backup-safety-card"><div><small>CÓPIA AUTOMÁTICA PRÉ-RESTAURAÇÃO</small><strong>${escapeHTML(safety.studioName)} • ${formatDateTimeBR(safety.exportedAt)}</strong><span>Workspace …${escapeHTML(String(safety.workspaceId||'').slice(-8).toUpperCase())} • V${escapeHTML(safety.appVersion||'—')}</span></div><button class="btn btn-secondary btn-small" id="restoreSafetyCopy">Recuperar</button></section>`:''}<div class="section-head backup-center-history-head"><div><h3>Histórico neste aparelho</h3><p>Últimos backups registrados localmente</p></div></div>${history}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
     $('#backupCenterExport')?.addEventListener('click',()=>{closeModal();exportBackup()});
     $('#backupCenterImport')?.addEventListener('click',()=>$('#backupCenterFile')?.click());
     $('#backupCenterFile')?.addEventListener('change',importBackup);
@@ -5494,7 +5600,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function backupSummaryFor(sourceState=state){
     const attendanceRecords=Object.keys(sourceState.attendance||{}).length;let present=0,absent=0,makeups=0;
     Object.entries(sourceState.attendance||{}).forEach(([k,map])=>Object.entries(map||{}).forEach(([id,status])=>{if(status==='present'){present++;const raw=sourceState.makeups?.[k];const ids=Array.isArray(raw)?raw:[raw].filter(Boolean);if(ids.map(String).includes(String(id)))makeups++;}if(status==='absent')absent++;}));
-    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,receipts:(sourceState.receipts||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,attendanceRecords,present,absent,makeups};
+    return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,receipts:(sourceState.receipts||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,accessProfiles:Array.isArray(sourceState.commercial?.access?.members)?sourceState.commercial.access.members.length:1,activeAccessProfiles:Array.isArray(sourceState.commercial?.access?.members)?sourceState.commercial.access.members.filter(x=>x?.status!=='inactive').length:1,attendanceRecords,present,absent,makeups};
   }
 
   async function exportBackup(foundationPhase=''){
@@ -5513,6 +5619,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       appVersion:APP_VERSION,
       dataSchemaVersion:DATA_SCHEMA_VERSION,
       commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,
+      accessSchemaVersion:ACCESS_SCHEMA_VERSION,
       dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,
       foundationTag:DATA_FOUNDATION_BACKUP_TAG,
       exportedAt:now.toISOString(),
@@ -5559,7 +5666,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     if(legacyFormat)notices.push({tone:'warn',text:`Formato legado V${compatibility.format}. A restauração é compatível, mas o arquivo não possui todos os metadados comerciais da V${BACKUP_FORMAT_VERSION}.`});
     const note=legacyBackup?'Backup criado antes da identificação por Workspace. Ele continua compatível e será associado com segurança ao Workspace deste aparelho.':willAdoptWorkspace?'Este aparelho ainda não possui dados de operação. O Workspace do backup será adotado para permitir recuperação em um novo dispositivo.':guardNeeded?'ATENÇÃO: o backup pertence a outro Workspace. A restauração só será liberada após sua confirmação explícita.':'Workspace conferido. Antes de substituir os dados, o app criará automaticamente uma cópia local de segurança do estado atual.';
     const studioName=backupStudioName(incoming,data),professionalName=backupProfessionalName(incoming,data),sourceLabel=source==='safety'?'Cópia pré-restauração':(fileName||'Arquivo selecionado');
-    openModal('Restaurar backup',`<div class="backup-restore-source"><span>ORIGEM</span><strong>${escapeHTML(sourceLabel)}</strong><small>${escapeHTML(studioName)} • ${escapeHTML(professionalName)}</small></div><div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas / recibos</span><strong>${sm.payments??incoming.payments.length} / ${sm.receipts??(incoming.receipts||[]).length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div><div><span>Avaliações físicas</span><strong>${sm.physicalAssessments??(incoming.physicalAssessments||[]).length}</strong></div><div><span>Avaliações posturais</span><strong>${sm.posturalAssessments??(incoming.posturalAssessments||[]).length}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${notices.map(n=>`<div class="notice ${n.tone}">${escapeHTML(n.text)}</div>`).join('')}${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>${source==='safety'?'Recuperar cópia':'Restaurar'}</button></div>`);
+    openModal('Restaurar backup',`<div class="backup-restore-source"><span>ORIGEM</span><strong>${escapeHTML(sourceLabel)}</strong><small>${escapeHTML(studioName)} • ${escapeHTML(professionalName)}</small></div><div class="backup-restore-summary"><div><span>Versão</span><strong>V${escapeHTML(version)}</strong></div><div><span>Criado em</span><strong>${exportedAt?formatDateTimeBR(exportedAt):'Não informado'}</strong></div><div class="${workspaceTone}"><span>Workspace</span><strong>${escapeHTML(workspaceLabel)}${incomingWorkspaceId?` • …${escapeHTML(incomingWorkspaceId.slice(-8).toUpperCase())}`:''}</strong></div><div class="${integrityTone}"><span>Integridade</span><strong>${escapeHTML(integrityLabel)}</strong></div><div><span>Alunos</span><strong>${sm.students??incoming.students.length}</strong></div><div><span>Receitas / recibos</span><strong>${sm.payments??incoming.payments.length} / ${sm.receipts??(incoming.receipts||[]).length}</strong></div><div><span>Gastos</span><strong>${sm.expenses??incoming.expenses.length}</strong></div><div><span>Registros de aula</span><strong>${sm.attendanceRecords??Object.keys(incoming.attendance||{}).length}</strong></div><div><span>Presenças / faltas</span><strong>${sm.present??'—'} / ${sm.absent??'—'}</strong></div><div><span>Reposições realizadas</span><strong>${sm.makeups??'—'}</strong></div><div><span>Avaliações físicas</span><strong>${sm.physicalAssessments??(incoming.physicalAssessments||[]).length}</strong></div><div><span>Avaliações posturais</span><strong>${sm.posturalAssessments??(incoming.posturalAssessments||[]).length}</strong></div><div><span>Perfis de acesso</span><strong>${sm.accessProfiles??(Array.isArray(incoming.commercial?.access?.members)?incoming.commercial.access.members.length:1)}</strong></div></div><div class="notice ${workspaceTone}">${escapeHTML(note)}</div>${notices.map(n=>`<div class="notice ${n.tone}">${escapeHTML(n.text)}</div>`).join('')}${guardHTML}<div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn ${guardNeeded?'btn-danger':'btn-primary'}" id="confirmImport" ${guardNeeded?'disabled':''}>${source==='safety'?'Recuperar cópia':'Restaurar'}</button></div>`);
     const confirmBtn=$('#confirmImport'),guard=$('#confirmCrossWorkspace');if(guard)guard.addEventListener('change',()=>{confirmBtn.disabled=!guard.checked});
     confirmBtn.addEventListener('click',async()=>{
       confirmBtn.disabled=true;const deviceHistory=normalizeBackupHistory(state.settings?.backupHistory);let safetyPayload=null;
