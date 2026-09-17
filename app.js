@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.4 — Composição Corporal • Seleção Guiada de Aluno
+// MB Gestor Luxury Pro V12.11.5 — Composição Corporal • Polimento da Seleção Guiada
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.4 — Composição Corporal • Seleção Guiada de Aluno
+  // MB Gestor Luxury Pro V12.11.5 — Composição Corporal • Polimento da Seleção Guiada
 
-  const APP_VERSION = '12.11.4';
+  const APP_VERSION = '12.11.5';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -2930,7 +2930,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </div>
       <section class="metrics assessment-top-metrics">${metricCard('users',students.length,'Alunos cadastrados')}${metricCard('check',withAssessment,'Com avaliação','good')}${metricCard('chart',total,'Avaliações salvas')}${metricCard('chart',withEvolution,'Com evolução')}</section>
       <div class="assessment-guidance"><strong>Base antropométrica responsável</strong><span>IMC = peso ÷ altura² • IRCQ = cintura ÷ quadril. A composição corporal preserva a origem do resultado — estimado pelo MB Gestor ou medido externamente — sem classificação estética automática.</span></div>
-      <div class="assessment-composition-mode-banner hidden" id="assessmentCompositionModeBanner" aria-live="polite"><div><span>COMPOSIÇÃO CORPORAL</span><strong>Escolha o aluno</strong><small>1. Escolha o aluno abaixo. 2. Toque em “Iniciar composição” ou “Continuar composição”. Se já houver avaliação hoje, o app retoma o registro para evitar duplicidade.</small></div><button type="button" id="assessmentCompositionModeExit">Voltar às avaliações</button></div>
+      <div class="assessment-composition-mode-banner hidden" id="assessmentCompositionModeBanner" aria-live="polite"><div><strong>Composição corporal</strong><small>Selecione um aluno para iniciar ou continuar. Se já houver avaliação hoje, o app retoma o registro para evitar duplicidade.</small></div><button type="button" id="assessmentCompositionModeExit">Voltar às avaliações</button></div>
       <div class="section-head" id="assessmentStudentsSection"><div><h3 id="assessmentStudentsTitle">Alunos</h3><p id="assessmentStudentsHint">Selecione um aluno para avaliar, consultar histórico ou acompanhar evolução.</p></div></div>
       <div class="search-wrap">${icon('search')}<input id="assessmentSearch" placeholder="Buscar aluno por nome" autocomplete="off" /></div>
       <div class="tabs assessment-tabs"><button class="tab ${assessmentFilter==='all'?'active':''}" data-assessment-filter="all">Todos</button><button class="tab ${assessmentFilter==='done'?'active':''}" data-assessment-filter="done">Avaliados</button><button class="tab ${assessmentFilter==='evolution'?'active':''}" data-assessment-filter="evolution">Com evolução</button><button class="tab ${assessmentFilter==='review'?'active':''}" data-assessment-filter="review">Reavaliar 90+ (${reviewList.length})</button><button class="tab ${assessmentFilter==='pending'?'active':''}" data-assessment-filter="pending">Sem avaliação</button></div>
