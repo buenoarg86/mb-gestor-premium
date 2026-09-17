@@ -1980,6 +1980,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 .team-member-title{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .team-member-title>strong{font-size:1rem}
 .team-member-actions{display:flex;gap:7px}
+.team-owner-recovery{grid-column:2/-1;width:100%;min-height:42px;margin-top:2px}
 .access-role-badge,.access-inactive-badge{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;font-size:.66rem;font-weight:900;letter-spacing:.035em;text-transform:uppercase;border:1px solid rgba(var(--brand-accent-rgb),.2);background:rgba(var(--brand-primary-rgb),.11);color:var(--gold2)}
 .access-role-badge.role-owner{background:rgba(var(--brand-primary-rgb),.18)}
 .access-role-badge.role-admin{color:#b9d8ff;border-color:rgba(105,165,225,.25);background:rgba(74,126,180,.12)}
@@ -2077,3 +2078,5 @@ body.access-session-locked .toast-root{z-index:5200}
 .access-recovery-link{border:0;background:transparent;color:var(--gold2);font:inherit;font-size:.76rem;font-weight:800;padding:7px;cursor:pointer}
 .access-gate-foot{text-align:center;margin-top:14px;color:#696e77;font-size:.68rem;line-height:1.35}
 @media(max-width:620px){.access-session-status{align-items:stretch;flex-direction:column}.access-session-status>.btn,.access-session-status-actions,.access-session-status-actions .btn{width:100%}.access-session-status-actions{display:grid;grid-template-columns:1fr}.access-gate-layer{place-items:center;padding-left:14px;padding-right:14px}.access-gate-card{padding:17px;border-radius:24px}.access-gate-brand{grid-template-columns:58px minmax(0,1fr)}.access-gate-logo{width:58px;height:58px;border-radius:18px}.access-gate-brand strong{font-size:1.22rem}}
+
+/* MB Gestor Luxury Pro V12.14.2 — Hotfix • Código de Recuperação Visível */

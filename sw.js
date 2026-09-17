@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.14.1 — Hotfix • Rotação de Credenciais e Feedback de Acesso
-const CACHE='mb-gestor-luxury-pro-v12-14-1-credential-rotation-hotfix';
-const ASSETS=['./','./index.html','./styles.css?v=12.14.1','./app.js?v=12.14.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.14.2 — Hotfix • Código de Recuperação Visível
+const CACHE='mb-gestor-luxury-pro-v12-14-2-owner-recovery-ui-hotfix';
+const ASSETS=['./','./index.html','./styles.css?v=12.14.2','./app.js?v=12.14.2','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
