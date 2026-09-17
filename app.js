@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.7 — Avaliação • Apresentação Integrada
+// MB Gestor Luxury Pro V12.11.8 — Alunos • Filtros Mobile Visíveis
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.7 — Avaliação • Apresentação Integrada
+  // MB Gestor Luxury Pro V12.11.8 — Alunos • Filtros Mobile Visíveis
 
-  const APP_VERSION = '12.11.7';
+  const APP_VERSION = '12.11.8';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;

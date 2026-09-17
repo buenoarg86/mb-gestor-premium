@@ -1868,3 +1868,12 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 /* V12.11.4 — Composição corporal: seleção guiada de aluno */
 #assessmentStudentsSection.is-composition-target{padding:11px 12px;border:1px solid rgba(var(--brand-accent-rgb),.18);border-radius:15px;background:rgba(var(--brand-accent-rgb),.035);box-shadow:inset 0 1px rgba(255,255,255,.02)}
 #assessmentStudentsSection.is-composition-target h3{color:var(--gold2)}
+
+
+/* V12.11.8 — Alunos: filtros mobile totalmente visíveis, sem alterar a lógica */
+@media(max-width:620px){
+  .student-filter-tabs{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px;overflow:visible;padding-bottom:0}
+  .student-filter-tabs .tab{min-width:0;min-height:46px;padding:8px 5px;white-space:normal;line-height:1.15;text-align:center;display:flex;align-items:center;justify-content:center}
+  .student-filter-tabs .tab:nth-child(-n+4){grid-column:span 3}
+  .student-filter-tabs .tab:nth-child(n+5){grid-column:span 4}
+}
