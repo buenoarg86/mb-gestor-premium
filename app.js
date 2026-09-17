@@ -1,16 +1,17 @@
-// MB Gestor Luxury Pro V12.13.1 — Permissões • Seletor Premium de Função
+// MB Gestor Luxury Pro V12.14.0 — Equipe • Sessão Local e Permissões Reais
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.13.1 — Permissões • Seletor Premium de Função
+  // MB Gestor Luxury Pro V12.14.0 — Equipe • Sessão Local e Permissões Reais
 
-  const APP_VERSION = '12.13.1';
+  const APP_VERSION = '12.14.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
-  const ACCESS_SCHEMA_VERSION = 1;
+  const ACCESS_SCHEMA_VERSION = 2;
   const DATA_OWNERSHIP_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
+  const ACCESS_SESSION_KEY = `${STORAGE_KEY}_access_session_v1`;
   const DATA_FOUNDATION_BACKUP_TAG = 'workspace-foundation-v1';
   const BACKUP_FORMAT_VERSION = 5;
   const RESTORE_SAFETY_BACKUP_KEY = `${STORAGE_KEY}_restore_safety_v1`;
@@ -230,6 +231,8 @@
   // Privacidade persistente: o app lembra se os valores ficaram ocultos ou visíveis.
   let financialValuesVisible = Boolean(state.settings?.financialValuesVisible);
   let financeUnlockedThisSession = false;
+  // V12.14.0 • sessão de equipe vive apenas nesta execução/PWA (sessionStorage). Nenhum PIN em texto puro é salvo.
+  let accessSession = null;
   // Estado transitório da Avaliação Física: protege rascunho, descarte acidental e botão Voltar do Android/PWA.
   let assessmentSession = null;
   let assessmentHistoryIgnoreNextPop = false;
@@ -277,24 +280,32 @@
     return [...ACCESS_ROLE_PRESETS[key].modules];
   }
 
+  function normalizeAccessCredential(row={}){
+    const pinSalt=String(row?.pinSalt||'').trim().slice(0,120),pinHash=String(row?.pinHash||'').trim().slice(0,160);
+    return {pinSalt:pinSalt&&pinHash?pinSalt:'',pinHash:pinSalt&&pinHash?pinHash:'',pinUpdatedAt:pinSalt&&pinHash?(row?.pinUpdatedAt||null):null};
+  }
+
   function normalizeAccessFoundation(raw={},ownerName='',ownerEmail=''){
     const source=raw&&typeof raw==='object'?raw:{},now=new Date().toISOString();
     const rows=Array.isArray(source.members)?source.members:[];
     const ownerRaw=rows.find(x=>String(x?.id||'')==='owner'||x?.role==='owner')||{};
+    const ownerCredential=normalizeAccessCredential(ownerRaw);
     const members=[{
-      ...ownerRaw,id:'owner',name:String(ownerName||ownerRaw.name||'Proprietário').trim().slice(0,80)||'Proprietário',
+      ...ownerRaw,...ownerCredential,id:'owner',name:String(ownerName||ownerRaw.name||'Proprietário').trim().slice(0,80)||'Proprietário',
       email:String(ownerEmail||ownerRaw.email||'').trim().slice(0,120),role:'owner',status:'active',permissions:accessRoleModules('owner'),
       createdAt:ownerRaw.createdAt||source.createdAt||now,updatedAt:ownerRaw.updatedAt||source.updatedAt||null
     }];
     const used=new Set(['owner']);
-    rows.forEach((row,index)=>{
+    rows.forEach(row=>{
       if(!row||row===ownerRaw)return;
       let id=String(row.id||'').trim();if(!id||used.has(id))id=makeSecureId('member');used.add(id);
       let role=String(row.role||'reception');if(!ACCESS_ROLE_PRESETS[role]||role==='owner')role='reception';
       const name=String(row.name||'').trim().slice(0,80);if(!name)return;
-      members.push({...row,id,name,email:String(row.email||'').trim().slice(0,120),role,status:row.status==='inactive'?'inactive':'active',permissions:accessRoleModules(role),createdAt:row.createdAt||now,updatedAt:row.updatedAt||null});
+      members.push({...row,...normalizeAccessCredential(row),id,name,email:String(row.email||'').trim().slice(0,120),role,status:row.status==='inactive'?'inactive':'active',permissions:accessRoleModules(role),createdAt:row.createdAt||now,updatedAt:row.updatedAt||null});
     });
-    return {schemaVersion:ACCESS_SCHEMA_VERSION,mode:'local-prepared',ownerMemberId:'owner',members,updatedAt:source.updatedAt||null};
+    const requestedMode=source.mode==='local-session'?'local-session':'local-prepared';
+    const mode=requestedMode==='local-session'&&members.every(m=>m.status==='inactive'||Boolean(m.pinHash&&m.pinSalt))?'local-session':'local-prepared';
+    return {schemaVersion:ACCESS_SCHEMA_VERSION,mode,ownerMemberId:'owner',members,activatedAt:mode==='local-session'?(source.activatedAt||now):null,recoverySalt:String(source.recoverySalt||'').trim().slice(0,120),recoveryHash:String(source.recoveryHash||'').trim().slice(0,160),recoveryUpdatedAt:source.recoveryUpdatedAt||null,updatedAt:source.updatedAt||null};
   }
 
   function normalizeCommercial(raw={}, settings={}){
@@ -542,7 +553,7 @@
       if(!raw)return createFreshState();
       const parsed=JSON.parse(raw);
       const hydrated=hydrateState(parsed);
-      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||!parsed.settings?.operationConfig;
+      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.commercial?.access?.schemaVersion)!==ACCESS_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||!parsed.settings?.operationConfig;
       if(needsFoundationMigration){
         // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
         // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
@@ -721,7 +732,8 @@
 // V9.4 • Gestão executiva: espera, interessados, experimental, fechamento e histórico.
 function addAudit(action, detail=''){
   state.auditLog=state.auditLog||[];
-  state.auditLog.unshift({id:uid('log'),at:new Date().toISOString(),action:String(action||'Ação'),detail:String(detail||'')});
+  const actor=accessCurrentMember?.()||null;
+  state.auditLog.unshift({id:uid('log'),at:new Date().toISOString(),action:String(action||'Ação'),detail:String(detail||''),actorMemberId:actor?.id||'',actorName:actor?.name||'',actorRole:actor?.role||''});
   state.auditLog=state.auditLog.slice(0,500);
 }
 function waitlistFor(day,time){return (state.waitlist||[]).filter(w=>w.day===day&&w.time===time)}
@@ -782,7 +794,7 @@ function openHolidayQuick(){
   $('#holidayQuickForm').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),date=String(fd.get('date')),label=String(fd.get('label')||'Feriado').trim();state.studioClosures.push({id:uid('close'),startDate:date,endDate:date,type:'Feriado',label});addAudit('Feriado marcado',`${label} • ${fmtDate(date)}`);saveState();closeModal();toast('Feriado marcado no calendário.');if(currentView==='schedule')renderSchedule();});
 }
 
-function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,160);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')||a.includes('recibo')||a.includes('gasto')?'money':a.includes('backup')?'backup':'neutral';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
+function openAuditHistory(){const rows=(state.auditLog||[]).slice(0,160);openModal('Histórico do sistema',`<div class="history-list audit-history">${rows.length?rows.map(x=>{const a=String(x.action||'').toLowerCase(),tone=a.includes('presença')?'ok':a.includes('falta')?'danger':a.includes('pagamento')||a.includes('receita')||a.includes('recibo')||a.includes('gasto')?'money':a.includes('backup')?'backup':'neutral',actor=x.actorName?` • ${escapeHTML(x.actorName)}${x.actorRole?` (${escapeHTML(accessRoleLabel(x.actorRole))})`:''}`:'';return `<div class="history-row audit-row audit-${tone}"><span class="audit-dot" aria-hidden="true"></span><div><strong>${escapeHTML(x.action)}</strong><span>${escapeHTML(x.detail||'')} • ${formatDateTimeBR(x.at)}${actor}</span></div></div>`}).join(''):emptyState('Sem alterações registradas','As próximas ações importantes aparecerão aqui.')}</div>`)}
 function trashTypeLabel(type){return type==='student'?'Aluno':type==='prospect'?'Interessado':type==='payment'?'Receita':type==='expense'?'Gasto':'Item'}
 function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<div class="notice">Itens removidos ficam aqui para evitar perda por toque acidental.</div><div class="history-list">${rows.length?rows.map(x=>`<div class="history-row"><div><strong>${escapeHTML(x.data?.name||trashTypeLabel(x.type))}</strong><span>${x.type==='student'?'Cadastro':escapeHTML(trashTypeLabel(x.type))} removido em ${formatDateTimeBR(x.deletedAt)}</span></div>${x.type==='student'?`<button class="btn btn-secondary btn-small js-restore-trash" data-id="${x.id}">Restaurar aluno</button>`:''}</div>`).join(''):emptyState('Lixeira vazia','Nenhum item removido recentemente.')}</div>`);$$('.js-restore-trash',modalRoot).forEach(b=>b.addEventListener('click',()=>{const item=state.trash.find(x=>x.id===b.dataset.id);if(!item)return;state.students.push(item.data);state.trash=state.trash.filter(x=>x.id!==item.id);addAudit('Aluno restaurado',item.data?.name||'');saveState();closeModal();toast('Aluno restaurado com sucesso.');render()}))}
 
@@ -1333,12 +1345,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderNav() {
     const desktop = $('#desktopNav');
     const mobile = $('#mobileNav');
-    const desktopItems=DESKTOP_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
+    const desktopItems=DESKTOP_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(n=>n&&accessCan(n.id));
     desktop.innerHTML = desktopItems.map(n=>navButton(n,{desktop:true})).join('');
-    const primary=MOBILE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
-    mobile.innerHTML = primary.map(n=>navButton(n)).join('') + `<button class="nav-btn ${MORE_NAV_IDS.includes(currentView)?'active':''}" id="mobileMore" type="button">${icon('more')}<span>Mais</span></button>`;
-    $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
+    const primary=MOBILE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(n=>n&&accessCan(n.id));
+    const moreAvailable=MORE_NAV_IDS.some(accessCan);
+    mobile.innerHTML = primary.map(n=>navButton(n)).join('') + (moreAvailable?`<button class="nav-btn ${MORE_NAV_IDS.includes(currentView)?'active':''}" id="mobileMore" type="button">${icon('more')}<span>Mais</span></button>`:'');
+    $$('[data-nav]').filter(b=>b.id!=='brandAvatar').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.nav)));
     $('#mobileMore')?.addEventListener('click',openMoreMenu);
+    const avatar=$('#brandAvatar');if(avatar){avatar.onclick=()=>accessModeEnabled()?openAccessSessionMenu():navigate('settings');}
+    renderAccessAvatar();
   }
 
   function navButton(n,{desktop=false}={}) {
@@ -1349,7 +1364,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openMoreMenu(){
-    const items=MORE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(Boolean);
+    const items=MORE_NAV_IDS.map(id=>NAV.find(n=>n.id===id)).filter(n=>n&&accessCan(n.id));
+    if(!items.length)return toast('Não há outras áreas liberadas para este perfil.');
     openModal('Mais opções',`<div class="more-menu-grid">${items.map(n=>`<button type="button" class="more-menu-item" data-more-nav="${n.id}"><span class="more-menu-icon">${icon(n.icon)}</span><span><strong>${n.label}</strong><small>${n.title}</small></span></button>`).join('')}</div>`);
     $$('[data-more-nav]',modalRoot).forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.moreNav;closeModal();navigate(id)}));
   }
@@ -1362,6 +1378,124 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
     }
     return btoa(unescape(encodeURIComponent(text)));
+  }
+
+  function accessModeEnabled(){return commercialAccess().mode==='local-session'}
+  function accessOwner(){return commercialAccess().members.find(x=>x.id==='owner')||commercialAccess().members[0]||null}
+  function accessSessionRead(){
+    if(!accessModeEnabled())return null;
+    try{
+      const raw=sessionStorage.getItem(ACCESS_SESSION_KEY);if(!raw)return null;
+      const parsed=JSON.parse(raw);if(String(parsed?.workspaceId||'')!==String(state.workspace?.id||''))return null;
+      const member=commercialAccess().members.find(x=>x.id===parsed.memberId&&x.status!=='inactive'&&x.pinHash&&x.pinSalt);if(!member)return null;
+      return {workspaceId:String(parsed.workspaceId),memberId:String(member.id),startedAt:parsed.startedAt||new Date().toISOString()};
+    }catch{return null}
+  }
+  function accessSessionWrite(memberId){
+    const payload={workspaceId:String(state.workspace?.id||''),memberId:String(memberId||''),startedAt:new Date().toISOString()};
+    accessSession=payload;try{sessionStorage.setItem(ACCESS_SESSION_KEY,JSON.stringify(payload))}catch{}
+    return payload;
+  }
+  function accessSessionClear(){accessSession=null;financeUnlockedThisSession=false;try{sessionStorage.removeItem(ACCESS_SESSION_KEY)}catch{}}
+  function accessCurrentMember(){
+    const access=commercialAccess();
+    if(access.mode!=='local-session')return access.members.find(x=>x.id===access.ownerMemberId)||access.members[0]||null;
+    const session=accessSession||accessSessionRead();if(!session)return null;accessSession=session;
+    return access.members.find(x=>x.id===session.memberId&&x.status!=='inactive')||null;
+  }
+  function accessCan(moduleId){
+    if(!ACCESS_MODULES.some(x=>x.id===moduleId))return false;
+    const access=commercialAccess();if(access.mode!=='local-session')return true;
+    const member=accessCurrentMember();return Boolean(member&&Array.isArray(member.permissions)&&member.permissions.includes(moduleId));
+  }
+  function accessCanManageTeam(){const member=accessCurrentMember();return !accessModeEnabled()||['owner','admin'].includes(member?.role)}
+  function accessFirstAllowedView(){return ['dashboard','schedule','students','assessments','intelligence','finance','charges','reminders','consent','settings'].find(accessCan)||'dashboard'}
+  function accessMemberInitials(member){return String(member?.name||'MB').trim().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('')||'MB'}
+  function renderAccessAvatar(){
+    const avatar=$('#brandAvatar');if(!avatar)return;
+    const member=accessCurrentMember();avatar.textContent=accessMemberInitials(member);avatar.title=accessModeEnabled()?(member?`${member.name} • ${accessRoleLabel(member.role)}`:'Acesso bloqueado'):'Ajustes';
+  }
+  function accessCredentialReady(member){return Boolean(member?.pinSalt&&member?.pinHash)}
+  function accessCredentialSummary(){
+    const active=(commercialAccess().members||[]).filter(x=>x.status!=='inactive'),missing=active.filter(x=>!accessCredentialReady(x));
+    return {active,missing,ready:active.length>0&&!missing.length};
+  }
+  function accessCryptoReady(){return Boolean(globalThis.crypto?.subtle&&globalThis.crypto?.getRandomValues&&globalThis.TextEncoder)}
+  async function accessPinDigest(pin,salt){
+    if(!accessCryptoReady())return '';
+    try{
+      const encoder=new TextEncoder(),material=await crypto.subtle.importKey('raw',encoder.encode(String(pin||'')),{name:'PBKDF2'},false,['deriveBits']);
+      const saltBytes=encoder.encode(`${String(state.workspace?.id||'')}:${String(salt||'')}`);
+      const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:saltBytes,iterations:120000},material,256);
+      return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }catch{return ''}
+  }
+  async function accessVerifyPin(member,pin){if(!accessCredentialReady(member)||!accessCryptoReady())return false;const digest=await accessPinDigest(pin,member.pinSalt);return Boolean(digest&&digest===member.pinHash)}
+
+  function makeAccessRecoveryCode(){
+    if(!accessCryptoReady())return '';
+    const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',bytes=new Uint8Array(10);crypto.getRandomValues(bytes);
+    const text=[...bytes].map(v=>alphabet[v%alphabet.length]).join('');return `MB-${text.slice(0,5)}-${text.slice(5)}`;
+  }
+  async function accessRecoveryDigest(code,salt){return accessPinDigest(String(code||'').toUpperCase().replace(/\s/g,''),salt)}
+  async function accessVerifyRecovery(code){const access=commercialAccess();if(!access.recoverySalt||!access.recoveryHash)return false;return (await accessRecoveryDigest(code,access.recoverySalt))===access.recoveryHash}
+  function openAccessRecoveryCodeModal(code){
+    openModal('Código de recuperação',`<div class="access-recovery-card"><span>${icon('lock')}</span><div><small>GUARDE FORA DO APP</small><strong>${escapeHTML(code)}</strong><p>Use este código somente se esquecer o PIN do proprietário. O MB Gestor guarda apenas o hash; este código completo não poderá ser exibido novamente.</p></div></div><button class="btn btn-secondary" id="copyAccessRecoveryCode" type="button">Copiar código</button><div class="notice compact"><strong>Importante.</strong><br>Salve o código em local seguro antes de continuar. Ele não substitui backup e não é enviado para a nuvem.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Já guardei</button></div>`);
+    $('#copyAccessRecoveryCode')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(code);toast('Código de recuperação copiado.')}catch{toast(code)}});
+  }
+  function openAccessRecoveryGate(){
+    const access=commercialAccess();if(!access.recoveryHash||!access.recoverySalt)return toast('Recuperação local não configurada.');
+    document.body.classList.add('access-session-locked');modalRoot.innerHTML=`<div class="access-gate-layer"><section class="access-gate-card" role="dialog" aria-modal="true" aria-label="Recuperar acesso"><div class="access-gate-brand"><span class="access-gate-logo">${escapeHTML(brandInitials())}</span><div><small>RECUPERAÇÃO LOCAL</small><strong>Código de recuperação</strong><p>Entre como proprietário para redefinir o PIN depois.</p></div></div><form id="accessRecoveryGateForm" class="access-gate-pin"><input type="text" name="code" autocapitalize="characters" autocomplete="off" placeholder="MB-XXXXX-XXXXX" required /><button class="btn btn-primary" type="submit">Recuperar acesso</button><button class="btn btn-secondary" type="button" id="accessRecoveryBack">Voltar</button></form><div class="access-gate-foot">A verificação é feita localmente neste Workspace.</div></section></div>`;
+    $('#accessRecoveryBack')?.addEventListener('click',()=>openAccessGate('owner'));
+    $('#accessRecoveryGateForm')?.addEventListener('submit',async e=>{e.preventDefault();const code=String(new FormData(e.currentTarget).get('code')||'');if(!(await accessVerifyRecovery(code))){toast('Código de recuperação inválido.');return}const owner=accessOwner();if(!owner)return toast('Perfil do proprietário indisponível.');accessSessionWrite(owner.id);document.body.classList.remove('access-session-locked');modalRoot.innerHTML='';addAudit('Acesso recuperado localmente','Código de recuperação validado para o proprietário.');saveState();currentView=accessCan(currentView)?currentView:accessFirstAllowedView();pageTitle.textContent=NAV.find(n=>n.id===currentView)?.title||brandAppName();renderNav();render();toast('Acesso do proprietário recuperado. Redefina o PIN em Equipe e permissões.');});
+  }
+
+  function openAccessPinEditor(memberId){
+    if(!accessCanManageTeam())return toast('Seu perfil não pode alterar credenciais da equipe.');
+    if(!accessCryptoReady())return toast('Este navegador não oferece a criptografia necessária para criar PINs de acesso.');
+    const access=commercialAccess(),member=access.members.find(x=>x.id===memberId);if(!member)return toast('Perfil não encontrado.');
+    if(accessModeEnabled()&&member.id==='owner'&&accessCurrentMember()?.role!=='owner')return toast('Somente o proprietário pode alterar o próprio PIN.');
+    openModal('PIN do perfil',`<div class="access-pin-hero"><span>${icon('lock')}</span><div><small>ACESSO LOCAL PROTEGIDO</small><strong>${escapeHTML(member.name)}</strong><p>${accessCredentialReady(member)?'Substitua o PIN atual por um novo.':'Crie um PIN para permitir a entrada deste perfil quando o modo de equipe estiver ativo.'}</p></div></div><form id="accessPinForm" class="form-grid"><div class="field"><label>Novo PIN</label><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="new-password" placeholder="4 a 8 dígitos" required /></div><div class="field"><label>Confirmar PIN</label><input name="confirmPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="new-password" placeholder="Repita o PIN" required /></div><div class="notice compact"><strong>Proteção local.</strong><br>O MB Gestor deriva uma chave local com PBKDF2-SHA-256 e salt exclusivo. O PIN digitado não é gravado em texto puro.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">${icon('check')} Salvar PIN</button></div></form>`);
+    $('#accessPinForm')?.addEventListener('submit',async e=>{e.preventDefault();const data=new FormData(e.currentTarget),pin=String(data.get('pin')||''),confirm=String(data.get('confirmPin')||'');if(!/^\d{4,8}$/.test(pin))return toast('Use um PIN numérico de 4 a 8 dígitos.');if(pin!==confirm)return toast('Os PINs não coincidem.');const salt=makeSecureId('pin');member.pinSalt=salt;member.pinHash=await accessPinDigest(pin,salt);if(!member.pinHash)return toast('Não foi possível proteger o PIN neste aparelho.');member.pinUpdatedAt=new Date().toISOString();member.updatedAt=member.pinUpdatedAt;access.updatedAt=member.pinUpdatedAt;state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);addAudit('PIN de acesso atualizado',`${member.name} • ${accessRoleLabel(member.role)}`);saveState();closeModal();setTimeout(openTeamAccessCenter,70);toast('PIN salvo com segurança.');});
+  }
+
+  function activateLocalTeamSessions(){
+    if(!accessCanManageTeam())return toast('Seu perfil não pode ativar sessões da equipe.');
+    if(!accessCryptoReady())return toast('Este navegador não oferece a criptografia necessária para ativar sessões protegidas.');
+    const access=commercialAccess(),status=accessCredentialSummary();
+    if(!status.ready){toast(`Defina PIN para ${status.missing.length} perfil${status.missing.length===1?'':'is'} ativo${status.missing.length===1?'':'s'} antes de ativar.`);return}
+    openPremiumConfirm({title:'Ativar acesso por perfil?',message:'Ao bloquear o app, cada pessoa precisará escolher seu perfil e informar o próprio PIN. As permissões passarão a controlar a navegação local.',confirmLabel:'Ativar',onConfirm:async()=>{const recoveryCode=makeAccessRecoveryCode(),recoverySalt=makeSecureId('recovery');if(!recoveryCode)return toast('Não foi possível gerar o código de recuperação.');const recoveryHash=await accessRecoveryDigest(recoveryCode,recoverySalt);if(!recoveryHash)return toast('Não foi possível proteger o código de recuperação.');access.mode='local-session';access.activatedAt=new Date().toISOString();access.updatedAt=access.activatedAt;access.recoverySalt=recoverySalt;access.recoveryHash=recoveryHash;access.recoveryUpdatedAt=access.activatedAt;state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);accessSessionWrite('owner');addAudit('Sessões locais ativadas','Acesso por perfil e bloqueio por módulo habilitados.');saveState();closeModal();renderNav();render();setTimeout(()=>openAccessRecoveryCodeModal(recoveryCode),80);toast('Acesso por perfil ativado.')}});
+  }
+
+  function openDisableTeamSessions(){
+    const current=accessCurrentMember();if(current?.role!=='owner')return toast('Somente o proprietário pode desativar o acesso por perfil.');
+    const owner=accessOwner();openModal('Desativar acesso por perfil',`<div class="notice"><strong>Confirmação do proprietário</strong><br>Informe o PIN do proprietário. Os perfis e a matriz serão preservados, mas o app voltará ao modo local sem tela de entrada.</div><form id="disableTeamSessionsForm" class="form-grid"><div class="field"><label>PIN do proprietário</label><input name="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password" required /></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" type="submit">Desativar sessões</button></div></form>`);
+    $('#disableTeamSessionsForm')?.addEventListener('submit',async e=>{e.preventDefault();const pin=String(new FormData(e.currentTarget).get('pin')||'');if(!(await accessVerifyPin(owner,pin)))return toast('PIN do proprietário incorreto.');const access=commercialAccess();access.mode='local-prepared';access.activatedAt=null;access.updatedAt=new Date().toISOString();state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);addAudit('Sessões locais desativadas','Perfis e permissões preservados.');saveState();accessSessionClear();closeModal();renderNav();render();toast('Acesso por perfil desativado.');});
+  }
+
+  function openAccessGate(selectedId=''){
+    if(!accessModeEnabled()){document.body.classList.remove('access-session-locked');return}
+    accessSession=accessSessionRead();if(accessSession&&accessCurrentMember()){document.body.classList.remove('access-session-locked');return}
+    accessSessionClear();document.body.classList.add('access-session-locked');
+    const access=commercialAccess(),members=access.members.filter(x=>x.status!=='inactive'&&accessCredentialReady(x));
+    const selected=members.find(x=>x.id===selectedId)||null;
+    modalRoot.innerHTML=`<div class="access-gate-layer"><section class="access-gate-card" role="dialog" aria-modal="true" aria-label="Entrar no MB Gestor"><div class="access-gate-brand"><span class="access-gate-logo">${escapeHTML(brandInitials())}</span><div><small>${escapeHTML(brandStudioName())}</small><strong>${selected?'Digite seu PIN':'Quem está usando o app?'}</strong><p>${selected?`${escapeHTML(selected.name)} • ${escapeHTML(accessRoleLabel(selected.role))}`:'Selecione seu perfil para aplicar as permissões do Workspace.'}</p></div></div>${selected?`<form id="accessGatePinForm" class="access-gate-pin"><input type="password" name="pin" inputmode="numeric" maxlength="8" autocomplete="current-password" placeholder="PIN" autofocus required /><button class="btn btn-primary" type="submit">Entrar</button><button class="btn btn-secondary" type="button" id="accessGateBack">Trocar perfil</button>${selected.id==='owner'&&access.recoveryHash?'<button class="access-recovery-link" type="button" id="accessGateRecovery">Esqueci o PIN do proprietário</button>':''}</form>`:`<div class="access-gate-profiles">${members.map(m=>`<button type="button" data-access-gate-member="${escapeHTML(m.id)}"><span>${escapeHTML(accessMemberInitials(m))}</span><div><strong>${escapeHTML(m.name)}</strong><small>${escapeHTML(accessRoleLabel(m.role))}</small></div><em>›</em></button>`).join('')}</div>`}<div class="access-gate-foot">Workspace ${escapeHTML(workspaceShortId())} • sessão local neste dispositivo</div></section></div>`;
+    $$('[data-access-gate-member]',modalRoot).forEach(btn=>btn.addEventListener('click',()=>openAccessGate(btn.dataset.accessGateMember)));
+    $('#accessGateBack')?.addEventListener('click',()=>openAccessGate());
+    $('#accessGateRecovery')?.addEventListener('click',openAccessRecoveryGate);
+    $('#accessGatePinForm')?.addEventListener('submit',async e=>{e.preventDefault();const pin=String(new FormData(e.currentTarget).get('pin')||'');if(!(await accessVerifyPin(selected,pin))){toast('PIN incorreto.');e.currentTarget.elements.pin.value='';e.currentTarget.elements.pin.focus();return}accessSessionWrite(selected.id);document.body.classList.remove('access-session-locked');modalRoot.innerHTML='';addAudit('Sessão local iniciada',`${selected.name} • ${accessRoleLabel(selected.role)}`);saveState();const target=accessCan(currentView)?currentView:accessFirstAllowedView();currentView=target;pageTitle.textContent=NAV.find(n=>n.id===target)?.title||brandAppName();renderNav();render();window.scrollTo({top:0,behavior:'auto'});if(accessCan('students')||accessCan('reminders'))setTimeout(()=>checkBirthdayNotification(false),350);toast(`Acesso liberado • ${selected.name}`);});
+  }
+
+  function accessLockNow(){
+    if(!accessModeEnabled())return;const member=accessCurrentMember();if(member){addAudit('Sessão local bloqueada',member.name);saveState()}accessSessionClear();modalRoot.innerHTML='';openAccessGate();
+  }
+
+  function openAccessSessionMenu(){
+    if(!accessModeEnabled())return navigate('settings');
+    const member=accessCurrentMember();if(!member)return openAccessGate();
+    openModal('Sessão atual',`<div class="access-session-card"><span>${escapeHTML(accessMemberInitials(member))}</span><div><small>PERFIL EM USO</small><strong>${escapeHTML(member.name)}</strong><p>${escapeHTML(accessRoleLabel(member.role))} • Workspace ${escapeHTML(workspaceShortId())}</p></div></div><div class="access-preview"><small>MÓDULOS LIBERADOS</small><div class="access-permission-chips">${accessPermissionChips(member.role)}</div></div><div class="modal-actions stacked"><button class="btn btn-primary" id="accessSessionLock">${icon('lock')} Bloquear / trocar perfil</button>${accessCan('settings')?'<button class="btn btn-secondary" id="accessSessionSettings">Abrir Ajustes</button>':''}<button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#accessSessionLock')?.addEventListener('click',()=>{closeModal();accessLockNow()});
+    $('#accessSessionSettings')?.addEventListener('click',()=>{closeModal();navigate('settings')});
   }
 
   function financeLockEnabled(){return Boolean(state.settings?.financePinEnabled && state.settings?.financePinHash)}
@@ -1395,6 +1529,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       toast('Modo teste ativo. Use os controles do simulador para sair com segurança.');
       return;
     }
+    if(accessModeEnabled()&&!accessCurrentMember()){openAccessGate();return;}
+    if(!accessCan(next)){const label=NAV.find(n=>n.id===next)?.label||'esta área';toast(`Seu perfil não tem acesso a ${label}.`);return;}
     const navigateOptions={preserveIntelligenceReturn,scrollTop,intelligenceHistoryGuard};
     if(['finance','charges'].includes(next) && financeLockEnabled() && !financeUnlockedThisSession){requestFinanceUnlock(next,navigateOptions);return;}
     // Qualquer navegação comum encerra um contexto antigo. O único fluxo que o preserva
@@ -1445,6 +1581,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function render() {
     applyBranding();
+    if(accessModeEnabled()&&!accessCurrentMember()){openAccessGate();return;}
+    if(accessModeEnabled()&&!accessCan(currentView)){currentView=accessFirstAllowedView();pageTitle.textContent=NAV.find(n=>n.id===currentView)?.title||brandAppName();renderNav();}
     if(currentView!=='dashboard' && dashboardClockTimer){clearInterval(dashboardClockTimer);dashboardClockTimer=null;}
     const renderer = {
       dashboard: renderDashboard,
@@ -1728,7 +1866,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function renderIntelligence(){
-    const data=intelligenceExecutiveSummary(),week=data.week,retention=data.retention,fin=data.finance;
+    const data=intelligenceExecutiveSummary(),week=data.week,retention=data.retention,fin=data.finance,canFinance=accessCan('finance');
     const currentRetention=retention.filter(x=>x.kind!=='review'),reviewRetention=retention.filter(x=>x.kind==='review'),newRetention=currentRetention.filter(x=>x.kind==='new'),firstSessionRetention=currentRetention.filter(x=>x.kind==='first-session');
     const activeFollowup=currentRetention.filter(x=>x.kind==='followup'||x.kind==='first-session');
     const consecutiveFollowup=currentRetention.filter(x=>x.consecutiveAbsences>=2);
@@ -1749,7 +1887,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <article><span>Ocupação da semana</span><strong>${week.percent}%</strong><small>${week.full} lotada${week.full===1?'':'s'} • ${week.overbook} excedida${week.overbook===1?'':'s'}</small></article>
         <article><span>Presenças no mês</span><strong>${data.freq.present}</strong><small>${escapeHTML(intelligenceDelta(data.freq.present,data.prevFreq.present))}</small></article>
         <article><span>Acompanhamento</span><strong>${currentRetention.length}</strong><small>${reviewRetention.length?`${reviewRetention.length} cadastro${reviewRetention.length===1?'':'s'} separado${reviewRetention.length===1?'':'s'} para revisão`:'sinais objetivos atuais'}</small></article>
-        <article><span>Recebido no mês</span><strong>${privateMoney(data.m.received)}</strong><small>${financialValuesVisible?escapeHTML(intelligenceDelta(Math.round(data.m.received),Math.round(data.prevReceived),' reais')):'Valores protegidos'}</small></article>
+        ${canFinance?`<article><span>Recebido no mês</span><strong>${privateMoney(data.m.received)}</strong><small>${financialValuesVisible?escapeHTML(intelligenceDelta(Math.round(data.m.received),Math.round(data.prevReceived),' reais')):'Valores protegidos'}</small></article>`:''}
         <article><span>Pausados / inativos</span><strong>${data.paused} / ${data.inactive}</strong><small>situação cadastral atual</small></article>
       </section>
 
@@ -1770,8 +1908,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="intel-retention-panel" id="intelRetentionPanel"><div class="intel-retention-note"><span>✦</span><div><strong>Acompanhamento, não diagnóstico</strong><small>Alunos novos sem presença não são tratados como afastamento. Cadastros ativos com 90+ dias sem referência ficam separados para revisão administrativa.</small></div></div><div class="intel-retention-filter-state" id="intelRetentionFilterState" hidden><span>Filtro: <strong id="intelRetentionFilterLabel">Sinais atuais</strong></span><button type="button" id="intelRetentionClearFilter">Mostrar todos</button></div><div class="intel-retention-list">${retentionRows||emptyState('Vínculo em dia','Nenhum sinal objetivo de acompanhamento atual neste momento.')}</div></section>
       ${reviewRetention.length?`<section class="intel-review-panel" id="intelReviewPanel"><div class="intel-review-head"><div><span class="section-overline">REVISÃO CADASTRAL • 90+ DIAS</span><h3>Ativos sem presença recente</h3><p>Separados da retenção diária para não esconder os casos atuais.</p></div><strong>${reviewRetention.length}</strong></div><div class="intel-retention-list">${reviewRows}</div>${reviewRetention.length>6?`<div class="intel-review-foot">+${reviewRetention.length-6} cadastro${reviewRetention.length-6===1?'':'s'} também precisa${reviewRetention.length-6===1?'':'m'} de revisão.</div>`:''}</section>`:''}
 
-      <div class="section-head luxury-section-head intel-section-head"><div><span class="section-overline">FINANCEIRO • ATENÇÃO</span><h3>Receita sob acompanhamento</h3><p>Contagens continuam visíveis; cifras respeitam a privacidade financeira.</p></div><button class="mini-icon" id="intelTogglePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button></div>
-      <section class="intel-finance-grid"><button type="button" data-intel-fin="overdue"><span>Vencidas</span><strong>${fin.overdue.length}</strong><small>${privateMoney(fin.overdueValue)}</small><em>Ver vencidas ›</em></button><button type="button" data-intel-fin="today"><span>Vencem hoje</span><strong>${fin.today.length}</strong><small>ação sensível ao tempo</small><em>Ver hoje ›</em></button><button type="button" data-intel-fin="unpaid"><span>Sem receita no mês</span><strong>${fin.unpaid.length}</strong><small>${privateMoney(fin.unpaidPotential)}</small><em>Revisar alunos ›</em></button><button type="button" data-intel-fin="received"><span>Recebido</span><strong>${privateMoney(fin.received)}</strong><small>registros do mês atual</small><em>Ver receitas ›</em></button></section>
+      ${canFinance?`<div class="section-head luxury-section-head intel-section-head"><div><span class="section-overline">FINANCEIRO • ATENÇÃO</span><h3>Receita sob acompanhamento</h3><p>Cifras respeitam a privacidade financeira.</p></div><button class="mini-icon" id="intelTogglePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button></div><section class="intel-finance-grid"><button type="button" data-intel-fin="overdue"><span>Vencidas</span><strong>${fin.overdue.length}</strong><small>${privateMoney(fin.overdueValue)}</small><em>Ver vencidas ›</em></button><button type="button" data-intel-fin="today"><span>Vencem hoje</span><strong>${fin.today.length}</strong><small>ação sensível ao tempo</small><em>Ver hoje ›</em></button><button type="button" data-intel-fin="unpaid"><span>Sem receita no mês</span><strong>${fin.unpaid.length}</strong><small>${privateMoney(fin.unpaidPotential)}</small><em>Revisar alunos ›</em></button><button type="button" data-intel-fin="received"><span>Recebido</span><strong>${privateMoney(fin.received)}</strong><small>registros do mês atual</small><em>Ver receitas ›</em></button></section>`:''}
       <div class="intel-method-note"><strong>Leitura executiva</strong><span>Ocupação segue a capacidade padrão de 4 pessoas e identifica excedentes separadamente. Alunos pausados, inativos e ausências programadas não geram falsos alertas operacionais.</span></div>`;
 
     $$('[data-intel-slot]',viewEl).forEach(b=>b.addEventListener('click',()=>intelligenceOpenSlot(b.dataset.day,b.dataset.time,b.dataset.date)));
@@ -1786,12 +1923,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function renderDashboard() {
     const m=metrics(), today=todayStudioSummary(), occ=occupancyStats(), mk=monthKey();
+    const canSchedule=accessCan('schedule'),canStudents=accessCan('students'),canAssessments=accessCan('assessments'),canIntelligence=accessCan('intelligence'),canFinance=accessCan('finance'),canCharges=accessCan('charges');
     const monthPresence=attendanceSummary(mk).present;
-    const upcoming=billingStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6);
-    const firstName=(state.settings.trainerName||BRAND_DEFAULTS.trainerName).trim().split(/\s+/)[0];
-    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=inactiveAttentionStudents().length,birthdayPriority=birthdayPriorityState();
-    const pauseReturns=pauseReturnStudents(7),reassessments=reassessmentAttentionStudents(90),overbooks=todayOverbookings(),criticalBilling=billingCriticalSummary(7),nextClass=nextStudioClassSummary();
-    const centralItems=dashboardCentralItems({todayClosure,todayPlanned,inactiveAlerts,pauseReturns,reassessments,overbooks,criticalBilling});
+    const upcoming=canCharges?billingStudents().map(s=>({s,info:dueInfo(s)})).filter(x=>x.info.days<=7).sort((a,b)=>a.info.days-b.info.days).slice(0,6):[];
+    const sessionName=accessCurrentMember()?.name||state.settings.trainerName||BRAND_DEFAULTS.trainerName;
+    const firstName=String(sessionName).trim().split(/\s+/)[0];
+    const todayClosure=closureForDate(isoToday()),todayPlanned=plannedAbsencesOn(isoToday()).length,inactiveAlerts=canStudents?inactiveAttentionStudents().length:0,birthdayPriority=canStudents?birthdayPriorityState():null;
+    const pauseReturns=canStudents?pauseReturnStudents(7):[],reassessments=canAssessments?reassessmentAttentionStudents(90):[],overbooks=canSchedule?todayOverbookings():[],criticalBilling=canCharges?billingCriticalSummary(7):{total:0,oldest:0},nextClass=canSchedule?nextStudioClassSummary():null;
+    const dashboardActionModule={'schedule':'schedule','overbook':'schedule','charges-overdue':'charges','charges':'charges','students-attention':'students','birthdays':'students','pause-return':'students','assessment-review':'assessments'};
+    const centralItems=dashboardCentralItems({todayClosure:canSchedule?todayClosure:null,todayPlanned:canSchedule?todayPlanned:0,inactiveAlerts,pauseReturns,reassessments,overbooks,criticalBilling}).filter(item=>!dashboardActionModule[item.action]||accessCan(dashboardActionModule[item.action]));
     viewEl.innerHTML=`
       <section class="hero luxury-hero">
         <div class="luxury-glow"></div>
@@ -1801,7 +1941,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
             <p class="luxury-kicker">${greetingText()}, ${escapeHTML(firstName)}</p>
             <h2>Sua gestão.<br><em>Sob controle.</em></h2>
             <p>Uma visão elegante e objetiva do que importa hoje.</p>
-            <div class="hero-actions"><button class="btn btn-primary btn-small" data-nav="schedule">${icon('calendar')} Ver agenda</button><button class="btn btn-ghost btn-small" data-nav="students">${icon('users')} Alunos</button></div>
+            <div class="hero-actions">${canSchedule?`<button class="btn btn-primary btn-small" data-nav="schedule">${icon('calendar')} Ver agenda</button>`:''}${canStudents?`<button class="btn btn-ghost btn-small" data-nav="students">${icon('users')} Alunos</button>`:''}</div>
           </div>
           <div class="luxury-logo-wrap"><span class="hero-logo-frame brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img class="hero-logo" src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></span><span>PREMIUM</span></div>
         </div>
@@ -1809,43 +1949,32 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
       <div class="section-head luxury-section-head today-section-head"><div><span class="section-overline">HOJE</span><h3>Resumo do dia</h3><p><span class="today-date" data-live-date>${dashboardDateLabel()}</span><span class="today-context">${today.dayId?'Agenda, alunos e pendências em um único olhar':'Hoje não há grade fixa de aulas.'}</span></p></div><span class="live-dot live-clock-pill"><span>Atual</span><b data-live-clock>${dashboardClockText()}</b></span></div>
       <section class="today-grid">
-        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('calendar')}</div><div><strong>${today.classes}</strong><span>Aulas hoje</span><small>${today.plannedPeople} pessoa${today.plannedPeople===1?'':'s'} prevista${today.plannedPeople===1?'':'s'}</small></div></article>
-        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('check')}</div><div><strong>${today.present}</strong><span>Presenças</span><small>${today.absent} falta${today.absent===1?'':'s'} registrada${today.absent===1?'':'s'}</small></div></article>
-        <article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('users')}</div><div><strong>${today.makeups}</strong><span>Reposições</span><small>Agendadas para hoje</small></div></article>
-        <article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Financeiro</span><small>Mensalidades que pedem atenção</small></div></article>
+        ${canSchedule?`<article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('calendar')}</div><div><strong>${today.classes}</strong><span>Aulas hoje</span><small>${today.plannedPeople} pessoa${today.plannedPeople===1?'':'s'} prevista${today.plannedPeople===1?'':'s'}</small></div></article><article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('check')}</div><div><strong>${today.present}</strong><span>Presenças</span><small>${today.absent} falta${today.absent===1?'':'s'} registrada${today.absent===1?'':'s'}</small></div></article><article class="today-card actionable" data-nav="schedule"><div class="today-icon">${icon('users')}</div><div><strong>${today.makeups}</strong><span>Reposições</span><small>Agendadas para hoje</small></div></article>`:''}
+        ${canCharges?`<article class="today-card actionable ${today.attention?'attention':''}" data-nav="charges"><div class="today-icon">${icon('bell')}</div><div><strong>${today.attention}</strong><span>Cobranças</span><small>Mensalidades que pedem atenção</small></div></article>`:''}
       </section>
 
-      ${dashboardBirthdayPriorityHTML(birthdayPriority)}
+      ${canStudents?dashboardBirthdayPriorityHTML(birthdayPriority):''}
 
-      <section class="today-command-stage">${dashboardNextClassHTML(nextClass)}</section>
+      ${canSchedule?`<section class="today-command-stage">${dashboardNextClassHTML(nextClass)}</section>`:''}
 
       <section class="attention-hub attention-hub-v109"><div class="attention-hub-aura"></div><div class="attention-hub-head"><span class="attention-hub-icon">${icon('bell')}</span><div><strong>Central Hoje</strong><small>Somente o que precisa da sua atenção</small></div><em>${centralItems.length?`${centralItems.length} ${centralItems.length===1?'prioridade':'prioridades'}`:'Tudo certo'}</em></div><div class="attention-hub-items smart-hub-items">${dashboardCentralHTML(centralItems)}</div></section>
 
       <section class="metrics luxury-metrics management-cockpit">
-        ${metricCard('users',m.activeStudents,'Alunos ativos','','data-dashboard-kpi="students"')}
-        ${metricCard('wallet',privateMoney(m.expected),'Receita prevista','','data-dashboard-kpi="expected"')}
-        ${metricCard('chart',privateMoney(m.received),'Recebido no mês','good','data-dashboard-kpi="received"')}
-        ${metricCard('calendar',monthPresence,'Presenças no mês','good','data-dashboard-kpi="attendance"')}
-        ${metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'','data-dashboard-kpi="occupancy"')}
-        ${metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good','data-dashboard-kpi="overdue"')}
+        ${canStudents?metricCard('users',m.activeStudents,'Alunos ativos','','data-dashboard-kpi="students"'):''}
+        ${canFinance?metricCard('wallet',privateMoney(m.expected),'Receita prevista','','data-dashboard-kpi="expected"'):''}
+        ${canFinance?metricCard('chart',privateMoney(m.received),'Recebido no mês','good','data-dashboard-kpi="received"'):''}
+        ${canSchedule?metricCard('calendar',monthPresence,'Presenças no mês','good','data-dashboard-kpi="attendance"'):''}
+        ${canSchedule?metricCard('users',`${occ.percent}%`,'Ocupação da grade',occ.percent>=75?'good':'','data-dashboard-kpi="occupancy"'):''}
+        ${canCharges?metricCard('bell',m.overdue,'Mensalidades vencidas',m.overdue?'danger':'good','data-dashboard-kpi="overdue"'):''}
       </section>
-      <section class="executive-actions"><button class="executive-card" id="openAnnualReport"><span class="executive-icon">✦</span><div><strong>Relatório anual</strong><small>Financeiro, frequência e evolução mês a mês</small></div><span class="executive-arrow">›</span></button></section>
+      ${canFinance?`<section class="executive-actions"><button class="executive-card" id="openAnnualReport"><span class="executive-icon">✦</span><div><strong>Relatório anual</strong><small>Financeiro, frequência e evolução mês a mês</small></div><span class="executive-arrow">›</span></button></section>`:''}
 
-      <section class="v94-command-grid"><button class="v94-command-card" id="openOccupationMap"><span class="command-3d">▦</span><div><strong>Mapa de ocupação</strong><small>Veja horários cheios e oportunidades</small></div></button><button class="v94-command-card" id="openProspects"><span class="command-3d">✦</span><div><strong>Interessados</strong><small>${prospectsOpen().length} contato${prospectsOpen().length===1?'':'s'} em acompanhamento</small></div></button><button class="v94-command-card" id="openMonthlyClose"><span class="command-3d">◇</span><div><strong>Fechamento mensal</strong><small>Compare evolução mês a mês</small></div></button><button class="v94-command-card" id="openHolidayQuickDashboard"><span class="command-3d">★</span><div><strong>Marcar feriado</strong><small>Cancele o dia sem gerar faltas</small></div></button></section>
+      <section class="v94-command-grid">${canSchedule?`<button class="v94-command-card" id="openOccupationMap"><span class="command-3d">▦</span><div><strong>Mapa de ocupação</strong><small>Veja horários cheios e oportunidades</small></div></button>`:''}${canStudents?`<button class="v94-command-card" id="openProspects"><span class="command-3d">✦</span><div><strong>Interessados</strong><small>${prospectsOpen().length} contato${prospectsOpen().length===1?'':'s'} em acompanhamento</small></div></button>`:''}${canFinance?`<button class="v94-command-card" id="openMonthlyClose"><span class="command-3d">◇</span><div><strong>Fechamento mensal</strong><small>Compare evolução mês a mês</small></div></button>`:''}${canSchedule?`<button class="v94-command-card" id="openHolidayQuickDashboard"><span class="command-3d">★</span><div><strong>Marcar feriado</strong><small>Cancele o dia sem gerar faltas</small></div></button>`:''}</section>
 
-      <div class="section-head luxury-section-head"><div><span class="section-overline">PERFORMANCE</span><h3>Saúde do Studio</h3><p>Indicadores que merecem sua atenção</p></div><button class="btn btn-secondary btn-small" data-nav="intelligence">${icon('chart')} Inteligência</button></div>
-      <section class="cards grid2 luxury-panels">
-        <article class="card"><div class="premium-card-title"><span>Financeiro</span>${icon('wallet')}</div><div class="list-row"><div class="list-main"><strong>A receber no mês</strong><span>Previsto menos recebido</span></div><strong>${privateMoney(m.remainingTotal)}</strong></div><div class="list-row"><div class="list-main"><strong>Valor vencido</strong><span>${m.overdue} mensalidade${m.overdue===1?'':'s'} vencida${m.overdue===1?'':'s'}</span></div><strong class="${m.overdue?'money-negative':''}">${privateMoney(m.overdueValue)}</strong></div></article>
-        <article class="card"><div class="premium-card-title"><span>Agenda</span>${icon('calendar')}</div><div class="list-row"><div class="list-main"><strong>Reposições próximas</strong><span>Próximos 7 dias</span></div><strong>${m.makeups.scheduledNext7}</strong></div><div class="list-row"><div class="list-main"><strong>Realizadas no mês</strong><span>Contabilizadas como presença</span></div><strong>${m.makeups.completedMonth}</strong></div></article>
-      </section>
+      ${(canIntelligence||canFinance||canSchedule)?`<div class="section-head luxury-section-head"><div><span class="section-overline">PERFORMANCE</span><h3>Saúde do Studio</h3><p>Indicadores liberados para o seu perfil</p></div>${canIntelligence?`<button class="btn btn-secondary btn-small" data-nav="intelligence">${icon('chart')} Inteligência</button>`:''}</div><section class="cards grid2 luxury-panels">${canFinance?`<article class="card"><div class="premium-card-title"><span>Financeiro</span>${icon('wallet')}</div><div class="list-row"><div class="list-main"><strong>A receber no mês</strong><span>Previsto menos recebido</span></div><strong>${privateMoney(m.remainingTotal)}</strong></div><div class="list-row"><div class="list-main"><strong>Valor vencido</strong><span>${m.overdue} mensalidade${m.overdue===1?'':'s'} vencida${m.overdue===1?'':'s'}</span></div><strong class="${m.overdue?'money-negative':''}">${privateMoney(m.overdueValue)}</strong></div></article>`:''}${canSchedule?`<article class="card"><div class="premium-card-title"><span>Agenda</span>${icon('calendar')}</div><div class="list-row"><div class="list-main"><strong>Reposições próximas</strong><span>Próximos 7 dias</span></div><strong>${m.makeups.scheduledNext7}</strong></div><div class="list-row"><div class="list-main"><strong>Realizadas no mês</strong><span>Contabilizadas como presença</span></div><strong>${m.makeups.completedMonth}</strong></div></article>`:''}</section>`:''}
 
-      <div class="section-head luxury-section-head"><div><span class="section-overline">FINANCEIRO</span><h3>Visão financeira</h3><p>Mês atual</p></div><div class="privacy-actions"><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button><button class="btn btn-secondary btn-small" data-nav="finance">Detalhes</button></div></div>
-      <section class="finance-grid luxury-finance">
-        <article class="card highlight"><div class="premium-card-title"><span>Fluxo do mês</span><span class="gold-mark">MB</span></div><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados</span></div><strong class="money-positive">${privateMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas</span></div><strong class="money-negative">${privateMoney(m.expenses)}</strong></div><div class="list-row balance-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${privateMoney(m.net)}</strong></div></article>
-        <article class="card"><div class="premium-card-title"><span>Recebimentos</span>${icon('chart')}</div><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Potencial PIX</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial dinheiro</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialCash)}</strong></div></article>
-      </section>
-      <div class="section-head luxury-section-head"><div><span class="section-overline">PRÓXIMOS DIAS</span><h3>Vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" data-nav="charges">${icon('bell')} Ver cobranças</button></div>
-      <section class="cards">${upcoming.length?upcoming.map(({s,info})=>chargeMiniRow(s,info)).join(''):emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>`;
+      ${canFinance?`<div class="section-head luxury-section-head"><div><span class="section-overline">FINANCEIRO</span><h3>Visão financeira</h3><p>Mês atual</p></div><div class="privacy-actions"><button class="mini-icon" id="toggleFinancePrivacy" type="button" title="Mostrar ou ocultar valores">${icon(financialValuesVisible?'eye-off':'eye')}</button><button class="btn btn-secondary btn-small" data-nav="finance">Detalhes</button></div></div><section class="finance-grid luxury-finance"><article class="card highlight"><div class="premium-card-title"><span>Fluxo do mês</span><span class="gold-mark">MB</span></div><div class="list-row"><div class="list-main"><strong>Receitas recebidas</strong><span>Pagamentos registrados</span></div><strong class="money-positive">${privateMoney(m.received)}</strong></div><div class="list-row"><div class="list-main"><strong>Gastos</strong><span>Despesas cadastradas</span></div><strong class="money-negative">${privateMoney(m.expenses)}</strong></div><div class="list-row balance-row"><div class="list-main"><strong>Saldo do mês</strong><span>Receitas menos gastos</span></div><strong class="${m.net>=0?'money-positive':'money-negative'}">${privateMoney(m.net)}</strong></div></article><article class="card"><div class="premium-card-title"><span>Recebimentos</span>${icon('chart')}</div><div class="list-row"><div class="list-main"><strong>Mensalidades vencidas</strong><span>Precisam de atenção</span></div><span class="status ${m.overdue?'danger':'ok'}">${m.overdue}</span></div><div class="list-row"><div class="list-main"><strong>Vencendo em breve</strong><span>Próximos ${state.settings.chargeDaysBefore} dias</span></div><span class="status ${m.soon?'warn':'ok'}">${m.soon}</span></div><div class="list-row"><div class="list-main"><strong>Potencial PIX</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialPix)}</strong></div><div class="list-row"><div class="list-main"><strong>Potencial dinheiro</strong><span>Base ativa</span></div><strong>${privateMoney(m.potentialCash)}</strong></div></article></section>`:''}
+      ${canCharges?`<div class="section-head luxury-section-head"><div><span class="section-overline">PRÓXIMOS DIAS</span><h3>Vencimentos</h3><p>Até 7 dias e mensalidades já vencidas</p></div><button class="btn btn-primary btn-small" data-nav="charges">${icon('bell')} Ver cobranças</button></div><section class="cards">${upcoming.length?upcoming.map(({s,info})=>chargeMiniRow(s,info)).join(''):emptyState('Tudo tranquilo por aqui','Nenhuma mensalidade vencida ou com vencimento nos próximos 7 dias.')}</section>`:''}`;
     
     $('#openAnnualReport')?.addEventListener('click',()=>openModal('Relatório anual',annualReportHTML()));
     $('#openOccupationMap')?.addEventListener('click',openOccupationMap);
@@ -4996,7 +5125,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openPermissionsMatrix(){
     const roles=['owner','admin','trainer','reception','finance'];
-    openModal('Matriz de permissões',`<div class="access-matrix-intro"><strong>Permissões por função</strong><span>Esta etapa salva os perfis e a matriz no Workspace local. Login individual e sincronização online continuam desligados.</span></div><div class="access-role-list">${roles.map(role=>{const item=ACCESS_ROLE_PRESETS[role];return `<article class="access-role-card"><div><span class="access-role-badge role-${role}">${escapeHTML(item.label)}</span><p>${escapeHTML(item.description)}</p></div><div class="access-permission-chips">${accessPermissionChips(role)}</div></article>`}).join('')}</div><div class="notice compact"><strong>Importante.</strong><br>Nesta Etapa 1, a matriz prepara a estrutura comercial e documenta o acesso de cada membro. O bloqueio por login/senha será ativado apenas quando a autenticação multiusuário for implementada.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    openModal('Matriz de permissões',`<div class="access-matrix-intro"><strong>Permissões por função</strong><span>Os perfis usam esta matriz para liberar somente os módulos previstos para cada função no dispositivo.</span></div><div class="access-role-list">${roles.map(role=>{const item=ACCESS_ROLE_PRESETS[role];return `<article class="access-role-card"><div><span class="access-role-badge role-${role}">${escapeHTML(item.label)}</span><p>${escapeHTML(item.description)}</p></div><div class="access-permission-chips">${accessPermissionChips(role)}</div></article>`}).join('')}</div><div class="notice compact"><strong>V12.14 • proteção local.</strong><br>Quando o acesso por perfil estiver ativo, a navegação é bloqueada por função e cada sessão exige o PIN do membro. Sincronização online e autenticação em servidor continuam para uma etapa futura.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
   }
 
   function openTeamMemberEditor(memberId=''){
@@ -5018,23 +5147,29 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(!name)return toast('Informe o nome do membro.');if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Confira o e-mail informado.');
       if(!ACCESS_ROLE_PRESETS[newRole]||newRole==='owner')return toast('Selecione uma função válida.');
       if(existing){Object.assign(existing,{name,email,role:newRole,status:data.get('active')?'active':'inactive',permissions:accessRoleModules(newRole),updatedAt:now});addAudit('Permissão de equipe atualizada',`${name} • ${accessRoleLabel(newRole)} • ${existing.status}`)}
-      else{access.members.push({id:makeSecureId('member'),name,email,role:newRole,status:data.get('active')?'active':'inactive',permissions:accessRoleModules(newRole),createdAt:now,updatedAt:now});addAudit('Membro da equipe adicionado',`${name} • ${accessRoleLabel(newRole)}`)}
+      else{const wantsActive=Boolean(data.get('active')),needsPin=access.mode==='local-session'&&wantsActive;access.members.push({id:makeSecureId('member'),name,email,role:newRole,status:needsPin?'inactive':(wantsActive?'active':'inactive'),permissions:accessRoleModules(newRole),pinSalt:'',pinHash:'',pinUpdatedAt:null,createdAt:now,updatedAt:now});addAudit('Membro da equipe adicionado',`${name} • ${accessRoleLabel(newRole)}${needsPin?' • aguardando PIN':''}`);if(needsPin)setTimeout(()=>toast('Perfil criado inativo. Defina o PIN antes de liberar o acesso.'),120)}
       access.updatedAt=now;state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);saveState();closeModal();renderSettings();setTimeout(openTeamAccessCenter,70);toast(existing?'Permissões atualizadas.':'Membro adicionado à equipe local.');
     });
   }
 
   function confirmRemoveTeamMember(memberId){
     const access=commercialAccess(),member=access.members.find(x=>x.id===memberId);if(!member||member.id==='owner')return toast('O proprietário não pode ser removido.');
+    if(accessModeEnabled()&&accessCurrentMember()?.id===member.id)return toast('Bloqueie e entre com outro perfil antes de remover o perfil em uso.');
     openModal('Remover perfil da equipe',`<div class="notice"><strong>${escapeHTML(member.name)}</strong><br>Este perfil local será removido da equipe. Os dados do Studio, histórico e registros do Workspace não serão apagados.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-danger" id="confirmTeamMemberRemoval">Remover perfil</button></div>`);
     $('#confirmTeamMemberRemoval')?.addEventListener('click',()=>{access.members=access.members.filter(x=>x.id!==memberId);access.updatedAt=new Date().toISOString();state.commercial.access=normalizeAccessFoundation(access,commercialOwner().name,commercialOwner().email);addAudit('Membro da equipe removido',`${member.name} • ${accessRoleLabel(member.role)}`);saveState();closeModal();renderSettings();setTimeout(openTeamAccessCenter,70);toast('Perfil removido da equipe local.')});
   }
 
   function openTeamAccessCenter(){
     state.commercial=normalizeCommercial(state.commercial,state.settings||{});
-    const access=commercialAccess(),stats=accessMemberStats(),rows=access.members||[];
-    openModal('Equipe e permissões',`<div class="team-access-hero"><span class="team-access-shield">${icon('users')}</span><div><small>WORKSPACE ${escapeHTML(workspaceShortId())}</small><strong>Base de acessos preparada</strong><p>${stats.total} ${stats.total===1?'perfil':'perfis'} • ${stats.active} ativo${stats.active===1?'':'s'} • regras salvas localmente.</p></div></div><div class="team-access-actions"><button class="btn btn-primary" id="addTeamMember">${icon('plus')} Adicionar membro</button><button class="btn btn-secondary" id="openPermissionMatrix">Ver matriz</button></div><div class="team-member-list">${rows.map(member=>`<article class="team-member-card ${member.status==='inactive'?'inactive':''} ${member.id==='owner'?'owner':''}"><div class="team-member-avatar">${escapeHTML(String(member.name||'?').trim().slice(0,1).toUpperCase()||'?')}</div><div class="team-member-main"><div class="team-member-title"><strong>${escapeHTML(member.name||'Perfil')}</strong><span class="access-role-badge role-${escapeHTML(member.role)}">${escapeHTML(accessRoleLabel(member.role))}</span>${member.status==='inactive'?'<span class="access-inactive-badge">Inativo</span>':''}</div><small>${escapeHTML(member.email||'Sem e-mail informado')}</small><div class="access-permission-chips compact">${accessPermissionChips(member.role)}</div></div><div class="team-member-actions"><button class="mini-icon js-edit-team" data-id="${escapeHTML(member.id)}" title="${member.id==='owner'?'Ver proprietário':'Editar membro'}">${icon('edit')}</button>${member.id==='owner'?'':`<button class="mini-icon danger js-remove-team" data-id="${escapeHTML(member.id)}" title="Remover perfil">${icon('trash')}</button>`}</div></article>`).join('')}</div><div class="access-local-note"><span>i</span><div><strong>Etapa 1 • estrutura local</strong><small>Perfis, funções e permissões já acompanham o Workspace e entram no backup. Ainda não há login individual, senha de membro ou sincronização em nuvem.</small></div></div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    const access=commercialAccess(),stats=accessMemberStats(),rows=access.members||[],credentials=accessCredentialSummary(),sessionOn=access.mode==='local-session',current=accessCurrentMember();
+    const sessionPanel=sessionOn?`<section class="access-session-status is-on"><div><small>SESSÃO LOCAL ATIVA</small><strong>Acesso por perfil ligado</strong><span>${current?`${escapeHTML(current.name)} • ${escapeHTML(accessRoleLabel(current.role))}`:'Bloqueado • aguardando entrada'}</span></div><div class="access-session-status-actions"><button class="btn btn-primary btn-small" id="teamLockNow">${icon('lock')} Bloquear agora</button>${current?.role==='owner'?'<button class="btn btn-secondary btn-small" id="disableTeamSessions">Desativar</button>':''}</div></section>`:`<section class="access-session-status"><div><small>PRÓXIMA CAMADA COMERCIAL</small><strong>Acesso por perfil</strong><span>${credentials.ready?'Todos os perfis ativos possuem PIN. Pronto para ativar.':`${credentials.missing.length} perfil${credentials.missing.length===1?'':'is'} ativo${credentials.missing.length===1?'':'s'} ainda sem PIN.`}</span></div><button class="btn ${credentials.ready?'btn-primary':'btn-secondary'} btn-small" id="activateTeamSessions">Ativar acesso</button></section>`;
+    openModal('Equipe e permissões',`<div class="team-access-hero ${sessionOn?'session-on':''}"><span class="team-access-shield">${icon(sessionOn?'lock':'users')}</span><div><small>WORKSPACE ${escapeHTML(workspaceShortId())}</small><strong>${sessionOn?'Acesso por perfil ativo':'Base de acessos preparada'}</strong><p>${stats.total} ${stats.total===1?'perfil':'perfis'} • ${stats.active} ativo${stats.active===1?'':'s'} • matriz V${ACCESS_SCHEMA_VERSION}.</p></div></div>${sessionPanel}<div class="team-access-actions"><button class="btn btn-primary" id="addTeamMember">${icon('plus')} Adicionar membro</button><button class="btn btn-secondary" id="openPermissionMatrix">Ver matriz</button></div><div class="team-member-list">${rows.map(member=>`<article class="team-member-card ${member.status==='inactive'?'inactive':''} ${member.id==='owner'?'owner':''}"><div class="team-member-avatar">${escapeHTML(String(member.name||'?').trim().slice(0,1).toUpperCase()||'?')}</div><div class="team-member-main"><div class="team-member-title"><strong>${escapeHTML(member.name||'Perfil')}</strong><span class="access-role-badge role-${escapeHTML(member.role)}">${escapeHTML(accessRoleLabel(member.role))}</span>${member.status==='inactive'?'<span class="access-inactive-badge">Inativo</span>':''}${accessCredentialReady(member)?'<span class="access-pin-badge ready">PIN ✓</span>':'<span class="access-pin-badge">Sem PIN</span>'}</div><small>${escapeHTML(member.email||'Sem e-mail informado')}</small><div class="access-permission-chips compact">${accessPermissionChips(member.role)}</div></div><div class="team-member-actions"><button class="mini-icon js-pin-team" data-id="${escapeHTML(member.id)}" title="Definir PIN">${icon('lock')}</button><button class="mini-icon js-edit-team" data-id="${escapeHTML(member.id)}" title="${member.id==='owner'?'Ver proprietário':'Editar membro'}">${icon('edit')}</button>${member.id==='owner'?'':`<button class="mini-icon danger js-remove-team" data-id="${escapeHTML(member.id)}" title="Remover perfil">${icon('trash')}</button>`}</div></article>`).join('')}</div><div class="access-local-note"><span>i</span><div><strong>V12.14 • sessão local protegida</strong><small>PINs são armazenados somente como hash com salt. Quando ativado, o app esconde módulos sem permissão e exige entrada por perfil. Nuvem e autenticação remota continuam desligadas.</small></div></div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
     $('#addTeamMember')?.addEventListener('click',()=>{closeModal();openTeamMemberEditor()});
     $('#openPermissionMatrix')?.addEventListener('click',()=>{closeModal();openPermissionsMatrix()});
+    $('#activateTeamSessions')?.addEventListener('click',activateLocalTeamSessions);
+    $('#teamLockNow')?.addEventListener('click',()=>{closeModal();accessLockNow()});
+    $('#disableTeamSessions')?.addEventListener('click',()=>{closeModal();openDisableTeamSessions()});
+    $$('.js-pin-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();openAccessPinEditor(id)}));
     $$('.js-edit-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();openTeamMemberEditor(id)}));
     $$('.js-remove-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();confirmRemoveTeamMember(id)}));
   }
@@ -5140,8 +5275,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('profile','Perfil do Studio',profileOk?'ok':'warn',profileOk?`${profile.studioName} • identidade documental preparada.`:'Complete nome do Studio e profissional responsável em Conta e plano.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
-    const access=commercialAccess(),accessMembers=Array.isArray(access.members)?access.members:[],ownerCount=accessMembers.filter(x=>x.id==='owner'&&x.role==='owner'&&x.status==='active').length,accessOk=Number(access.schemaVersion)===ACCESS_SCHEMA_VERSION&&ownerCount===1;
-    push('access','Equipe e permissões',accessOk?'ok':'danger',accessOk?`${accessMembers.length} ${accessMembers.length===1?'perfil local':'perfis locais'} • ${accessMembers.filter(x=>x.status!=='inactive').length} ativo(s) • matriz de permissões V${ACCESS_SCHEMA_VERSION}.`:'Estrutura de acesso inválida ou proprietário principal ausente.');
+    const access=commercialAccess(),accessMembers=Array.isArray(access.members)?access.members:[],ownerCount=accessMembers.filter(x=>x.id==='owner'&&x.role==='owner'&&x.status==='active').length,activeAccess=accessMembers.filter(x=>x.status!=='inactive'),credentialsOk=access.mode!=='local-session'||activeAccess.every(accessCredentialReady),recoveryOk=access.mode!=='local-session'||Boolean(access.recoverySalt&&access.recoveryHash),accessOk=Number(access.schemaVersion)===ACCESS_SCHEMA_VERSION&&ownerCount===1&&credentialsOk&&recoveryOk;
+    push('access','Equipe e permissões',accessOk?'ok':'danger',accessOk?`${accessMembers.length} ${accessMembers.length===1?'perfil local':'perfis locais'} • ${activeAccess.length} ativo(s) • matriz V${ACCESS_SCHEMA_VERSION} • ${access.mode==='local-session'?'sessões por perfil ativas':'sessões por perfil desativadas'}.`:'Estrutura de acesso inválida, credencial pendente ou proprietário principal ausente.');
     const arrays=['students','payments','receipts','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
     const objects=['schedule','attendance','makeups','settings'];
     const invalid=[...arrays.filter(k=>!Array.isArray(state[k])),...objects.filter(k=>!state[k]||typeof state[k]!=='object'||Array.isArray(state[k]))];
@@ -5246,10 +5381,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
       <div class="section-head"><div><h3>Conta e plano</h3><p>Identificação comercial simples, clara e sem bloqueios</p></div></div>
       <section class="card professional-account-card"><div class="professional-account-head"><div class="professional-account-mark">${commercialOwnerConfigured()?'✓':'MB'}</div><div><span>CONTA LOCAL</span><strong>${escapeHTML(commercialOwnerConfigured()?commercialOwner().name:'Proprietário não configurado')}</strong><small>${commercialOwnerConfigured()?'Identidade do responsável salva neste aparelho.':'Configure uma vez para identificar esta instalação profissionalmente.'}</small></div><button class="btn ${commercialOwnerConfigured()?'btn-secondary':'btn-primary'} btn-small" id="openAccountCenter">${commercialOwnerConfigured()?'Gerenciar':'Configurar'}</button></div><div class="professional-account-meta"><div><span>Plano</span><strong>${escapeHTML(commercialPlanLabel())}</strong></div><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="professional-license-row" id="openPlanLicense" type="button"><span><small>PLANO E LICENÇA</small><strong>${escapeHTML(commercialLicenseStatusLabel())}</strong><em>${state.commercial?.license?.source==='online'?'Licença online vinculada':'Operação local • sem cobrança vinculada'}</em></span><b>Detalhes ›</b></button></section>
-      <div class="section-head"><div><h3>Equipe e permissões</h3><p>Perfis locais preparados para a futura autenticação multiusuário</p></div></div>
+      <div class="section-head"><div><h3>Equipe e permissões</h3><p>Sessões locais, PIN individual e módulos liberados por função</p></div></div>
       <section class="card team-access-settings-card">
         <div class="team-access-settings-head"><span>${icon('users')}</span><div><small>ACESSOS DO WORKSPACE</small><strong>${accessStats.total} ${accessStats.total===1?'perfil configurado':'perfis configurados'}</strong><em>${accessStats.active} ativo${accessStats.active===1?'':'s'} • proprietário protegido • matriz V${ACCESS_SCHEMA_VERSION}</em></div><button class="btn btn-primary btn-small" id="openTeamAccess">Gerenciar</button></div>
-        <div class="settings-row"><div><strong>Modo atual</strong><span>Estrutura local de funções e permissões • login individual ainda não ativado.</span></div><span class="pill">Etapa 1</span></div>
+        <div class="settings-row"><div><strong>Modo atual</strong><span>${commercialAccess().mode==='local-session'?'Acesso por perfil ativo • PIN individual • navegação filtrada por função.':'Estrutura pronta • defina PINs e ative quando quiser usar perfis individuais.'}</span></div><span class="pill">${commercialAccess().mode==='local-session'?'Ativo':'Preparado'}</span></div>
       </section>
       <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para dados financeiros</p></div></div>
       <section class="card">
@@ -5274,7 +5409,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Equipe e permissões</strong><span>V${ACCESS_SCHEMA_VERSION} • ${accessStats.total} ${accessStats.total===1?'perfil local':'perfis locais'} • matriz por função preparada para autenticação futura.</span></div><span class="pill">V12.13</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Equipe e permissões</strong><span>V${ACCESS_SCHEMA_VERSION} • ${accessStats.total} ${accessStats.total===1?'perfil local':'perfis locais'} • ${commercialAccess().mode==='local-session'?'sessão por perfil ativa':'sessão por perfil preparada'}.</span></div><span class="pill">V12.14</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -5807,5 +5942,5 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   renderNav();
   render();
-  setTimeout(()=>checkBirthdayNotification(false),1200);
+  setTimeout(()=>{if(!accessModeEnabled()||accessCurrentMember()){if(accessCan('students')||accessCan('reminders'))checkBirthdayNotification(false)}},1200);
 })();
