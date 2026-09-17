@@ -1766,7 +1766,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 @media(max-width:390px){.receipt-summary-grid{grid-template-columns:1fr 1fr}.receipt-doc-brand strong{font-size:14px}.receipt-doc-value strong{font-size:31px}.receipt-document{border-radius:20px}.receipt-doc-head,.receipt-doc-value,.receipt-doc-statement,.receipt-doc-grid{padding-left:18px;padding-right:18px}.receipt-doc-note{margin-left:18px;margin-right:18px}.receipt-doc-footer{padding-left:18px;padding-right:18px}}
 
 /* ================================================================
-   V12.10.1 — Desktop Readiness • Polimento Visual
+   V12.11.0 — Estrutura Comercial de Dados • Etapa 1
    Camada exclusivamente responsiva: preserva a experiência mobile
    e aprimora notebook/desktop com mouse, teclado e telas largas.
    ================================================================ */
@@ -1853,3 +1853,13 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
   .view,.card,.metric,.today-card,.schedule-slot,.schedule-slot-pro,.student-card,.v94-command-card,.toast{animation:none!important;transition:none!important}
   html:focus-within{scroll-behavior:auto}
 }
+
+
+/* ============================================================
+   V12.11.0 — Estrutura Comercial de Dados • Etapa 1
+   Perfil comercial + fundação de propriedade por Workspace.
+   ============================================================ */
+.account-center-section .settings-row{padding-left:0;padding-right:0}
+.account-center-section .license-center-grid{margin-top:12px}
+.account-center-section .notice.danger{border-color:rgba(239,103,103,.38);background:rgba(239,103,103,.08)}
+@media (max-width:560px){.account-center-section .license-center-grid{grid-template-columns:1fr}.account-center-section .form-grid.two{grid-template-columns:1fr}}

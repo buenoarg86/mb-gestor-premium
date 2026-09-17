@@ -1,14 +1,16 @@
-// MB Gestor Luxury Pro V12.10.1 — Desktop Readiness • Polimento Visual
+// MB Gestor Luxury Pro V12.11.0 — Estrutura Comercial de Dados • Etapa 1
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.10.1 — Desktop Readiness • Polimento Visual
+  // MB Gestor Luxury Pro V12.11.0 — Estrutura Comercial de Dados • Etapa 1
 
-  const APP_VERSION = '12.10.1';
+  const APP_VERSION = '12.11.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
-  const COMMERCIAL_SCHEMA_VERSION = 3;
+  const COMMERCIAL_SCHEMA_VERSION = 4;
+  const DATA_OWNERSHIP_SCHEMA_VERSION = 1;
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
+  const DATA_FOUNDATION_BACKUP_TAG = 'workspace-foundation-v1';
   // V12.2.1 • snapshot independente para proteger a identidade visual antes de alterações/migrações.
   const BRAND_IDENTITY_RECOVERY_KEY = `${STORAGE_KEY}_brand_identity_recovery_v1`;
   // Rascunho isolado da Avaliação Física. Não altera a STORAGE_KEY principal nem migra dados existentes.
@@ -116,9 +118,21 @@
       product: 'mb-gestor-luxury-pro',
       accountMode: 'local',
       owner: {name:'',email:'',configuredAt:null,updatedAt:null},
+      studioProfile: {studioName:'',professionalName:'',whatsapp:'',email:'',document:'',updatedAt:null},
       installation: {id:'',createdAt:'',label:'Este dispositivo'},
       license: {schemaVersion:1,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,externalRef:null},
       sync: {mode:'off',lastSyncAt:null}
+    },
+    dataFoundation: {
+      schemaVersion: DATA_OWNERSHIP_SCHEMA_VERSION,
+      workspaceId: '',
+      ownershipMode: 'workspace-bound',
+      migratedAt: null,
+      preMigrationBackupAt: null,
+      postMigrationBackupAt: null,
+      lastCheckedAt: null,
+      lastStatus: 'ok',
+      lastSummary: null
     },
     students: [],
     expenses: [],
@@ -237,9 +251,10 @@
     };
   }
 
-  function normalizeCommercial(raw={}){
+  function normalizeCommercial(raw={}, settings={}){
     const source=raw&&typeof raw==='object'?raw:{};
     const ownerSource=source.owner&&typeof source.owner==='object'?source.owner:{};
+    const studioSource=source.studioProfile&&typeof source.studioProfile==='object'?source.studioProfile:{};
     const installationSource=source.installation&&typeof source.installation==='object'?source.installation:{};
     const licenseSource=source.license&&typeof source.license==='object'?source.license:{};
     const syncSource=source.sync&&typeof source.sync==='object'?source.sync:{};
@@ -250,8 +265,11 @@
     let licenseStatus=allowedLicense.has(String(licenseSource.status||''))?String(licenseSource.status):'not-configured';
     // V12.5.0 • instalações locais válidas deixam de parecer "sem licença". Não cria assinatura nem cobrança.
     if(plan==='local'&&licenseSourceMode==='local'&&(licenseStatus==='not-configured'||!licenseStatus))licenseStatus='local-active';
-    const ownerName=String(ownerSource.name||'').trim().slice(0,80);
-    const ownerEmail=String(ownerSource.email||'').trim().slice(0,120);
+    const ownerName=String(ownerSource.name||studioSource.professionalName||settings?.trainerName||'').trim().slice(0,80);
+    const ownerEmail=String(ownerSource.email||studioSource.email||'').trim().slice(0,120);
+    const studioName=String(studioSource.studioName||settings?.studioName||'').trim().slice(0,80);
+    const professionalName=String(studioSource.professionalName||settings?.trainerName||ownerName||'').trim().slice(0,80);
+    const studioEmail=String(studioSource.email||ownerEmail||'').trim().slice(0,120);
     return {
       ...source,
       schemaVersion:COMMERCIAL_SCHEMA_VERSION,
@@ -263,6 +281,15 @@
         email:ownerEmail,
         configuredAt:ownerSource.configuredAt||null,
         updatedAt:ownerSource.updatedAt||null
+      },
+      studioProfile:{
+        ...studioSource,
+        studioName,
+        professionalName,
+        whatsapp:String(studioSource.whatsapp||'').replace(/\D/g,'').slice(0,15),
+        email:studioEmail,
+        document:String(studioSource.document||'').replace(/[^0-9A-Za-z./-]/g,'').slice(0,24),
+        updatedAt:studioSource.updatedAt||null
       },
       installation:{
         ...installationSource,
@@ -289,6 +316,63 @@
         lastSyncAt:syncSource.lastSyncAt||null
       }
     };
+  }
+
+  const WORKSPACE_OWNED_ARRAYS = ['students','expenses','payments','receipts','reminderDrafts','studioClosures','plannedAbsences','waitlist','prospects','trials','monthClosures','physicalAssessments','posturalAssessments','auditLog','trash'];
+
+  function normalizeDataFoundation(raw={},workspaceId='',hasBusinessData=false){
+    const source=raw&&typeof raw==='object'?raw:{};
+    const hasExistingFoundation=Number(source.schemaVersion)===DATA_OWNERSHIP_SCHEMA_VERSION&&Boolean(source.workspaceId||source.ownershipMode);
+    const mode=source.ownershipMode==='workspace-bound'?'workspace-bound':hasExistingFoundation?'legacy-compatible':hasBusinessData?'legacy-compatible':'workspace-bound';
+    return {
+      ...source,
+      schemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,
+      workspaceId:String(workspaceId||source.workspaceId||'').trim(),
+      ownershipMode:mode,
+      migratedAt:source.migratedAt||(!hasBusinessData&&mode==='workspace-bound'?new Date().toISOString():null),
+      preMigrationBackupAt:source.preMigrationBackupAt||null,
+      postMigrationBackupAt:source.postMigrationBackupAt||null,
+      lastCheckedAt:source.lastCheckedAt||null,
+      lastStatus:source.lastStatus||(!hasBusinessData?'ok':'pending'),
+      lastSummary:source.lastSummary||null
+    };
+  }
+
+  function workspaceOwnershipAudit(source=state){
+    const workspaceId=String(source?.workspace?.id||'').trim();
+    let total=0,owned=0,missing=0,foreign=0;
+    const groups=[];
+    WORKSPACE_OWNED_ARRAYS.forEach(key=>{
+      const rows=Array.isArray(source?.[key])?source[key]:[];
+      let groupTotal=0,groupOwned=0,groupMissing=0,groupForeign=0;
+      rows.forEach(row=>{
+        if(!row||typeof row!=='object'||Array.isArray(row))return;
+        groupTotal++;total++;
+        const rowWorkspace=String(row.workspaceId||'').trim();
+        if(!rowWorkspace){groupMissing++;missing++;}
+        else if(rowWorkspace===workspaceId){groupOwned++;owned++;}
+        else{groupForeign++;foreign++;}
+      });
+      if(groupTotal)groups.push({key,total:groupTotal,owned:groupOwned,missing:groupMissing,foreign:groupForeign});
+    });
+    const coverage=total?Math.round(owned/total*100):100;
+    return {workspaceId,total,owned,missing,foreign,coverage,groups,status:foreign?'danger':missing?'pending':'ok'};
+  }
+
+  function bindRecordsToWorkspace(source=state){
+    const workspaceId=String(source?.workspace?.id||'').trim();
+    if(!workspaceId)return {bound:0,foreign:0};
+    let bound=0,foreign=0;
+    WORKSPACE_OWNED_ARRAYS.forEach(key=>{
+      const rows=Array.isArray(source?.[key])?source[key]:[];
+      rows.forEach(row=>{
+        if(!row||typeof row!=='object'||Array.isArray(row))return;
+        const rowWorkspace=String(row.workspaceId||'').trim();
+        if(!rowWorkspace){row.workspaceId=workspaceId;bound++;}
+        else if(rowWorkspace!==workspaceId)foreign++;
+      });
+    });
+    return {bound,foreign};
   }
 
   function stateHasBusinessData(source={}){
@@ -361,7 +445,8 @@
   function createFreshState(){
     const fresh=structuredClone(DEFAULT_STATE);
     fresh.workspace=normalizeWorkspace();
-    fresh.commercial=normalizeCommercial();
+    fresh.commercial=normalizeCommercial({},fresh.settings);
+    fresh.dataFoundation=normalizeDataFoundation({},fresh.workspace.id,false);
     fresh.settings.operationConfig=structuredClone(DEFAULT_OPERATION_CONFIG);
     return fresh;
   }
@@ -370,12 +455,14 @@
     const existingBusiness=stateHasBusinessData(parsed);
     const operationSource=parsed.settings?.operationConfig || (existingBusiness?LEGACY_COMPAT_OPERATION_CONFIG:DEFAULT_OPERATION_CONFIG);
     const workspaceSource=(parsed.workspace&&typeof parsed.workspace==='object')?parsed.workspace:(preserveWorkspace||{});
+    const normalizedWorkspace=normalizeWorkspace(workspaceSource);
     return {
       ...structuredClone(DEFAULT_STATE),
       ...parsed,
       version:DATA_SCHEMA_VERSION,
-      workspace:normalizeWorkspace(workspaceSource),
-      commercial:normalizeCommercial(parsed.commercial),
+      workspace:normalizedWorkspace,
+      commercial:normalizeCommercial(parsed.commercial,parsed.settings||{}),
+      dataFoundation:normalizeDataFoundation(parsed.dataFoundation,normalizedWorkspace.id,existingBusiness),
       students:Array.isArray(parsed.students)?parsed.students:[],
       expenses:Array.isArray(parsed.expenses)?parsed.expenses:[],
       payments:Array.isArray(parsed.payments)?parsed.payments:[],
@@ -406,7 +493,7 @@
       if(!raw)return createFreshState();
       const parsed=JSON.parse(raw);
       const hydrated=hydrateState(parsed);
-      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||!parsed.settings?.operationConfig;
+      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||!parsed.settings?.operationConfig;
       if(needsFoundationMigration){
         // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
         // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
@@ -424,6 +511,10 @@
     // Em MODO TESTE, todas as alterações pertencem somente à cópia temporária em memória.
     // Nenhum fluxo da Agenda pode escrever na STORAGE_KEY principal durante a simulação.
     if(agendaSimulationSession){agendaSimulationSession.touched=true;return false;}
+    // V12.11.0 • depois da consolidação, todo novo registro local recebe a identidade do Workspace.
+    // Registros com outro Workspace nunca são sobrescritos silenciosamente: o diagnóstico os bloqueia para revisão.
+    if(state.dataFoundation?.ownershipMode==='workspace-bound')bindRecordsToWorkspace(state);
+    if(state.dataFoundation&&typeof state.dataFoundation==='object')state.dataFoundation.workspaceId=String(state.workspace?.id||state.dataFoundation.workspaceId||'');
     // Persistência simples e previsível: não substituímos o objeto `state` aqui,
     // pois modais abertos podem manter referências válidas durante fluxos em várias etapas.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -4742,7 +4833,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
       toast('Identidade anterior carregada na prévia. Salve apenas se estiver correta.');
     });
-    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandLogoFitBanner=normalizeLogoFit(draft.logoFitBanner,'banner');state.settings.brandLogoFitIcon=normalizeLogoFit(draft.logoFitIcon,'icon');state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName} • enquadramento de logo`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual e enquadramentos salvos.');});
+    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandLogoFitBanner=normalizeLogoFit(draft.logoFitBanner,'banner');state.settings.brandLogoFitIcon=normalizeLogoFit(draft.logoFitIcon,'icon');state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);state.commercial=normalizeCommercial(state.commercial,state.settings||{});state.commercial.studioProfile={...state.commercial.studioProfile,studioName:draft.studioName,professionalName:draft.trainerName,updatedAt:new Date().toISOString()};addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName} • enquadramento de logo`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual e enquadramentos salvos.');});
     refreshLogoFitEditor();
   }
 
@@ -4756,9 +4847,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return state.commercial?.owner&&typeof state.commercial.owner==='object'?state.commercial.owner:{name:'',email:'',configuredAt:null,updatedAt:null};
   }
 
+  function commercialStudioProfile(){
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
+    return state.commercial.studioProfile;
+  }
+
   function commercialInstallation(){
-    if(!state.commercial||typeof state.commercial!=='object')state.commercial=normalizeCommercial();
-    if(!state.commercial.installation?.id)state.commercial=normalizeCommercial(state.commercial);
+    if(!state.commercial||typeof state.commercial!=='object')state.commercial=normalizeCommercial({},state.settings||{});
+    if(!state.commercial.installation?.id)state.commercial=normalizeCommercial(state.commercial,state.settings||{});
     return state.commercial.installation;
   }
 
@@ -4784,7 +4880,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function commercialLicense(){
-    state.commercial=normalizeCommercial(state.commercial);
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
     return state.commercial.license;
   }
 
@@ -4807,7 +4903,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openPlanLicenseCenter(){
-    state.commercial=normalizeCommercial(state.commercial);
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
     const license=commercialLicense(),local=license.plan==='local'&&license.source==='local',statusLabel=commercialLicenseStatusLabel(),tone=commercialLicenseTone();
     const renewal=local?'Não aplicável':licenseDateLabel(license.renewalAt||license.validUntil,'Não informado');
     const validation=license.checkedAt?formatDateTimeBR(license.checkedAt):(local?'Validação local':'Ainda não validada');
@@ -4816,21 +4912,56 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function openProfessionalAccountCenter(){
-    state.commercial=normalizeCommercial(state.commercial);
-    const owner=commercialOwner(),installation=commercialInstallation(),configured=commercialOwnerConfigured();
-    openModal('Conta e instalação',`<div class="account-center-hero ${configured?'ready':''}"><span>${configured?'✓':'MB'}</span><div><small>CONTA LOCAL</small><strong>${configured?escapeHTML(owner.name):'Configure o proprietário'}</strong><p>${configured?'Perfil comercial salvo somente neste dispositivo.':'Identifique quem administra este Studio sem criar login ou cobrança.'}</p></div></div><form id="commercialAccountForm" class="form-grid"><div class="account-center-section"><div class="section-overline">PROPRIETÁRIO</div><div class="field"><label>Nome do responsável</label><input name="ownerName" maxlength="80" autocomplete="name" value="${escapeHTML(owner.name||'')}" placeholder="Ex.: João Silva" /></div><div class="field"><label>E-mail <span class="muted">(opcional)</span></label><input name="ownerEmail" type="email" maxlength="120" autocomplete="email" value="${escapeHTML(owner.email||'')}" placeholder="contato@studio.com" /></div></div><div class="account-center-section"><div class="section-overline">ESTE DISPOSITIVO</div><div class="field"><label>Nome do dispositivo</label><input name="deviceLabel" maxlength="40" value="${escapeHTML(installation.label||'Este dispositivo')}" placeholder="Ex.: Celular principal" /></div><div class="account-device-grid"><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyAccountSupportCode" type="button">Copiar código de suporte</button></div><div class="account-center-section account-plan-box"><div><span>Plano atual</span><strong>${escapeHTML(commercialPlanLabel())}</strong><small>${escapeHTML(commercialLicenseStatusLabel())} • nenhuma cobrança vinculada nesta etapa.</small></div><button class="btn btn-secondary btn-small" id="openPlanLicenseFromAccount" type="button">Ver detalhes</button></div><div class="notice compact">Conta online, assinatura e sincronização não são simuladas. Esta etapa cria uma identificação profissional e estável para o proprietário e para este aparelho, preparando a futura ativação comercial.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar conta local</button></div></form>`);
+    state.commercial=normalizeCommercial(state.commercial,state.settings||{});
+    const owner=commercialOwner(),profile=commercialStudioProfile(),installation=commercialInstallation(),configured=commercialOwnerConfigured();
+    const identity=brandingSettings();
+    openModal('Studio, conta e instalação',`<div class="account-center-hero ${configured?'ready':''}"><span>${configured?'✓':'MB'}</span><div><small>PERFIL COMERCIAL LOCAL</small><strong>${escapeHTML(profile.studioName||identity.studioName||'Meu Studio')}</strong><p>${configured?'Studio e responsável identificados neste dispositivo.':'Complete o perfil que acompanha relatórios, recibos e a futura conta comercial.'}</p></div></div><form id="commercialAccountForm" class="form-grid"><div class="account-center-section"><div class="section-overline">STUDIO E PROFISSIONAL</div><div class="field"><label>Nome do Studio *</label><input name="studioName" maxlength="80" value="${escapeHTML(profile.studioName||identity.studioName||'')}" placeholder="Ex.: Studio Movimento" required /></div><div class="field"><label>Profissional responsável *</label><input name="professionalName" maxlength="80" autocomplete="name" value="${escapeHTML(profile.professionalName||identity.trainerName||owner.name||'')}" placeholder="Ex.: João Silva" required /></div><div class="form-grid two"><div class="field"><label>WhatsApp / telefone <span class="muted">(opcional)</span></label><input name="studioWhatsapp" inputmode="tel" maxlength="20" value="${escapeHTML(profile.whatsapp||'')}" placeholder="DDD + número" /></div><div class="field"><label>E-mail <span class="muted">(opcional)</span></label><input name="studioEmail" type="email" maxlength="120" autocomplete="email" value="${escapeHTML(profile.email||owner.email||'')}" placeholder="contato@studio.com" /></div></div><div class="field"><label>Documento do Studio/profissional <span class="muted">(opcional)</span></label><input name="studioDocument" maxlength="24" value="${escapeHTML(profile.document||'')}" placeholder="CPF/CNPJ ou identificação profissional" /></div><div class="notice compact"><strong>Identidade compartilhada.</strong><br>Nome do Studio e profissional ficam sincronizados com a identidade usada em relatórios e nos próximos recibos. Logotipo e cores continuam em Identidade visual.</div><button class="btn btn-secondary btn-small" id="openBrandingFromAccount" type="button">Ajustar identidade visual</button></div><div class="account-center-section"><div class="section-overline">PROPRIETÁRIO DA CONTA LOCAL</div><div class="field"><label>Nome do responsável pela conta</label><input name="ownerName" maxlength="80" autocomplete="name" value="${escapeHTML(owner.name||profile.professionalName||'')}" placeholder="Pode ser o mesmo profissional" /></div><div class="field"><label>E-mail da conta <span class="muted">(opcional)</span></label><input name="ownerEmail" type="email" maxlength="120" autocomplete="email" value="${escapeHTML(owner.email||profile.email||'')}" placeholder="contato@studio.com" /></div></div><div class="account-center-section"><div class="section-overline">ESTE DISPOSITIVO</div><div class="field"><label>Nome do dispositivo</label><input name="deviceLabel" maxlength="40" value="${escapeHTML(installation.label||'Este dispositivo')}" placeholder="Ex.: Celular principal" /></div><div class="account-device-grid"><div><span>Workspace</span><strong>${escapeHTML(workspaceShortId())}</strong></div><div><span>Instalação</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyAccountSupportCode" type="button">Copiar código de suporte</button></div><div class="account-center-section account-plan-box"><div><span>Plano atual</span><strong>${escapeHTML(commercialPlanLabel())}</strong><small>${escapeHTML(commercialLicenseStatusLabel())} • nenhuma cobrança vinculada nesta etapa.</small></div><button class="btn btn-secondary btn-small" id="openPlanLicenseFromAccount" type="button">Ver detalhes</button></div><div class="notice compact">Conta online, assinatura e sincronização continuam desligadas. Este perfil permanece somente neste dispositivo e prepara a futura ativação comercial.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar perfil local</button></div></form>`);
     $('#copyAccountSupportCode')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(supportAccessCode());toast('Código de suporte copiado.')}catch{toast(`Código de suporte: ${supportAccessCode()}`)}});
     $('#openPlanLicenseFromAccount')?.addEventListener('click',()=>{closeModal();openPlanLicenseCenter()});
+    $('#openBrandingFromAccount')?.addEventListener('click',()=>{closeModal();openBrandingSettings()});
     $('#commercialAccountForm')?.addEventListener('submit',e=>{
       e.preventDefault();
       const data=new FormData(e.currentTarget),now=new Date().toISOString();
-      const name=String(data.get('ownerName')||'').trim().slice(0,80),email=String(data.get('ownerEmail')||'').trim().slice(0,120),label=String(data.get('deviceLabel')||'').trim().slice(0,40)||'Este dispositivo';
-      if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Confira o e-mail informado.');
-      state.commercial=normalizeCommercial(state.commercial);
+      const studioName=String(data.get('studioName')||'').trim().slice(0,80),professionalName=String(data.get('professionalName')||'').trim().slice(0,80),whatsapp=String(data.get('studioWhatsapp')||'').replace(/\D/g,'').slice(0,15),studioEmail=String(data.get('studioEmail')||'').trim().slice(0,120),document=String(data.get('studioDocument')||'').trim().slice(0,24),name=String(data.get('ownerName')||professionalName).trim().slice(0,80),email=String(data.get('ownerEmail')||studioEmail).trim().slice(0,120),label=String(data.get('deviceLabel')||'').trim().slice(0,40)||'Este dispositivo';
+      if(!studioName||!professionalName)return toast('Informe o nome do Studio e o profissional responsável.');
+      if(studioEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studioEmail))return toast('Confira o e-mail do Studio.');
+      if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Confira o e-mail da conta.');
+      state.commercial=normalizeCommercial(state.commercial,state.settings||{});
       state.commercial.owner={...state.commercial.owner,name,email,configuredAt:state.commercial.owner?.configuredAt||(name?now:null),updatedAt:now};
+      state.commercial.studioProfile={...state.commercial.studioProfile,studioName,professionalName,whatsapp,email:studioEmail,document,updatedAt:now};
       state.commercial.installation={...state.commercial.installation,label};
-      addAudit('Conta local atualizada',`${name?'Proprietário configurado':'Proprietário não informado'} • ${label} • ${installationShortId()}`);
-      saveState();closeModal();renderSettings();toast('Conta local atualizada com segurança.');
+      // Fonte única para documentos atuais: mantém identidade, relatórios e novos recibos coerentes.
+      state.settings.studioName=studioName;state.settings.trainerName=professionalName;
+      addAudit('Perfil comercial local atualizado',`${studioName} • ${professionalName} • ${label} • ${installationShortId()}`);
+      saveState();applyBranding();closeModal();renderSettings();toast('Perfil do Studio atualizado com segurança.');
+    });
+  }
+
+  function dataFoundationStatusLabel(audit=workspaceOwnershipAudit(state)){
+    if(audit.foreign)return 'Revisão necessária';
+    if(state.dataFoundation?.ownershipMode!=='workspace-bound'||audit.missing)return 'Preparação pendente';
+    if(!state.dataFoundation?.postMigrationBackupAt)return 'Protegida • falta backup final';
+    return 'Protegida';
+  }
+
+  function dataFoundationStatusTone(audit=workspaceOwnershipAudit(state)){
+    if(audit.foreign)return 'danger';
+    if(state.dataFoundation?.ownershipMode!=='workspace-bound'||audit.missing||!state.dataFoundation?.postMigrationBackupAt)return 'warn';
+    return 'good';
+  }
+
+  function openDataFoundationCenter(){
+    state.dataFoundation=normalizeDataFoundation(state.dataFoundation,state.workspace?.id,stateHasBusinessData(state));
+    const audit=workspaceOwnershipAudit(state),bound=state.dataFoundation.ownershipMode==='workspace-bound'&&!audit.missing&&!audit.foreign,pre=Boolean(state.dataFoundation.preMigrationBackupAt),post=Boolean(state.dataFoundation.postMigrationBackupAt),tone=dataFoundationStatusTone(audit);
+    const groups=audit.groups.map(g=>`<div><span>${escapeHTML(g.key)}</span><strong>${g.owned}/${g.total}</strong><small>${g.missing?`${g.missing} sem vínculo`:g.foreign?`${g.foreign} divergente(s)`:'OK'}</small></div>`).join('');
+    openModal('Fundação comercial dos dados',`<div class="license-center-hero ${tone==='good'?'good':tone==='danger'?'danger':'warn'}"><span>${tone==='good'?'✓':tone==='danger'?'×':'1'}</span><div><small>ESTRUTURA LOCAL • ETAPA 1</small><strong>${escapeHTML(dataFoundationStatusLabel(audit))}</strong><p>${audit.total?`${audit.owned} de ${audit.total} registros já vinculados ao Workspace ${workspaceShortId()}.`:`Nenhum registro operacional precisa ser migrado neste momento.`}</p></div></div><div class="license-center-grid"><div><span>Workspace</span><strong>${escapeHTML(workspaceShortId())}</strong></div><div><span>Cobertura</span><strong>${audit.coverage}%</strong></div><div><span>Sem vínculo</span><strong>${audit.missing}</strong></div><div><span>Outro Workspace</span><strong>${audit.foreign}</strong></div></div><div class="account-center-section"><div class="section-overline">1 • BACKUP ANTES</div><div class="settings-row"><div><strong>${pre?'Backup pré-migração registrado':'Crie o backup de segurança'}</strong><span>${pre?formatDateTimeBR(state.dataFoundation.preMigrationBackupAt):'Salva uma cópia completa antes de vincular os registros ao Workspace.'}</span></div><button class="btn ${pre?'btn-secondary':'btn-primary'} btn-small" id="foundationBackupBefore">${pre?'Refazer':'Fazer backup'}</button></div></div><div class="account-center-section"><div class="section-overline">2 • VINCULAR DADOS</div><div class="notice compact ${audit.foreign?'danger':''}">${audit.foreign?`Foram encontrados ${audit.foreign} registro(s) vinculados a outro Workspace. A consolidação automática foi bloqueada para evitar mistura de dados.`:bound?'Todos os registros estruturados estão vinculados a este Workspace. Novos registros também receberão essa identidade automaticamente.':'A vinculação apenas adiciona o identificador do Workspace aos registros existentes. IDs, valores, históricos, agenda e avaliações não são recalculados.'}</div>${groups?`<div class="license-center-grid">${groups}</div>`:''}<button class="btn ${bound?'btn-secondary':'btn-primary'}" id="foundationMigrate" ${(!pre||audit.foreign||bound)?'disabled':''}>${bound?'Estrutura consolidada':'Consolidar estrutura'}</button></div><div class="account-center-section"><div class="section-overline">3 • BACKUP DEPOIS</div><div class="settings-row"><div><strong>${post?'Backup pós-migração registrado':'Finalize com novo backup'}</strong><span>${post?formatDateTimeBR(state.dataFoundation.postMigrationBackupAt):'Depois da consolidação, gere uma nova cópia já com a estrutura comercial protegida.'}</span></div><button class="btn ${post?'btn-secondary':'btn-primary'} btn-small" id="foundationBackupAfter" ${bound?'':'disabled'}>${post?'Refazer':'Fazer backup'}</button></div></div><div class="notice compact"><strong>Sem nuvem e sem login.</strong><br>Esta etapa só prepara a separação lógica dos dados. Nada é enviado para servidores e nenhuma assinatura é ativada.</div><div class="modal-actions"><button type="button" class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    $('#foundationBackupBefore')?.addEventListener('click',()=>exportBackup('pre-migration'));
+    $('#foundationBackupAfter')?.addEventListener('click',()=>exportBackup('post-migration'));
+    $('#foundationMigrate')?.addEventListener('click',()=>{
+      const current=workspaceOwnershipAudit(state);if(!state.dataFoundation?.preMigrationBackupAt)return toast('Faça o backup pré-migração primeiro.');if(current.foreign)return toast('Migração bloqueada: existem registros de outro Workspace.');
+      const result=bindRecordsToWorkspace(state),after=workspaceOwnershipAudit(state),now=new Date().toISOString();
+      state.dataFoundation={...normalizeDataFoundation(state.dataFoundation,state.workspace.id,stateHasBusinessData(state)),ownershipMode:'workspace-bound',migratedAt:state.dataFoundation.migratedAt||now,lastCheckedAt:now,lastStatus:after.foreign?'danger':after.missing?'pending':'ok',lastSummary:{total:after.total,owned:after.owned,missing:after.missing,foreign:after.foreign,boundNow:result.bound}};
+      addAudit('Fundação comercial consolidada',`Workspace ${workspaceShortId()} • ${result.bound} registro(s) vinculados • ${after.total} verificados`);saveState();closeModal();renderSettings();setTimeout(openDataFoundationCenter,80);toast('Estrutura comercial dos dados consolidada.');
     });
   }
 
@@ -4865,6 +4996,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('schema','Esquema de dados',Number(state.version)===DATA_SCHEMA_VERSION?'ok':'danger',`Estado V${Number(state.version)||'—'} • esperado V${DATA_SCHEMA_VERSION}.`);
     const commercialOk=Number(state.commercial?.schemaVersion)===COMMERCIAL_SCHEMA_VERSION&&Boolean(state.commercial?.installation?.id);
     push('commercial','Conta e instalação',commercialOk?'ok':'danger',commercialOk?`Estrutura V${COMMERCIAL_SCHEMA_VERSION} • instalação ${installationShortId()} • proprietário ${commercialOwnerConfigured()?'configurado':'ainda não informado'}.`:'Estrutura comercial ou identidade desta instalação ausente.');
+    const ownership=workspaceOwnershipAudit(state),foundationBound=state.dataFoundation?.ownershipMode==='workspace-bound';
+    const ownershipStatus=ownership.foreign?'danger':(!foundationBound||ownership.missing)?'warn':'ok';
+    push('ownership','Vínculo dos dados ao Workspace',ownershipStatus,ownership.foreign?`${ownership.foreign} registro(s) pertencem a outro Workspace. Migração automática bloqueada.`:(!foundationBound||ownership.missing)?`${ownership.owned}/${ownership.total} registros vinculados • ${ownership.missing} pendente(s). Use Fundação comercial dos dados.`:`${ownership.total} registro(s) protegidos pelo Workspace ${workspaceShortId()}.`);
+    const profile=commercialStudioProfile(),profileOk=Boolean(profile.studioName&&profile.professionalName);
+    push('profile','Perfil do Studio',profileOk?'ok':'warn',profileOk?`${profile.studioName} • identidade documental preparada.`:'Complete nome do Studio e profissional responsável em Conta e plano.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
     const arrays=['students','payments','receipts','expenses','physicalAssessments','posturalAssessments','auditLog','trash'];
@@ -4902,6 +5038,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       `Modo: ${state.workspace?.mode||'local'}`,
       `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • plano ${state.commercial?.license?.plan||'local'} • licença ${state.commercial?.license?.status||'—'}`,
       `Instalação: ${installationShortId()} • proprietário configurado ${commercialOwnerConfigured()?'sim':'não'} • código de suporte ${supportAccessCode()}`,
+      `Fundação de dados: V${state.dataFoundation?.schemaVersion||'—'} • modo ${state.dataFoundation?.ownershipMode||'—'} • cobertura ${workspaceOwnershipAudit(state).coverage}%`,
       `Execução: ${standalone?'PWA instalada':'navegador'} • online ${navigator.onLine===false?'não':'sim'}`,
       `Armazenamento do estado: ${formatBytes(result.bytes)}`,
       `Último backup: ${state.settings?.lastBackupAt?formatDateTimeBR(state.settings.lastBackupAt):'não registrado'} • versão ${state.settings?.lastBackupVersion||'—'}`,
@@ -4950,6 +5087,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function renderSettings() {
     const m=metrics();
     const diagnostic=runCommercialIntegrityCheck();
+    const ownership=workspaceOwnershipAudit(state);
     viewEl.innerHTML=`
       <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Personalização comercial • nome, logotipo e cores</p></div></div>
@@ -4979,13 +5117,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Integridade e suporte</h3><p>Diagnóstico local sem expor dados pessoais</p></div></div>
       <section class="card commercial-safety-card">
         <div class="commercial-safety-summary ${diagnostic.status}"><span>${diagnostic.status==='ok'?'✓':diagnostic.status==='warn'?'!':'×'}</span><div><strong>${escapeHTML(diagnostic.summaryLabel)}</strong><small>${diagnostic.danger} crítico(s) • ${diagnostic.warn} atenção(ões) • ${escapeHTML(formatBytes(diagnostic.bytes))} no estado principal</small></div></div>
-        <div class="settings-row"><div><strong>Verificar integridade</strong><span>Confere Workspace, esquema, IDs, configuração operacional, backup, armazenamento e camada de atualização.</span></div><button class="btn btn-primary btn-small" id="openDiagnostics">Executar</button></div>
+        <div class="settings-row"><div><strong>Fundação comercial dos dados</strong><span>${escapeHTML(dataFoundationStatusLabel(ownership))} • ${ownership.coverage}% vinculados ao Workspace • backup antes/depois da migração.</span></div><button class="btn ${dataFoundationStatusTone(ownership)==='good'?'btn-secondary':'btn-primary'} btn-small" id="openDataFoundation">Revisar</button></div>
+        <div class="settings-row"><div><strong>Verificar integridade</strong><span>Confere Workspace, vínculo dos registros, perfil do Studio, esquema, IDs, backup, armazenamento e atualização.</span></div><button class="btn btn-primary btn-small" id="openDiagnostics">Executar</button></div>
         <div class="settings-row"><div><strong>Relatório de suporte</strong><span>Gera um arquivo técnico sem nomes, contatos, valores financeiros, fotos ou avaliações.</span></div><button class="btn btn-secondary btn-small" id="quickSupportReport">Gerar</button></div>
       </section>
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
@@ -5003,6 +5142,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#removeFinancePin')?.addEventListener('click',removeFinancePin);
     $('#exportBackup').addEventListener('click',exportBackup);
     $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
+    $('#openDataFoundation')?.addEventListener('click',openDataFoundationCenter);
     $('#openDiagnostics')?.addEventListener('click',openCommercialDiagnostics);
     $('#quickSupportReport')?.addEventListener('click',()=>{const result=runCommercialIntegrityCheck();downloadText(`MB_Gestor_Diagnostico_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.txt`,supportReportText(result));addAudit('Relatório de suporte gerado',`V${APP_VERSION} • ${result.summaryLabel}`);saveState();toast('Relatório técnico gerado sem dados pessoais.');});
     $('#openTrash')?.addEventListener('click',openTrash);
@@ -5231,25 +5371,33 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {students:(sourceState.students||[]).length,payments:(sourceState.payments||[]).length,receipts:(sourceState.receipts||[]).length,expenses:(sourceState.expenses||[]).length,physicalAssessments:(sourceState.physicalAssessments||[]).length,posturalAssessments:(sourceState.posturalAssessments||[]).length,attendanceRecords,present,absent,makeups};
   }
 
-  async function exportBackup(){
-    const now=new Date(),summary=backupSummaryFor(state);
+  async function exportBackup(foundationPhase=''){
+    const now=new Date(),summary=backupSummaryFor(state),phase=foundationPhase==='pre-migration'?'pre-migration':foundationPhase==='post-migration'?'post-migration':'';
+    state.dataFoundation=normalizeDataFoundation(state.dataFoundation,state.workspace?.id,stateHasBusinessData(state));
+    if(phase==='pre-migration')state.dataFoundation.preMigrationBackupAt=now.toISOString();
+    if(phase==='post-migration')state.dataFoundation.postMigrationBackupAt=now.toISOString();
     state.settings.lastBackupAt=now.toISOString();state.settings.lastBackupExportedAt=now.toISOString();state.settings.lastBackupVersion=APP_VERSION;state.settings.lastBackupSummary=summary;
     addAudit('Backup gerado',`V${APP_VERSION} • Workspace ${workspaceShortId()} • ${summary.students} alunos • ${summary.payments} receitas • ${summary.attendanceRecords} registros de aula`);
     saveState();
     const stateDigest=await sha256Hex(JSON.stringify(state));
     const payload={
       app:'MB Gestor Luxury Pro',
-      backupFormatVersion:3,
+      backupFormatVersion:4,
       appVersion:APP_VERSION,
       dataSchemaVersion:DATA_SCHEMA_VERSION,
       commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,
+      dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,
+      foundationTag:DATA_FOUNDATION_BACKUP_TAG,
       exportedAt:now.toISOString(),
       workspace:{...state.workspace},
+      dataFoundation:{...state.dataFoundation},
       integrity:stateDigest?{algorithm:'SHA-256',stateDigest}:null,
       summary,
       state
     };
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(stateDigest?`Backup completo V${APP_VERSION} gerado e verificado.`:`Backup completo V${APP_VERSION} gerado.`);renderSettings();
+    const suffix=phase==='pre-migration'?'_PRE_MIGRACAO':phase==='post-migration'?'_POS_MIGRACAO':'';
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`MB_Gestor_Backup_V${APP_VERSION.replaceAll('.','_')}_${isoToday()}${suffix}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(stateDigest?`Backup completo V${APP_VERSION} gerado e verificado.`:`Backup completo V${APP_VERSION} gerado.`);renderSettings();
+    if(phase){closeModal();setTimeout(openDataFoundationCenter,100)}
   }
 
   async function importBackup(e){
