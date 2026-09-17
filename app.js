@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.1 — Hotfix Persistência de E-mails Opcionais
+// MB Gestor Luxury Pro V12.11.2 — Avaliação + Financeiro na Navegação Principal
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.1 — Hotfix Persistência de E-mails Opcionais
+  // MB Gestor Luxury Pro V12.11.2 — Avaliação + Financeiro na Navegação Principal
 
-  const APP_VERSION = '12.11.1';
+  const APP_VERSION = '12.11.2';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -1276,8 +1276,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {students:students.length, activeStudents:operationalStudents.length, expected, received, pix, cash, potentialPix, potentialCash, remainingPix, remainingCash, remainingTotal, expenses, net:received-expenses, overdue, overdueValue, soon, makeups};
   }
 
-  const MOBILE_NAV_IDS=['dashboard','schedule','students','finance'];
-  const MORE_NAV_IDS=['intelligence','assessments','charges','reminders','consent','settings'];
+  const MOBILE_NAV_IDS=['dashboard','schedule','students','assessments','finance'];
+  const MORE_NAV_IDS=['intelligence','charges','reminders','consent','settings'];
   // V12.10.0 • ordem e atalhos pensados para teclado/mouse no desktop sem alterar a navegação mobile.
   const DESKTOP_NAV_IDS=['dashboard','schedule','students','assessments','intelligence','finance','charges','reminders','consent','settings'];
   const DESKTOP_NAV_SHORTCUTS={dashboard:'1',schedule:'2',students:'3',assessments:'4',intelligence:'5',finance:'6',charges:'7',reminders:'8',consent:'9',settings:'0'};
