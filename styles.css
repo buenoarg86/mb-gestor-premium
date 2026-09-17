@@ -568,7 +568,7 @@ body.anatomical-guide-open{overflow:hidden}.anatomical-guide-layer{position:fixe
 /* ================================================================
    V10.0.1 • POLIMENTO — DESCOBERTA E NAVEGAÇÃO DA COMPOSIÇÃO
    ================================================================ */
-.assessment-feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.assessment-feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 0}
 .assessment-feature-grid .assessment-guide-entry{margin:0;min-height:76px}
 .assessment-composition-entry{border-color:rgba(var(--brand-accent-rgb),.26);background:radial-gradient(circle at 10% 12%,rgba(var(--brand-primary-rgb),.15),transparent 34%),linear-gradient(145deg,#191a1d,#101115)}
 .assessment-composition-entry .assessment-guide-entry-icon{background:linear-gradient(145deg,rgba(var(--brand-accent-rgb),.13),rgba(var(--brand-accent-rgb),.055));box-shadow:inset 0 1px rgba(255,255,255,.03)}
