@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.11.8 — Alunos • Filtros Mobile Visíveis
+// MB Gestor Luxury Pro V12.11.9 — Alunos • Cards Recolhíveis
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.11.8 — Alunos • Filtros Mobile Visíveis
+  // MB Gestor Luxury Pro V12.11.9 — Alunos • Cards Recolhíveis
 
-  const APP_VERSION = '12.11.8';
+  const APP_VERSION = '12.11.9';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 4;
@@ -201,6 +201,8 @@
   let financeTab = 'summary';
   let chargeTab = 'all';
   let studentFilter = 'all';
+  // V12.11.9 • apenas um card de aluno pode ficar expandido por vez; estado transitório, sem gravar dados.
+  let expandedStudentCardId = null;
   let assessmentFilter = 'all';
   let scheduleCompact = false;
   let scheduleViewMode = 'day';
@@ -1845,6 +1847,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function renderStudents() {
+    // A lista sempre inicia compacta; expansão é uma ação consciente e temporária do usuário.
+    expandedStudentCardId=null;
     const students=[...state.students].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
     const pausedCount=students.filter(s=>s.active!==false&&studentPauseAt(s)).length,activeCount=students.filter(s=>s.active!==false&&!studentPauseAt(s)).length,inactiveCount=students.filter(s=>s.active===false).length,monthBirthdays=birthdaysThisMonth(),attentionCount=inactiveAttentionStudents().length,birthdaySoon=birthdayStudents(7),birthdaySoonIds=new Set(birthdaySoon.map(x=>String(x.s.id))),returningSoon=pauseReturnStudents(7),returningSoonIds=new Set(returningSoon.map(x=>String(x.s.id)));
     viewEl.innerHTML=`
@@ -1856,7 +1860,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const draw=()=>{const q=($('#studentSearch')?.value||'').trim().toLowerCase(),qDigits=q.replace(/\D/g,'');const filtered=students.filter(s=>{const text=[s.name,s.email].some(v=>String(v||'').toLowerCase().includes(q))||String(s.whatsapp||'').toLowerCase().includes(q)||(qDigits&&phoneDigits(s.whatsapp).includes(qDigits));const status=studentFilter==='all'||(studentFilter==='active'&&s.active!==false&&!studentPauseAt(s))||(studentFilter==='inactive'&&s.active===false)||(studentFilter==='paused'&&s.active!==false&&Boolean(studentPauseAt(s)))||(studentFilter==='returning'&&returningSoonIds.has(String(s.id)))||(studentFilter==='attention'&&inactivityInfo(s).attention&&!studentPauseAt(s))||(studentFilter==='birthday'&&birthdaySoonIds.has(String(s.id)));return text&&status;});list.innerHTML=filtered.length?filtered.map(studentCard).join(''):emptyState('Nenhum aluno encontrado',q?'Tente outro termo de busca.':'Nenhum aluno neste filtro.');bindStudentActions();};
     const tabsEl=$('.student-filter-tabs',viewEl);
     const revealActiveFilter=(smooth=false)=>{if(!tabsEl)return;const active=$('.tab.active',tabsEl);if(!active)return;const left=Math.max(0,active.offsetLeft-(tabsEl.clientWidth-active.offsetWidth)/2);if(typeof tabsEl.scrollTo==='function')tabsEl.scrollTo({left,behavior:smooth?'smooth':'auto'});else tabsEl.scrollLeft=left;};
-    draw();$('#studentSearch').addEventListener('input',draw);$$('[data-student-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{studentFilter=b.dataset.studentFilter;$$('[data-student-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.studentFilter===studentFilter));draw();revealActiveFilter(true);}));requestAnimationFrame(()=>revealActiveFilter(false));$('#addStudent').addEventListener('click',()=>openStudentModal());
+    draw();$('#studentSearch').addEventListener('input',draw);$$('[data-student-filter]',viewEl).forEach(b=>b.addEventListener('click',()=>{studentFilter=b.dataset.studentFilter;expandedStudentCardId=null;$$('[data-student-filter]',viewEl).forEach(x=>x.classList.toggle('active',x.dataset.studentFilter===studentFilter));draw();revealActiveFilter(true);}));requestAnimationFrame(()=>revealActiveFilter(false));$('#addStudent').addEventListener('click',()=>openStudentModal());
   }
 
   function studentCard(s) {
@@ -1865,26 +1869,51 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const mk = monthKey();
     const trainingCount = monthlyAttendanceCount(s.id,mk);
     const credits = makeupCreditBalance(s.id);
-    return `<article class="card student-card">
-      <div class="student-profile">
-        <div class="student-photo student-card-photo">${s.photoData?`<img src="${s.photoData}" alt="Foto de ${escapeHTML(s.name)}" loading="lazy" decoding="async" />`:`<span aria-label="Inicial de ${escapeHTML(s.name)}">${escapeHTML((s.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div>
-        <div class="student-info">
-        <div class="student-name">${escapeHTML(s.name)}</div>
-        <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
-        <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${privateMoney(s.monthlyFee)}</strong></span></div>
-        <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} ${studentStatusBadge(s)} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span> <span class="status ${credits.available?'warn':'neutral'}">↻ Reposições disponíveis: ${credits.available}</span></div>
+    const expanded = String(expandedStudentCardId||'') === String(s.id);
+    const importantStatuses = `<span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} ${studentStatusBadge(s)}`;
+    return `<article class="card student-card student-card-collapsible ${expanded?'is-expanded':''}" data-student-card-id="${s.id}">
+      <button type="button" class="student-card-toggle js-student-card-toggle" data-id="${s.id}" aria-expanded="${expanded?'true':'false'}" aria-label="${expanded?'Recolher':'Expandir'} informações de ${escapeHTML(s.name)}"><span aria-hidden="true"></span></button>
+      <div class="student-card-compact" aria-hidden="${expanded?'true':'false'}">
+        <div class="student-photo student-card-compact-photo">${s.photoData?`<img src="${s.photoData}" alt="Foto de ${escapeHTML(s.name)}" loading="lazy" decoding="async" />`:`<span aria-label="Inicial de ${escapeHTML(s.name)}">${escapeHTML((s.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div>
+        <div class="student-card-compact-main">
+          <div class="student-card-compact-name">${escapeHTML(s.name)}</div>
+          <div class="student-card-compact-meta"><strong>${age ?? '—'} anos</strong><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span></div>
+          <div class="student-card-compact-statuses">${importantStatuses}</div>
         </div>
       </div>
-      <div class="student-actions">
-        <button class="mini-icon js-student-history" data-id="${s.id}" title="Histórico de presença e faltas">${icon('calendar')}</button>
-        <button class="mini-icon js-student-training-whatsapp" data-id="${s.id}" data-month="${mk}" title="Enviar treinos pelo WhatsApp">${icon('message')}</button>
-        <button class="mini-icon js-edit-student" data-id="${s.id}" title="Editar aluno">${icon('edit')}</button>
-        <button class="mini-icon danger js-delete-student" data-id="${s.id}" title="Excluir aluno">${icon('trash')}</button>
+      <div class="student-card-expanded" aria-hidden="${expanded?'false':'true'}">
+        <div class="student-profile">
+          <div class="student-photo student-card-photo">${s.photoData?`<img src="${s.photoData}" alt="Foto de ${escapeHTML(s.name)}" loading="lazy" decoding="async" />`:`<span aria-label="Inicial de ${escapeHTML(s.name)}">${escapeHTML((s.name||'?').trim().charAt(0).toUpperCase())}</span>`}</div>
+          <div class="student-info">
+          <div class="student-name">${escapeHTML(s.name)}</div>
+          <div class="student-meta"><span><strong>${age ?? '—'} anos</strong></span><span>${escapeHTML(s.whatsapp||'Sem WhatsApp')}</span><span>${escapeHTML(s.email||'Sem e-mail')}</span></div>
+          <div class="student-meta"><span>Início: <strong>${fmtDate(s.startDate)}</strong></span><span>No Studio: <strong>${studioTime(s.startDate)}</strong></span><span>Vencimento: <strong>${fmtDate(s.dueDate)}</strong></span><span><strong>${privateMoney(s.monthlyFee)}</strong></span></div>
+          <div style="margin-top:10px"><span class="status ${info.cls}">${info.text}</span>${s.active===false?' <span class="status neutral">Inativo</span>':''} ${studentStatusBadge(s)} <span class="status neutral">🏋️ Treinos em ${monthLabel(mk).replace(/ de \d{4}$/,'')}: ${trainingCount}</span> <span class="status ${credits.available?'warn':'neutral'}">↻ Reposições disponíveis: ${credits.available}</span></div>
+          </div>
+        </div>
+        <div class="student-actions">
+          <button class="mini-icon js-student-history" data-id="${s.id}" title="Histórico de presença e faltas">${icon('calendar')}</button>
+          <button class="mini-icon js-student-training-whatsapp" data-id="${s.id}" data-month="${mk}" title="Enviar treinos pelo WhatsApp">${icon('message')}</button>
+          <button class="mini-icon js-edit-student" data-id="${s.id}" title="Editar aluno">${icon('edit')}</button>
+          <button class="mini-icon danger js-delete-student" data-id="${s.id}" title="Excluir aluno">${icon('trash')}</button>
+        </div>
       </div>
     </article>`;
   }
 
   function bindStudentActions() {
+    $$('.js-student-card-toggle',viewEl).forEach(b=>b.addEventListener('click',()=>{
+      const id=String(b.dataset.id||'');
+      expandedStudentCardId=String(expandedStudentCardId||'')===id?null:id;
+      $$('.student-card-collapsible',viewEl).forEach(card=>{
+        const open=Boolean(expandedStudentCardId)&&String(card.dataset.studentCardId)===String(expandedStudentCardId);
+        card.classList.toggle('is-expanded',open);
+        const toggle=$('.js-student-card-toggle',card),compact=$('.student-card-compact',card),expandedEl=$('.student-card-expanded',card);
+        if(toggle){toggle.setAttribute('aria-expanded',open?'true':'false');toggle.setAttribute('aria-label',`${open?'Recolher':'Expandir'} informações de ${state.students.find(s=>String(s.id)===String(card.dataset.studentCardId))?.name||'aluno'}`);}
+        compact?.setAttribute('aria-hidden',open?'true':'false');
+        expandedEl?.setAttribute('aria-hidden',open?'false':'true');
+      });
+    }));
     $$('.js-student-history',viewEl).forEach(b=>b.addEventListener('click',()=>openStudentHistory(b.dataset.id)));
     $$('.js-student-training-whatsapp',viewEl).forEach(b=>b.addEventListener('click',()=>sendMonthlyAttendanceWhatsApp(b.dataset.id,b.dataset.month)));
     $$('.js-edit-student',viewEl).forEach(b=>b.addEventListener('click',()=>openStudentModal(b.dataset.id)));
