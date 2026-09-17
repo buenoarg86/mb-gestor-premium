@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.15.0 — Cofre de Backup Protegido • Etapa 1
-const CACHE='mb-gestor-luxury-pro-v12-15-0-protected-cloud-vault';
-const ASSETS=['./','./index.html','./styles.css?v=12.15.0','./app.js?v=12.15.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.15.1 — Cofre de Backup Protegido • Polimento
+const CACHE='mb-gestor-luxury-pro-v12-15-1-protected-cloud-vault-polish';
+const ASSETS=['./','./index.html','./styles.css?v=12.15.1','./app.js?v=12.15.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
