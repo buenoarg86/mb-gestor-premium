@@ -1,4 +1,4 @@
-// MB Gestor Luxury Pro V12.18.3.1 — Portal Ágil • sessão persistente + senha opcional
+// MB Gestor Luxury Pro V12.18.4 — Comercial • convite imediato + provisionamento seguro
 (()=>{'use strict';
 const $=(s,r=document)=>r.querySelector(s),app=$('#app'),SUPERDB_DATA_API_URL='https://api.superdb.com.br',CFG_KEY='mb_student_portal_public_config_v1',SESSION_KEY='mb_student_portal_session_v1',TRUST_KEY='mb_student_portal_trusted_v1',INVITE_KEY='mb_student_portal_invite_v1',INVITE_EMAIL_KEY='mb_student_portal_invite_email_v1',LAST_EMAIL_KEY='mb_student_portal_last_email_v1',PASSWORD_OFFER_MS=30*24*60*60*1000,PASSWORD_SNOOZE_MS=30*24*60*60*1000;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

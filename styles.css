@@ -2123,3 +2123,30 @@ body.access-session-locked .toast-root{z-index:5200}
 .student-portal-owner-auth{margin-top:12px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
 .student-portal-cloud-card{gap:12px;align-items:center}.student-portal-cloud-card>button{flex:0 0 auto}
 @media(max-width:620px){.student-portal-cloud-card{align-items:stretch}.student-portal-cloud-card>button{width:100%}}
+
+
+/* V12.18.4 • Portal comercial — convite imediato */
+.student-portal-invite-shortcut{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  margin:0 0 18px;padding:18px;border:1px solid rgba(var(--brand-accent-rgb),.34);
+  border-radius:22px;background:linear-gradient(135deg,rgba(var(--brand-accent-rgb),.12),rgba(255,255,255,.025));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+.student-portal-invite-shortcut>div{min-width:0;display:grid;gap:4px}
+.student-portal-invite-shortcut small{font-size:.7rem;letter-spacing:.13em;font-weight:900;color:var(--gold2)}
+.student-portal-invite-shortcut strong{font-size:1.08rem;line-height:1.2}
+.student-portal-invite-shortcut p{margin:0;color:var(--muted);line-height:1.45}
+.student-portal-invite-shortcut em{font-style:normal;font-size:.82rem;color:var(--muted2);overflow-wrap:anywhere}
+.student-portal-invite-shortcut .btn{flex:0 0 auto;min-width:154px}
+.student-portal-invite-shortcut.is-active{border-color:rgba(92,203,142,.28)}
+.student-portal-invite-shortcut.is-blocked{opacity:.92}
+.student-portal-post-create{display:flex;gap:14px;align-items:flex-start;padding:18px;border-radius:22px;border:1px solid rgba(var(--brand-accent-rgb),.28);background:rgba(var(--brand-accent-rgb),.07)}
+.student-portal-post-create>span{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:16px;background:rgba(var(--brand-accent-rgb),.13)}
+.student-portal-post-create>div{display:grid;gap:5px}
+.student-portal-post-create small{font-size:.7rem;letter-spacing:.13em;font-weight:900;color:var(--gold2)}
+.student-portal-post-create strong{font-size:1.05rem}
+.student-portal-post-create p{margin:0;color:var(--muted);line-height:1.48}
+@media (max-width:620px){
+  .student-portal-invite-shortcut{align-items:stretch;flex-direction:column;padding:16px}
+  .student-portal-invite-shortcut .btn{width:100%;min-width:0}
+}
