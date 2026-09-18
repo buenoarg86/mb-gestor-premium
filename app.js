@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.17.1 — Portal do Aluno • Backend Brasil SuperDB
+// MB Gestor Luxury Pro V12.17.2 — Portal do Aluno • Hotfix OTP E-mail SuperDB
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.17.1 — Portal do Aluno • Backend Brasil SuperDB
+  // MB Gestor Luxury Pro V12.17.2 — Portal do Aluno • Hotfix OTP E-mail SuperDB
 
-  const APP_VERSION = '12.17.1';
+  const APP_VERSION = '12.17.2';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
@@ -481,6 +481,7 @@
     return {configured,authenticated,connected,config:loadStudentPortalBackendConfig(),session};
   }
   function studentPortalBackendError(data,fallback='Falha no backend.'){
+    if(Array.isArray(data)&&data.length){const first=data[0]||{};return String(first?.message||first?.code||fallback)}
     if(data&&typeof data==='object')return String(data?.error?.message||data?.error?.code||data?.message||data?.msg||data?.error_description||data?.error||fallback);
     return String(data||fallback);
   }
@@ -519,7 +520,7 @@
   }
   async function requestStudentPortalOwnerOtp(email){
     const clean=String(email||'').trim();if(!clean)throw new Error('Informe o e-mail do proprietário.');
-    const data=await studentPortalAuthRequest('/auth/v1/signin/otp',{body:{email:clean}});return {email:clean,data};
+    const data=await studentPortalAuthRequest('/auth/v1/signin/otp',{body:{channel:'email',email:clean}});return {email:clean,data};
   }
   async function verifyStudentPortalOwnerOtp(email,code){
     const data=await studentPortalAuthRequest('/auth/v1/signin/otp/verify',{body:{email:String(email||'').trim(),code:String(code||'').trim()}});
