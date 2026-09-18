@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.18.8 — Portal do Aluno • Central Compacta
+// MB Gestor Luxury Pro V12.18.9 — Portal do Aluno • Sessão Confiável Resiliente
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.18.8 — Portal do Aluno • Central Compacta
+  // MB Gestor Luxury Pro V12.18.9 — Portal do Aluno • Sessão Confiável Resiliente
 
-  const APP_VERSION = '12.18.8';
+  const APP_VERSION = '12.18.9';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
@@ -21,6 +21,9 @@
   const STUDENT_PORTAL_BACKEND_KEY = `${STORAGE_KEY}_student_portal_backend_v1`;
   const STUDENT_PORTAL_BACKEND_SESSION_KEY = `${STORAGE_KEY}_student_portal_backend_session_v1`;
   const STUDENT_PORTAL_BACKEND_TRUSTED_KEY = `${STORAGE_KEY}_student_portal_backend_trusted_v1`;
+  const STUDENT_PORTAL_SESSION_VAULT_DB = `${STORAGE_KEY}_portal_session_vault_v1`;
+  const STUDENT_PORTAL_SESSION_VAULT_STORE = 'trusted_sessions';
+  const STUDENT_PORTAL_SESSION_VAULT_ID = 'owner';
   const SUPERDB_DATA_API_URL = 'https://api.superdb.com.br';
   const ACCESS_MODULES = [
     {id:'dashboard',label:'Início'}, {id:'schedule',label:'Agenda'}, {id:'students',label:'Alunos'},
@@ -488,7 +491,42 @@
     const clean={schemaVersion:2,provider:'superdb',authUrl:String(config.authUrl||fallback.authUrl).trim().replace(/\/$/,''),projectSlug:slug,schema,anonKey:String(config.anonKey||'').trim(),updatedAt:new Date().toISOString()};
     localStorage.setItem(STUDENT_PORTAL_BACKEND_KEY,JSON.stringify(clean));return clean;
   }
-  function clearStudentPortalBackendConfig(){localStorage.removeItem(STUDENT_PORTAL_BACKEND_KEY);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY)}
+  function studentPortalSessionVaultOpen(){
+    return new Promise((resolve,reject)=>{
+      if(!globalThis.indexedDB)return resolve(null);
+      const request=indexedDB.open(STUDENT_PORTAL_SESSION_VAULT_DB,1);
+      request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(STUDENT_PORTAL_SESSION_VAULT_STORE))db.createObjectStore(STUDENT_PORTAL_SESSION_VAULT_STORE,{keyPath:'id'})};
+      request.onsuccess=()=>resolve(request.result);
+      request.onerror=()=>reject(request.error||new Error('Não foi possível abrir o armazenamento persistente da sessão.'));
+    });
+  }
+  async function studentPortalSessionVaultWrite(session){
+    if(!session?.refreshToken||!session?.userId)return false;
+    let db=null;
+    try{
+      db=await studentPortalSessionVaultOpen();if(!db)return false;
+      const record={id:STUDENT_PORTAL_SESSION_VAULT_ID,refreshToken:String(session.refreshToken),userId:String(session.userId),email:String(session.email||''),trustedSince:Number(session.trustedSince)||Date.now(),updatedAt:Date.now()};
+      await new Promise((resolve,reject)=>{const tx=db.transaction(STUDENT_PORTAL_SESSION_VAULT_STORE,'readwrite');tx.objectStore(STUDENT_PORTAL_SESSION_VAULT_STORE).put(record);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Falha ao preservar a sessão.'));tx.onabort=()=>reject(tx.error||new Error('Falha ao preservar a sessão.'))});
+      return true;
+    }catch(err){console.warn('Portal: espelho persistente da sessão indisponível',err);return false}finally{try{db?.close()}catch{}}
+  }
+  async function studentPortalSessionVaultRead(){
+    let db=null;
+    try{
+      db=await studentPortalSessionVaultOpen();if(!db)return null;
+      const record=await new Promise((resolve,reject)=>{const tx=db.transaction(STUDENT_PORTAL_SESSION_VAULT_STORE,'readonly'),request=tx.objectStore(STUDENT_PORTAL_SESSION_VAULT_STORE).get(STUDENT_PORTAL_SESSION_VAULT_ID);request.onsuccess=()=>resolve(request.result||null);request.onerror=()=>reject(request.error||new Error('Falha ao recuperar a sessão.'))});
+      return record?.refreshToken&&record?.userId?record:null;
+    }catch(err){console.warn('Portal: leitura do espelho persistente indisponível',err);return null}finally{try{db?.close()}catch{}}
+  }
+  async function studentPortalSessionVaultClear(){
+    let db=null;
+    try{
+      db=await studentPortalSessionVaultOpen();if(!db)return false;
+      await new Promise((resolve,reject)=>{const tx=db.transaction(STUDENT_PORTAL_SESSION_VAULT_STORE,'readwrite');tx.objectStore(STUDENT_PORTAL_SESSION_VAULT_STORE).delete(STUDENT_PORTAL_SESSION_VAULT_ID);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Falha ao limpar a sessão.'));tx.onabort=()=>reject(tx.error||new Error('Falha ao limpar a sessão.'))});
+      return true;
+    }catch(err){console.warn('Portal: limpeza do espelho persistente indisponível',err);return false}finally{try{db?.close()}catch{}}
+  }
+  function clearStudentPortalBackendConfig(){localStorage.removeItem(STUDENT_PORTAL_BACKEND_KEY);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY);void studentPortalSessionVaultClear()}
   function studentPortalBackendSession(){
     try{return JSON.parse(sessionStorage.getItem(STUDENT_PORTAL_BACKEND_SESSION_KEY)||'null')}catch{return null}
   }
@@ -501,9 +539,19 @@
     }catch{localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);return null}
   }
   function saveStudentPortalBackendTrustedSession(session){
-    if(!session?.refreshToken||!session?.userId){localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);return null}
+    if(!session?.refreshToken||!session?.userId){localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);void studentPortalSessionVaultClear();return null}
     const previous=studentPortalBackendTrustedSession(),saved={refreshToken:String(session.refreshToken),userId:String(session.userId),email:String(session.email||''),trustedSince:String(previous?.userId||'')===String(session.userId)?Number(previous?.trustedSince)||Date.now():Date.now()};
-    localStorage.setItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY,JSON.stringify(saved));return saved;
+    localStorage.setItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY,JSON.stringify(saved));void studentPortalSessionVaultWrite(saved);return saved;
+  }
+  async function restoreStudentPortalTrustedSession(){
+    const local=studentPortalBackendTrustedSession();
+    if(local){void studentPortalSessionVaultWrite(local);return local}
+    const live=studentPortalBackendSession();
+    if(live?.refreshToken&&live?.userId)return saveStudentPortalBackendTrustedSession(live);
+    const mirrored=await studentPortalSessionVaultRead();
+    if(!mirrored?.refreshToken||!mirrored?.userId)return null;
+    const restored={refreshToken:String(mirrored.refreshToken),userId:String(mirrored.userId),email:String(mirrored.email||''),trustedSince:Number(mirrored.trustedSince)||Date.now()};
+    localStorage.setItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY,JSON.stringify(restored));return restored;
   }
   function saveStudentPortalBackendSession(session,{remember=true}={}){
     if(!session){sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY);return null}
@@ -567,7 +615,7 @@
       return saveStudentPortalBackendSession(merged,{remember:true});
     }catch(err){
       sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY);
-      if(studentPortalRefreshFailureIsTerminal(err))localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);
+      if(studentPortalRefreshFailureIsTerminal(err)){localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);void studentPortalSessionVaultClear()}
       throw err;
     }
   }
@@ -622,7 +670,7 @@
   }
   async function signOutStudentPortalOwner(){
     try{if(studentPortalBackendSession()?.accessToken)await studentPortalAuthRequest('/auth/v1/signout',{auth:true,body:{}})}catch(err){console.warn('SuperDB signout remoto',err)}
-    saveStudentPortalBackendSession(null);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);state.studentPortal.remoteStatus=studentPortalBackendConfigured()?'configured':'not-configured';saveState();
+    saveStudentPortalBackendSession(null);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);void studentPortalSessionVaultClear();state.studentPortal.remoteStatus=studentPortalBackendConfigured()?'configured':'not-configured';saveState();
   }
   async function verifyStudentPortalWorkspaceMembership(){
     await ensureStudentPortalBackendSession();const status=studentPortalBackendStatus();if(!status.authenticated)throw new Error('Confirme sua conta para continuar.');
@@ -2974,7 +3022,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#revokeStudentPortalAccess')?.addEventListener('click',async()=>{if(!confirm(`Encerrar agora o acesso de ${student.name}? O aluno deixará de visualizar o Portal neste acesso.`))return;try{await revokeStudentPortalAccess(studentId);toast('Acesso do aluno encerrado.');openStudentPortalStudentSettings(studentId)}catch(err){toast(err?.message||'Não foi possível revogar o acesso.')}});
     $('#studentPortalConfigForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),row=studentPortalEntry(studentId,{create:true}),wasPublished=Boolean(row.lastPublishedAt),backendNow=studentPortalBackendStatus(),hadAccess=row.remoteStatus==='active';row.enabled=fd.get('enabled')==='on';row.sections={home:true,schedule:fd.get('schedule')==='on',attendance:fd.get('attendance')==='on',assessments:fd.get('assessments')==='on',finance:fd.get('finance')==='on',profile:fd.get('profile')==='on'};row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?(backendNow.connected?row.remoteStatus:'published-pending'):(studentPortalBackendConfigured()?'ready':'not-invited')):(wasPublished?(backendNow.connected?row.remoteStatus:'delete-pending'):'not-invited');row.updatedAt=new Date().toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Portal do Aluno atualizado',`${student.name} • ${row.enabled?'liberado':'desativado'}`);saveState();let synced=false,syncError=false;try{if(backendNow.connected){if(row.enabled){await publishStudentPortalSnapshot(studentId);if(hadAccess)row.remoteStatus='active';synced=true}else if(wasPublished){if(hadAccess)await revokeStudentPortalAccess(studentId);await deleteStudentPortalSnapshot(studentId);synced=true}}}catch(err){console.error('Portal auto-sync',err);syncError=true;row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?'published-pending':'ready'):(wasPublished?'delete-pending':'error');saveState();}openStudentPortalCenter({search:student.name});if(synced)toast('Preferências salvas e dados atualizados.');else if(syncError)toast('Preferências salvas. A atualização online ficou pendente.');else if(wasPublished&&row.enabled)toast('Preferências salvas. Os dados online serão atualizados quando a conta reconectar.');else if(wasPublished&&!row.enabled)toast('Portal desativado. A remoção online será concluída quando a conta reconectar.');else toast('Preferências do Portal salvas.');});
   }
-  function openStudentPortalBackendSetup(){
+  async function openStudentPortalBackendSetup(){
+    await restoreStudentPortalTrustedSession();
     const backend=studentPortalBackendStatus(),cfg=backend.config,maskedKey=cfg.anonKey?`${cfg.anonKey.slice(0,12)}…${cfg.anonKey.slice(-6)}`:'Não configurada',linkSql=backend.authenticated?studentPortalOwnerLinkSql():'';
     const accountEmail=escapeHTML(backend.session?.email||'proprietário');
     const connectionForm=`<form id="studentPortalBackendForm" class="form-grid"><div class="field"><label>Endereço do serviço</label><input name="authUrl" type="url" inputmode="url" placeholder="https://auth.superdb.com.br" value="${escapeHTML(cfg.authUrl||'https://auth.superdb.com.br')}" required /></div><div class="field"><label>Identificação do projeto</label><input name="projectSlug" type="text" autocapitalize="none" spellcheck="false" placeholder="p_xxxxxxxxxx" value="${escapeHTML(cfg.projectSlug)}" required /></div><div class="field"><label>Área de dados</label><input name="schema" type="text" autocapitalize="none" spellcheck="false" placeholder="proj_p_xxxxxxxxxx" value="${escapeHTML(cfg.schema)}" required /></div><div class="field"><label>Chave pública do projeto</label><input name="anonKey" type="password" autocomplete="off" placeholder="eyJhbGci..." value="${escapeHTML(cfg.anonKey)}" required /><small>${escapeHTML(maskedKey)}</small></div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="clearStudentPortalBackend">Remover configuração</button><button class="btn btn-primary" type="submit">Salvar e verificar</button></div></form>`;
@@ -2989,7 +3038,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       ?`<section class="student-portal-device-trust"><span>${icon('check')}</span><div><strong>Este aparelho está conectado</strong><p>Você pode enviar e gerenciar convites normalmente.</p></div></section>`
       :`<section class="student-portal-backend-status"><div><span>${backend.configured?'Acesso online':'Configuração inicial'}</span><strong>${backend.authenticated?'Conta confirmada':backend.configured?'Confirme sua conta':'Configure o acesso uma vez'}</strong><small>${backend.configured?'Depois disso, o app mantém o acesso deste aparelho enquanto a sessão continuar válida.':'Esta etapa é necessária para enviar convites aos alunos.'}</small></div></section>`;
     openModal('Acesso online do Portal',`${status}${ownerAccess}${advanced}<div class="modal-actions">${backend.authenticated?`<button type="button" class="btn btn-secondary" id="studentPortalBackendSignOut">Sair desta conta</button>`:''}<button type="button" class="btn btn-secondary" id="backStudentPortalCenter">Voltar ao Portal</button></div>`);
-    $('#studentPortalBackendForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),url=String(fd.get('authUrl')||'').trim().replace(/\/$/,''),slug=String(fd.get('projectSlug')||'').trim(),schema=String(fd.get('schema')||'').trim()||(/^p_[a-z0-9_]+$/i.test(slug)?`proj_${slug}`:''),key=String(fd.get('anonKey')||'').trim();if(superdbApiKeyRole(key)==='service_role')return toast('Essa chave não pode ser usada no app. Use a chave pública do projeto.');if(!/^https:\/\//i.test(url))return toast('Informe um endereço seguro e válido para o serviço.');if(!/^p_[a-z0-9_]+$/i.test(slug))return toast('A identificação do projeto parece inválida.');if(!/^proj_[a-z0-9_]+$/i.test(schema))return toast('A área de dados do projeto parece inválida.');if(key.length<40)return toast('A chave pública do projeto parece incompleta.');saveStudentPortalBackendConfig({authUrl:url,projectSlug:slug,schema,anonKey:key});sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);try{await testStudentPortalBackend();toast('Conexão encontrada com sucesso.');openStudentPortalBackendSetup()}catch(err){state.studentPortal.remoteStatus='error';saveState();toast(err?.message||'Não foi possível conectar.')}});
+    $('#studentPortalBackendForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),url=String(fd.get('authUrl')||'').trim().replace(/\/$/,''),slug=String(fd.get('projectSlug')||'').trim(),schema=String(fd.get('schema')||'').trim()||(/^p_[a-z0-9_]+$/i.test(slug)?`proj_${slug}`:''),key=String(fd.get('anonKey')||'').trim();if(superdbApiKeyRole(key)==='service_role')return toast('Essa chave não pode ser usada no app. Use a chave pública do projeto.');if(!/^https:\/\//i.test(url))return toast('Informe um endereço seguro e válido para o serviço.');if(!/^p_[a-z0-9_]+$/i.test(slug))return toast('A identificação do projeto parece inválida.');if(!/^proj_[a-z0-9_]+$/i.test(schema))return toast('A área de dados do projeto parece inválida.');if(key.length<40)return toast('A chave pública do projeto parece incompleta.');const previousConfig=loadStudentPortalBackendConfig(),configChanged=String(previousConfig.authUrl||'')!==url||String(previousConfig.projectSlug||'')!==slug||String(previousConfig.schema||'')!==schema||String(previousConfig.anonKey||'')!==key;saveStudentPortalBackendConfig({authUrl:url,projectSlug:slug,schema,anonKey:key});if(configChanged){sessionStorage.removeItem(STUDENT_PORTAL_BACKEND_SESSION_KEY);localStorage.removeItem(STUDENT_PORTAL_BACKEND_TRUSTED_KEY);void studentPortalSessionVaultClear()}try{await testStudentPortalBackend();toast('Conexão encontrada com sucesso.');openStudentPortalBackendSetup()}catch(err){state.studentPortal.remoteStatus='error';saveState();toast(err?.message||'Não foi possível conectar.')}});
     $('#clearStudentPortalBackend')?.addEventListener('click',()=>{clearStudentPortalBackendConfig();state.studentPortal.remoteStatus='not-configured';state.studentPortal.lastConnectionAt=null;saveState();toast('Configuração online removida deste aparelho.');openStudentPortalBackendSetup()});
     $('#studentPortalOwnerPasswordForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),btn=e.currentTarget.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='Entrando…';try{await signInStudentPortalOwner(fd.get('email'),fd.get('password'));try{await verifyStudentPortalWorkspaceMembership();toast('Conta confirmada e Studio conectado.')}catch(linkErr){console.warn('Workspace ainda requer vínculo',linkErr);toast('Conta confirmada. Falta concluir a ligação com o Studio.')}openStudentPortalBackendSetup()}catch(err){console.error('Portal auth',err);toast(err?.message||'Falha na autenticação.');btn.disabled=false;btn.textContent='Confirmar com senha'}});
     $('#studentPortalOwnerOtpRequestForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),btn=e.currentTarget.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='Enviando…';try{const result=await requestStudentPortalOwnerOtp(fd.get('email'));sessionStorage.setItem(`${STUDENT_PORTAL_BACKEND_SESSION_KEY}_otp_email`,result.email);toast('Código enviado por e-mail.');const verify=$('#studentPortalOwnerOtpVerifyForm');if(verify?.elements?.email)verify.elements.email.value=result.email;btn.disabled=false;btn.textContent='Reenviar código'}catch(err){toast(err?.message||'Não foi possível enviar o código.');btn.disabled=false;btn.textContent='Receber código'}});
@@ -6327,7 +6376,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       </section>
 
       <div class="section-head"><div><h3>Portal do Aluno</h3><p>Acesso simples e individual para cada aluno</p></div></div>
-      <section class="card student-portal-settings-card"><div class="student-portal-settings-head"><span>${icon('users')}</span><div><small>PORTAL DO ALUNO</small><strong>${portalStats.total} aluno${portalStats.total===1?'':'s'} • ${portalStats.enabled} liberado(s) • ${portalStats.published} online</strong><em>Horários • presenças • avaliações • perfil • financeiro opcional</em></div><button class="btn btn-primary btn-small" id="openStudentPortalCenter">Gerenciar</button></div><div class="settings-row"><div><strong>Acesso online</strong><span>${portalStats.remoteConnected?'Este aparelho está conectado e pronto para enviar convites.':portalStats.backendConfigured?'Confirme sua conta para liberar os convites neste aparelho.':'Configure uma vez para enviar convites aos alunos.'}</span></div><button class="btn btn-secondary btn-small" id="openStudentPortalAccessSettings">${portalStats.remoteConnected?'Gerenciar':portalStats.backendConfigured?'Confirmar':'Configurar'}</button></div></section>
+      <section class="card student-portal-settings-card"><div class="student-portal-settings-head"><span>${icon('users')}</span><div><small>PORTAL DO ALUNO</small><strong>${portalStats.total} aluno${portalStats.total===1?'':'s'} • ${portalStats.enabled} liberado(s) • ${portalStats.published} online</strong><em>Horários • presenças • avaliações • perfil • financeiro opcional</em></div><button class="btn btn-primary btn-small" id="openStudentPortalCenter">Gerenciar</button></div><div class="settings-row"><div><strong>Acesso online</strong><span>${portalStats.remoteConnected?'Este aparelho está conectado e pronto para enviar convites.':portalStats.backendAuthenticated?'Conta confirmada. Falta apenas verificar a ligação com o Studio.':portalStats.backendConfigured?'Confirme sua conta para liberar os convites neste aparelho.':'Configure uma vez para enviar convites aos alunos.'}</span></div><button class="btn btn-secondary btn-small" id="openStudentPortalAccessSettings">${portalStats.remoteConnected?'Gerenciar':portalStats.backendAuthenticated?'Verificar':portalStats.backendConfigured?'Confirmar':'Configurar'}</button></div></section>
 
       <div class="section-head"><div><h3>Segurança</h3><p>Proteção extra para informações financeiras</p></div></div>
       <section class="card">
@@ -6893,11 +6942,13 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;toastRoot.appendChild(t);setTimeout(()=>t.remove(),3200);}
 
   async function warmStudentPortalOwnerSession(){
+    await restoreStudentPortalTrustedSession();
     const status=studentPortalBackendStatus();
     if(!status.configured||!status.remembered)return false;
     try{
       await ensureStudentPortalBackendSession();
       if(state.studentPortal?.remoteStatus!=='connected')await verifyStudentPortalWorkspaceMembership();
+      if(currentView==='settings'&&!modalRoot.children.length)render();
       return true;
     }catch(err){
       // Silencioso por design: só pede nova confirmação quando o usuário realmente precisar de uma ação online.
@@ -6949,6 +7000,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     event.preventDefault();event.returnValue='';
   });
 
+  const persistStudentPortalSessionBeforeSuspend=()=>{const live=studentPortalBackendSession();if(live?.refreshToken&&live?.userId)saveStudentPortalBackendTrustedSession(live);else{const trusted=studentPortalBackendTrustedSession();if(trusted)void studentPortalSessionVaultWrite(trusted)}};
+  window.addEventListener('pagehide',persistStudentPortalSessionBeforeSuspend,{capture:true});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistStudentPortalSessionBeforeSuspend()});
+
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstallPrompt=e;updateInstallButtons();});
   window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;updateInstallButtons();toast('Aplicativo instalado.');});
   $('#installBtnTop')?.addEventListener('click',installApp);
@@ -6992,8 +7047,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   renderNav();
   render();
-  // V12.18.8: Central do Portal mais compacta; acesso online e ferramentas continuam fora da lista principal.
-  // Não exibe telas nem toasts; se a sessão não puder ser renovada, a confirmação só aparece quando necessária.
+  // V12.18.9: sessão confiável resiliente. LocalStorage continua primário e um espelho isolado em IndexedDB protege a reconexão entre atualizações normais.
+  // Não exibe telas nem toasts; se a sessão realmente tiver sido revogada, a confirmação manual volta a ser solicitada.
   setTimeout(()=>{warmStudentPortalOwnerSession()},500);
   setTimeout(()=>{if(!accessModeEnabled()||accessCurrentMember()){if(accessCan('students')||accessCan('reminders'))checkBirthdayNotification(false)}},1200);
 })();

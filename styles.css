@@ -2205,7 +2205,7 @@ body.access-session-locked .toast-root{z-index:5200}
 /* V12.18.7 • Portal Clean UX: acesso online sai da Central do Portal; configurações avançadas permanecem recolhidas. */
 
 
-/* V12.18.8 • Portal do Aluno — Central compacta no mobile */
+/* V12.18.9 • Portal do Aluno — Central compacta + sessão confiável resiliente */
 .student-portal-admin-modal{max-height:96dvh}
 .student-portal-admin-modal .modal-head{padding:14px 16px}
 .student-portal-admin-modal .modal-head h3{font-size:1.34rem;line-height:1.15}
