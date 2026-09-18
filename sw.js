@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.18.4.1 — Hotfix Comercial • Sessão Resiliente + Convite Continuado
-const CACHE='mb-gestor-luxury-pro-v12-18-4-1-sessao-resiliente-convite-continuado';
-const ASSETS=['./','./index.html','./styles.css?v=12.18.4.1','./app.js?v=12.18.4.1','./student-portal.html','./student-portal.js?v=12.18.4.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.18.5 — Comercial Simplificado • Sessão Confiável + Linguagem Clara
+const CACHE='mb-gestor-luxury-pro-v12-18-5-comercial-simplificado';
+const ASSETS=['./','./index.html','./styles.css?v=12.18.5','./app.js?v=12.18.5','./student-portal.html','./student-portal.js?v=12.18.5','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
