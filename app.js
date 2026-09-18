@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.16.4 — Portal do Aluno • Retorno de Navegação
+// MB Gestor Luxury Pro V12.16.5 — Portal do Aluno • Saída Consistente da Prévia
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.16.4 — Portal do Aluno • Retorno de Navegação
+  // MB Gestor Luxury Pro V12.16.5 — Portal do Aluno • Saída Consistente da Prévia
 
-  const APP_VERSION = '12.16.4';
+  const APP_VERSION = '12.16.5';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
@@ -228,8 +228,8 @@
   // Mantém a origem e a posição de rolagem sem alterar a navegação dos demais módulos.
   let intelligenceReturnContext = null;
   let intelligenceHistoryIgnoreNextPop = false;
-  // V12.16.4 • retorno contextual da Prévia do Portal do Aluno.
-  // Estado apenas de navegação: nunca é persistido nos dados do Studio.
+  // V12.16.5 • toda saída da Prévia retorna à central do Portal do Aluno.
+  // Estado apenas de navegação: preserva a busca da central e nunca é persistido nos dados do Studio.
   let studentPortalPreviewReturnContext = null;
   let intelligenceRetentionFilter = 'all';
   let deferredInstallPrompt = null;
@@ -2245,9 +2245,9 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
   function restoreStudentPortalPreviewReturn(){
     const ctx=studentPortalPreviewReturnContext;studentPortalPreviewReturnContext=null;
-    if(ctx?.view==='settings'&&ctx.studentId){openStudentPortalStudentSettings(ctx.studentId);return true}
-    if(ctx?.view==='center'){openStudentPortalCenter({search:ctx.search||''});return true}
-    closeModal();return true;
+    // V12.16.5: X, botão "Sair da prévia" e toque no fundo sempre devolvem
+    // à central do Portal do Aluno. Quando a prévia nasceu da central, a busca é preservada.
+    openStudentPortalCenter({search:ctx?.search||''});return true;
   }
   function openStudentPortalPreview(studentId,tab='home',{force=false,returnTo=null,returnSearch=''}={}){
     const student=state.students.find(x=>String(x.id)===String(studentId));if(!student)return;
@@ -2263,7 +2263,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const student=state.students.find(x=>String(x.id)===String(studentId));if(!student)return;
     const entry=structuredClone(studentPortalEntry(studentId,{create:true})),sections=entry.sections;
     openModal(`Portal • ${student.name}`,`<div class="student-portal-config-hero"><span>${icon('users')}</span><div><small>VISIBILIDADE DO ALUNO</small><strong>${escapeHTML(student.name)}</strong><p>Escolha somente o que faz sentido o aluno acompanhar.</p></div></div><form id="studentPortalConfigForm" class="form-grid"><label class="portal-toggle"><span><strong>Portal liberado</strong><small>Permite visualizar a experiência do aluno.</small></span><input type="checkbox" name="enabled" ${entry.enabled?'checked':''}></label><div class="student-portal-permission-grid"><label><input type="checkbox" name="schedule" ${sections.schedule===true?'checked':''}><span>${icon('calendar')} Horários</span></label><label><input type="checkbox" name="attendance" ${sections.attendance===true?'checked':''}><span>${icon('check')} Presenças</span></label><label><input type="checkbox" name="assessments" ${sections.assessments===true?'checked':''}><span>${icon('chart')} Avaliações</span></label><label><input type="checkbox" name="finance" ${sections.finance===true?'checked':''}><span>${icon('wallet')} Financeiro</span></label><label><input type="checkbox" name="profile" ${sections.profile===true?'checked':''}><span>${icon('users')} Perfil</span></label></div><div class="student-portal-security-note"><strong>Acesso remoto seguro</strong><p>Login em outro aparelho só será liberado quando o backend com autenticação, sessão e isolamento por aluno estiver conectado. O MB Gestor não gera senha permanente em texto aberto.</p></div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="previewStudentPortal">Visualizar como aluno</button><button class="btn btn-primary" type="submit">Salvar permissões</button></div></form>`);
-    $('#previewStudentPortal')?.addEventListener('click',()=>openStudentPortalPreview(studentId,'home',{force:true,returnTo:'settings'}));
+    $('#previewStudentPortal')?.addEventListener('click',()=>openStudentPortalPreview(studentId,'home',{force:true,returnTo:'center'}));
     $('#studentPortalConfigForm')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),row=studentPortalEntry(studentId,{create:true});row.enabled=fd.get('enabled')==='on';row.sections={home:true,schedule:fd.get('schedule')==='on',attendance:fd.get('attendance')==='on',assessments:fd.get('assessments')==='on',finance:fd.get('finance')==='on',profile:fd.get('profile')==='on'};row.updatedAt=new Date().toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Portal do Aluno atualizado',`${student.name} • ${row.enabled?'liberado':'desativado'}`);saveState();closeModal();toast('Permissões do Portal do Aluno salvas.');});
   }
   function openStudentPortalCenter({search=''}={}){
