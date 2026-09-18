@@ -2150,3 +2150,19 @@ body.access-session-locked .toast-root{z-index:5200}
   .student-portal-invite-shortcut{align-items:stretch;flex-direction:column;padding:16px}
   .student-portal-invite-shortcut .btn{width:100%;min-width:0}
 }
+
+
+/* V12.18.4.1 • Hotfix comercial — responsividade do convite e feedback sem sobreposição */
+.student-portal-post-create>span{color:var(--gold2);overflow:hidden}
+.student-portal-post-create>span svg{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.student-portal-post-create>div{min-width:0}
+.student-portal-post-create strong,.student-portal-post-create p,.student-portal-post-create p strong{overflow-wrap:anywhere;word-break:break-word}
+@media(max-width:620px){
+  .student-portal-post-create{display:grid;grid-template-columns:42px minmax(0,1fr);gap:12px;padding:15px}
+  .student-portal-post-create>span{width:42px;height:42px;flex-basis:42px;border-radius:14px}
+  .student-portal-post-create strong{font-size:.98rem;line-height:1.25}
+  .student-portal-post-create p{font-size:.88rem;line-height:1.42}
+  .modal-backdrop .modal-body>.modal-actions{gap:8px}
+  .modal-backdrop .modal-body>.modal-actions .btn{min-width:0;padding-left:10px;padding-right:10px}
+  body:has(.modal-backdrop) .toast-root{top:calc(var(--safe-top) + 12px);bottom:auto}
+}
