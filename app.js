@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.18.0 — Portal do Aluno • Etapa 2A Identidade e Acesso Seguro
+// MB Gestor Luxury Pro V12.18.1 — Portal do Aluno • Hotfix RPC de Convites Seguros
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.18.0 — Portal do Aluno • Etapa 2A Identidade e Acesso Seguro
+  // MB Gestor Luxury Pro V12.18.1 — Portal do Aluno • Hotfix RPC de Convites Seguros
 
-  const APP_VERSION = '12.18.0';
+  const APP_VERSION = '12.18.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
@@ -573,12 +573,335 @@
   function studentPortalEtapa2MigrationSql(){
     const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');
     if(!schema)return '';
-    return `-- MB Gestor Luxury Pro V12.18.0\n-- Portal do Aluno • Etapa 2A — identidade individual + convite de uso único\n-- Execute UMA VEZ no SQL Editor do projeto SuperDB.\n-- Não usa service_role no cliente e não abre acesso anônimo.\n\nbegin;\n\nalter table ${schema}.portal_workspace_members\n  add column if not exists status text not null default 'active';\n\ndo $$ begin\n  alter table ${schema}.portal_workspace_members\n    add constraint portal_workspace_members_status_check check (status in ('active','revoked'));\nexception when duplicate_object then null; end $$;\n\ncreate table if not exists ${schema}.portal_student_accounts (\n  workspace_id text not null,\n  student_id text not null,\n  auth_user_id uuid not null,\n  email text not null,\n  status text not null default 'active' check (status in ('active','revoked')),\n  activated_at timestamptz not null default now(),\n  revoked_at timestamptz,\n  created_at timestamptz not null default now(),\n  updated_at timestamptz not null default now(),\n  primary key (workspace_id, student_id)\n);\n\ncreate index if not exists idx_portal_student_accounts_user\n  on ${schema}.portal_student_accounts(auth_user_id, workspace_id, status);\n\ncreate unique index if not exists uq_portal_student_accounts_active_user_workspace\n  on ${schema}.portal_student_accounts(workspace_id, auth_user_id)\n  where status = 'active';\n\ncreate table if not exists ${schema}.portal_student_invites (\n  id uuid primary key default gen_random_uuid(),\n  workspace_id text not null,\n  student_id text not null,\n  email text not null,\n  token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),\n  expires_at timestamptz not null,\n  used_at timestamptz,\n  revoked_at timestamptz,\n  created_by uuid,\n  created_at timestamptz not null default now()\n);\n\ncreate index if not exists idx_portal_student_invites_lookup\n  on ${schema}.portal_student_invites(workspace_id, student_id, created_at desc);\n\ncreate table if not exists ${schema}.portal_access_audit (\n  id bigint generated always as identity primary key,\n  workspace_id text not null,\n  student_id text,\n  actor_user_id uuid,\n  event text not null,\n  detail jsonb not null default '{}'::jsonb,\n  created_at timestamptz not null default now()\n);\n\ncreate or replace function ${schema}.portal_is_workspace_admin(target_workspace text)\nreturns boolean\nlanguage sql\nstable\nsecurity definer\nset search_path = ${schema}, auth, pg_temp\nas $$\n  select exists (\n    select 1 from ${schema}.portal_workspace_members m\n    where m.auth_user_id = auth.uid()\n      and m.workspace_id = target_workspace\n      and coalesce(m.status,'active') = 'active'\n      and m.role in ('owner','admin')\n  );\n$$;\n\ncreate or replace function ${schema}.portal_is_student_owner(target_workspace text, target_student text)\nreturns boolean\nlanguage sql\nstable\nsecurity definer\nset search_path = ${schema}, auth, pg_temp\nas $$\n  select exists (\n    select 1 from ${schema}.portal_student_accounts a\n    where a.auth_user_id = auth.uid()\n      and a.workspace_id = target_workspace\n      and a.student_id = target_student\n      and a.status = 'active'\n  );\n$$;\n\nalter table ${schema}.portal_workspace_members enable row level security;\nalter table ${schema}.portal_student_accounts enable row level security;\nalter table ${schema}.portal_student_invites enable row level security;\nalter table ${schema}.portal_access_audit enable row level security;\nalter table ${schema}.portal_student_snapshots enable row level security;\n\nrevoke all on ${schema}.portal_student_accounts from anon;\nrevoke all on ${schema}.portal_student_invites from anon;\nrevoke all on ${schema}.portal_access_audit from anon;\nrevoke all on ${schema}.portal_student_accounts from public;\nrevoke all on ${schema}.portal_student_invites from public;\nrevoke all on ${schema}.portal_access_audit from public;\n\ngrant select, update on ${schema}.portal_student_accounts to authenticated;\ngrant select, insert, update on ${schema}.portal_student_invites to authenticated;\ngrant select on ${schema}.portal_access_audit to authenticated;\ngrant select on ${schema}.portal_student_snapshots to authenticated;\n\ndrop policy if exists portal_student_account_read_own_or_admin on ${schema}.portal_student_accounts;\ndrop policy if exists portal_student_account_admin_update on ${schema}.portal_student_accounts;\ndrop policy if exists portal_student_invite_admin_read on ${schema}.portal_student_invites;\ndrop policy if exists portal_student_invite_admin_insert on ${schema}.portal_student_invites;\ndrop policy if exists portal_student_invite_admin_update on ${schema}.portal_student_invites;\ndrop policy if exists portal_access_audit_admin_read on ${schema}.portal_access_audit;\ndrop policy if exists portal_snapshot_student_read_own on ${schema}.portal_student_snapshots;\n\ncreate policy portal_student_account_read_own_or_admin\non ${schema}.portal_student_accounts for select to authenticated\nusing (auth_user_id = auth.uid() or ${schema}.portal_is_workspace_admin(workspace_id));\n\ncreate policy portal_student_account_admin_update\non ${schema}.portal_student_accounts for update to authenticated\nusing (${schema}.portal_is_workspace_admin(workspace_id))\nwith check (${schema}.portal_is_workspace_admin(workspace_id));\n\ncreate policy portal_student_invite_admin_read\non ${schema}.portal_student_invites for select to authenticated\nusing (${schema}.portal_is_workspace_admin(workspace_id));\n\ncreate policy portal_student_invite_admin_insert\non ${schema}.portal_student_invites for insert to authenticated\nwith check (${schema}.portal_is_workspace_admin(workspace_id) and created_by = auth.uid());\n\ncreate policy portal_student_invite_admin_update\non ${schema}.portal_student_invites for update to authenticated\nusing (${schema}.portal_is_workspace_admin(workspace_id))\nwith check (${schema}.portal_is_workspace_admin(workspace_id));\n\ncreate policy portal_access_audit_admin_read\non ${schema}.portal_access_audit for select to authenticated\nusing (${schema}.portal_is_workspace_admin(workspace_id));\n\ncreate policy portal_snapshot_student_read_own\non ${schema}.portal_student_snapshots for select to authenticated\nusing (${schema}.portal_is_student_owner(workspace_id, student_id));\n\ncreate or replace function ${schema}.portal_claim_student_invite(p_token_hash text)\nreturns table(workspace_id text, student_id text, status text, activated_at timestamptz)\nlanguage plpgsql\nsecurity definer\nset search_path = ${schema}, auth, pg_temp\nas $$\ndeclare\n  v_uid uuid := auth.uid();\n  v_email text := lower(trim(coalesce(auth.email(),'')));\n  v_inv ${schema}.portal_student_invites%rowtype;\n  v_existing ${schema}.portal_student_accounts%rowtype;\nbegin\n  if v_uid is null or v_email = '' then\n    raise exception 'Autenticação obrigatória para ativar o Portal.';\n  end if;\n  if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then\n    raise exception 'Convite inválido.';\n  end if;\n\n  select * into v_inv\n  from ${schema}.portal_student_invites\n  where token_hash = lower(p_token_hash)\n    and used_at is null\n    and revoked_at is null\n    and expires_at > now()\n  for update;\n\n  if not found then\n    raise exception 'Convite inválido, expirado ou já utilizado.';\n  end if;\n  if lower(trim(v_inv.email)) <> v_email then\n    raise exception 'Este convite pertence a outro e-mail.';\n  end if;\n\n  select * into v_existing\n  from ${schema}.portal_student_accounts\n  where workspace_id = v_inv.workspace_id and student_id = v_inv.student_id\n  for update;\n\n  if found and v_existing.status = 'active' and v_existing.auth_user_id <> v_uid then\n    raise exception 'Este Portal já está vinculado a outra conta. Solicite revogação ao Studio.';\n  end if;\n\n  if exists (\n    select 1 from ${schema}.portal_student_accounts a\n    where a.workspace_id = v_inv.workspace_id\n      and a.auth_user_id = v_uid\n      and a.student_id <> v_inv.student_id\n      and a.status = 'active'\n  ) then\n    raise exception 'Esta conta já possui outro Portal ativo neste Workspace.';\n  end if;\n\n  insert into ${schema}.portal_student_accounts\n    (workspace_id, student_id, auth_user_id, email, status, activated_at, revoked_at, updated_at)\n  values\n    (v_inv.workspace_id, v_inv.student_id, v_uid, v_email, 'active', now(), null, now())\n  on conflict (workspace_id, student_id) do update\n    set auth_user_id = excluded.auth_user_id, email = excluded.email, status = 'active',\n        activated_at = now(), revoked_at = null, updated_at = now();\n\n  update ${schema}.portal_student_invites set used_at = now() where id = v_inv.id;\n  insert into ${schema}.portal_access_audit(workspace_id,student_id,actor_user_id,event,detail)\n  values(v_inv.workspace_id,v_inv.student_id,v_uid,'student_portal_activated',jsonb_build_object('email',v_email));\n\n  return query\n    select a.workspace_id,a.student_id,a.status,a.activated_at\n    from ${schema}.portal_student_accounts a\n    where a.workspace_id=v_inv.workspace_id and a.student_id=v_inv.student_id;\nend;\n$$;\n\nrevoke all on function ${schema}.portal_claim_student_invite(text) from public, anon;\ngrant execute on function ${schema}.portal_claim_student_invite(text) to authenticated;\nrevoke all on function ${schema}.portal_is_workspace_admin(text) from public, anon;\ngrant execute on function ${schema}.portal_is_workspace_admin(text) to authenticated;\nrevoke all on function ${schema}.portal_is_student_owner(text,text) from public, anon;\ngrant execute on function ${schema}.portal_is_student_owner(text,text) to authenticated;\n\ncommit;\n`;
+    return `-- MB Gestor Luxury Pro V12.18.1
+-- Portal do Aluno • Etapa 2A — identidade individual + convites protegidos por RPC
+-- SuperDB SQL Editor: NÃO use BEGIN/COMMIT; o endpoint já executa de forma atômica.
+-- Não usa service_role no cliente e não libera leitura direta da tabela de convites.
+
+alter table ${schema}.portal_workspace_members
+  add column if not exists status text not null default 'active';
+
+create table if not exists ${schema}.portal_student_accounts (
+  workspace_id text not null,
+  student_id text not null,
+  auth_user_id uuid not null,
+  email text not null,
+  status text not null default 'active' check (status in ('active','revoked')),
+  activated_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (workspace_id, student_id)
+);
+
+create index if not exists idx_portal_student_accounts_user
+  on ${schema}.portal_student_accounts(auth_user_id, workspace_id, status);
+
+create unique index if not exists uq_portal_student_accounts_active_user_workspace
+  on ${schema}.portal_student_accounts(workspace_id, auth_user_id)
+  where status = 'active';
+
+create table if not exists ${schema}.portal_student_invites (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null,
+  student_id text not null,
+  email text not null,
+  token_hash text not null unique check (token_hash ~ '^[0-9a-f]{64}$'),
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  revoked_at timestamptz,
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_portal_student_invites_lookup
+  on ${schema}.portal_student_invites(workspace_id, student_id, created_at desc);
+
+create table if not exists ${schema}.portal_access_audit (
+  id bigint generated always as identity primary key,
+  workspace_id text not null,
+  student_id text,
+  actor_user_id uuid,
+  event text not null,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create or replace function ${schema}.portal_is_workspace_admin(target_workspace text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ${schema}, pg_temp
+as $$
+  select exists (
+    select 1
+    from ${schema}.portal_workspace_members m
+    where m.auth_user_id = auth.uid()
+      and m.workspace_id = target_workspace
+      and coalesce(m.status, 'active') = 'active'
+      and m.role in ('owner','admin')
+  );
+$$;
+
+create or replace function ${schema}.portal_is_student_owner(target_workspace text, target_student text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ${schema}, pg_temp
+as $$
+  select exists (
+    select 1
+    from ${schema}.portal_student_accounts a
+    where a.auth_user_id = auth.uid()
+      and a.workspace_id = target_workspace
+      and a.student_id = target_student
+      and a.status = 'active'
+  );
+$$;
+
+alter table ${schema}.portal_student_accounts enable row level security;
+alter table ${schema}.portal_student_invites enable row level security;
+alter table ${schema}.portal_access_audit enable row level security;
+alter table ${schema}.portal_student_snapshots enable row level security;
+
+revoke all on ${schema}.portal_student_accounts from anon, authenticated, public;
+revoke all on ${schema}.portal_student_invites from anon, authenticated, public;
+revoke all on ${schema}.portal_access_audit from anon, authenticated, public;
+
+grant select, update on ${schema}.portal_student_accounts to authenticated;
+grant select on ${schema}.portal_access_audit to authenticated;
+grant select, insert, update, delete on ${schema}.portal_student_snapshots to authenticated;
+
+revoke execute on function ${schema}.portal_is_workspace_admin(text) from public, anon;
+grant execute on function ${schema}.portal_is_workspace_admin(text) to authenticated;
+revoke execute on function ${schema}.portal_is_student_owner(text,text) from public, anon;
+grant execute on function ${schema}.portal_is_student_owner(text,text) to authenticated;
+
+drop policy if exists portal_student_account_read_own_or_admin on ${schema}.portal_student_accounts;
+drop policy if exists portal_student_account_admin_update on ${schema}.portal_student_accounts;
+drop policy if exists portal_student_invite_admin_read on ${schema}.portal_student_invites;
+drop policy if exists portal_student_invite_admin_insert on ${schema}.portal_student_invites;
+drop policy if exists portal_student_invite_admin_update on ${schema}.portal_student_invites;
+drop policy if exists portal_access_audit_admin_read on ${schema}.portal_access_audit;
+drop policy if exists portal_snapshot_student_read_own on ${schema}.portal_student_snapshots;
+
+create policy portal_student_account_read_own_or_admin
+on ${schema}.portal_student_accounts
+for select to authenticated
+using (
+  auth_user_id = auth.uid()
+  or ${schema}.portal_is_workspace_admin(workspace_id)
+);
+
+create policy portal_student_account_admin_update
+on ${schema}.portal_student_accounts
+for update to authenticated
+using (${schema}.portal_is_workspace_admin(workspace_id))
+with check (${schema}.portal_is_workspace_admin(workspace_id));
+
+create policy portal_access_audit_admin_read
+on ${schema}.portal_access_audit
+for select to authenticated
+using (${schema}.portal_is_workspace_admin(workspace_id));
+
+create policy portal_snapshot_student_read_own
+on ${schema}.portal_student_snapshots
+for select to authenticated
+using (
+  portal_enabled = true
+  and ${schema}.portal_is_student_owner(workspace_id, student_id)
+);
+
+create or replace function ${schema}.portal_create_student_invite(
+  p_workspace_id text,
+  p_student_id text,
+  p_email text,
+  p_token_hash text,
+  p_expires_at timestamptz
+)
+returns table (invite_id uuid, expires_at timestamptz)
+language plpgsql
+security definer
+set search_path = ${schema}, auth, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text := lower(trim(coalesce(p_email,'')));
+  v_id uuid;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.portal_is_workspace_admin(p_workspace_id) then
+    raise exception 'Sem permissão para criar convite neste Workspace.';
+  end if;
+  if trim(coalesce(p_student_id,'')) = '' then raise exception 'Aluno inválido.'; end if;
+  if v_email = '' then raise exception 'E-mail obrigatório.'; end if;
+  if p_token_hash is null or lower(p_token_hash) !~ '^[0-9a-f]{64}$' then
+    raise exception 'Token de convite inválido.';
+  end if;
+  if p_expires_at is null or p_expires_at <= now() then
+    raise exception 'A expiração precisa estar no futuro.';
+  end if;
+
+  update ${schema}.portal_student_invites
+     set revoked_at = now()
+   where workspace_id = p_workspace_id
+     and student_id = p_student_id
+     and used_at is null
+     and revoked_at is null;
+
+  insert into ${schema}.portal_student_invites
+    (workspace_id,student_id,email,token_hash,expires_at,created_by)
+  values
+    (p_workspace_id,p_student_id,v_email,lower(p_token_hash),p_expires_at,v_uid)
+  returning id into v_id;
+
+  insert into ${schema}.portal_access_audit
+    (workspace_id,student_id,actor_user_id,event,detail)
+  values
+    (p_workspace_id,p_student_id,v_uid,'student_portal_invite_created',
+     jsonb_build_object('email',v_email,'expires_at',p_expires_at));
+
+  return query select v_id, p_expires_at;
+end;
+$$;
+
+create or replace function ${schema}.portal_revoke_student_invites(
+  p_workspace_id text,
+  p_student_id text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ${schema}, auth, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_count integer := 0;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.portal_is_workspace_admin(p_workspace_id) then
+    raise exception 'Sem permissão para revogar convites neste Workspace.';
+  end if;
+
+  update ${schema}.portal_student_invites
+     set revoked_at = now()
+   where workspace_id = p_workspace_id
+     and student_id = p_student_id
+     and used_at is null
+     and revoked_at is null;
+
+  get diagnostics v_count = row_count;
+
+  insert into ${schema}.portal_access_audit
+    (workspace_id,student_id,actor_user_id,event,detail)
+  values
+    (p_workspace_id,p_student_id,v_uid,'student_portal_invites_revoked',jsonb_build_object('count',v_count));
+
+  return v_count;
+end;
+$$;
+
+create or replace function ${schema}.portal_claim_student_invite(p_token_hash text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ${schema}, pg_temp
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_email text := lower(trim(coalesce(auth.email(), '')));
+  v_inv ${schema}.portal_student_invites%rowtype;
+  v_existing ${schema}.portal_student_accounts%rowtype;
+begin
+  if v_uid is null or v_email = '' then
+    raise exception 'Autenticação obrigatória para ativar o Portal.';
+  end if;
+  if p_token_hash is null or lower(p_token_hash) !~ '^[0-9a-f]{64}$' then
+    raise exception 'Convite inválido.';
+  end if;
+
+  select i.* into v_inv
+  from ${schema}.portal_student_invites i
+  where i.token_hash = lower(p_token_hash)
+    and i.used_at is null
+    and i.revoked_at is null
+    and i.expires_at > now()
+  for update;
+
+  if not found then raise exception 'Convite inválido, expirado ou já utilizado.'; end if;
+  if lower(trim(v_inv.email)) <> v_email then raise exception 'Este convite pertence a outro e-mail.'; end if;
+
+  if not exists (
+    select 1 from ${schema}.portal_student_snapshots s
+    where s.workspace_id = v_inv.workspace_id
+      and s.student_id = v_inv.student_id
+      and s.portal_enabled = true
+  ) then
+    raise exception 'Portal não está publicado ou foi desativado pelo Studio.';
+  end if;
+
+  select a.* into v_existing
+  from ${schema}.portal_student_accounts a
+  where a.workspace_id = v_inv.workspace_id
+    and a.student_id = v_inv.student_id
+  for update;
+
+  if found and v_existing.status = 'active' and v_existing.auth_user_id <> v_uid then
+    raise exception 'Este Portal já está vinculado a outra conta. Solicite revogação ao Studio.';
+  end if;
+
+  if exists (
+    select 1 from ${schema}.portal_student_accounts a
+    where a.workspace_id = v_inv.workspace_id
+      and a.auth_user_id = v_uid
+      and a.student_id <> v_inv.student_id
+      and a.status = 'active'
+  ) then
+    raise exception 'Esta conta já possui outro Portal ativo neste Workspace.';
+  end if;
+
+  insert into ${schema}.portal_student_accounts
+    (workspace_id,student_id,auth_user_id,email,status,activated_at,revoked_at,updated_at)
+  values
+    (v_inv.workspace_id,v_inv.student_id,v_uid,v_email,'active',now(),null,now())
+  on conflict (workspace_id,student_id) do update
+    set auth_user_id=excluded.auth_user_id,
+        email=excluded.email,
+        status='active',
+        activated_at=now(),
+        revoked_at=null,
+        updated_at=now();
+
+  update ${schema}.portal_student_invites set used_at=now() where id=v_inv.id;
+
+  insert into ${schema}.portal_access_audit
+    (workspace_id,student_id,actor_user_id,event,detail)
+  values
+    (v_inv.workspace_id,v_inv.student_id,v_uid,'student_portal_activated',jsonb_build_object('email',v_email));
+
+  return jsonb_build_object(
+    'workspace_id',v_inv.workspace_id,
+    'student_id',v_inv.student_id,
+    'status','active',
+    'activated_at',now()
+  );
+end;
+$$;
+
+revoke all on function ${schema}.portal_create_student_invite(text,text,text,text,timestamptz) from public, anon;
+grant execute on function ${schema}.portal_create_student_invite(text,text,text,text,timestamptz) to authenticated;
+revoke all on function ${schema}.portal_revoke_student_invites(text,text) from public, anon;
+grant execute on function ${schema}.portal_revoke_student_invites(text,text) to authenticated;
+revoke all on function ${schema}.portal_claim_student_invite(text) from public, anon;
+grant execute on function ${schema}.portal_claim_student_invite(text) to authenticated;
+`;
   }
   async function verifyStudentPortalAccessFoundation(){
     await verifyStudentPortalWorkspaceMembership();
     await studentPortalApi('/portal_student_accounts?select=workspace_id,student_id,status&limit=1',{auth:true});
-    await studentPortalApi('/portal_student_invites?select=id,workspace_id,student_id&limit=1',{auth:true});
+    await studentPortalApi('/portal_access_audit?select=id,event&limit=1',{auth:true});
     return true;
   }
   async function createStudentPortalInvite(studentId){
@@ -588,12 +911,11 @@
     if(!row.lastPublishedAt)await publishStudentPortalSnapshot(studentId);
     const email=studentPortalNormalizeEmail(student.email);if(!studentPortalValidEmail(email))throw new Error('Cadastre um e-mail válido para o aluno antes de gerar o acesso remoto.');
     await verifyStudentPortalAccessFoundation();
-    const token=studentPortalRandomToken(),tokenHash=await studentPortalSha256Hex(token),now=new Date(),expires=new Date(now.getTime()+24*60*60*1000),wid=encodeURIComponent(String(state.workspace?.id||'')),sid=encodeURIComponent(String(studentId));
-    await studentPortalApi(`/portal_student_invites?workspace_id=eq.${wid}&student_id=eq.${sid}&used_at=is.null&revoked_at=is.null`,{method:'PATCH',auth:true,headers:{'Prefer':'return=minimal'},body:{revoked_at:now.toISOString()}});
-    const status=studentPortalBackendStatus();
-    await studentPortalApi('/portal_student_invites',{method:'POST',auth:true,headers:{'Prefer':'return=representation'},body:{workspace_id:String(state.workspace?.id||''),student_id:String(studentId),email,token_hash:tokenHash,expires_at:expires.toISOString(),created_by:String(status.session?.userId||'')}});
-    row.remoteStatus='invited';row.inviteEmail=email;row.inviteCreatedAt=now.toISOString();row.inviteExpiresAt=expires.toISOString();row.updatedAt=now.toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Convite seguro do Portal gerado',`${student.name} • expira em 24h`);saveState();
-    return {url:studentPortalRemoteClientUrl(token),email,expiresAt:expires.toISOString()};
+    const token=studentPortalRandomToken(),tokenHash=await studentPortalSha256Hex(token),now=new Date(),expires=new Date(now.getTime()+24*60*60*1000),workspaceId=String(state.workspace?.id||''),studentKey=String(studentId);
+    const result=await studentPortalApi('/rpc/portal_create_student_invite',{method:'POST',auth:true,body:{p_workspace_id:workspaceId,p_student_id:studentKey,p_email:email,p_token_hash:tokenHash,p_expires_at:expires.toISOString()}});
+    const rpcRow=Array.isArray(result)?result[0]:result,expiresAt=String(rpcRow?.expires_at||expires.toISOString());
+    row.remoteStatus='invited';row.inviteEmail=email;row.inviteCreatedAt=now.toISOString();row.inviteExpiresAt=expiresAt;row.updatedAt=now.toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Convite seguro do Portal gerado',`${student.name} • expira em 24h • RPC protegida`);saveState();
+    return {url:studentPortalRemoteClientUrl(token),email,expiresAt};
   }
   async function refreshStudentPortalAccessStatus(studentId){
     await verifyStudentPortalWorkspaceMembership();const wid=encodeURIComponent(String(state.workspace?.id||'')),sid=encodeURIComponent(String(studentId||''));
@@ -603,10 +925,12 @@
     row.updatedAt=new Date().toISOString();saveState();return remote;
   }
   async function revokeStudentPortalAccess(studentId){
-    await verifyStudentPortalWorkspaceMembership();const wid=encodeURIComponent(String(state.workspace?.id||'')),sid=encodeURIComponent(String(studentId||'')),now=new Date().toISOString();
+    await verifyStudentPortalWorkspaceMembership();const workspaceId=String(state.workspace?.id||''),studentKey=String(studentId||''),wid=encodeURIComponent(workspaceId),sid=encodeURIComponent(studentKey),now=new Date().toISOString();
+    // Ordem intencional: primeiro invalida convites pendentes via RPC; só depois revoga a conta ativa.
+    // Assim uma falha intermediária nunca deixa um convite antigo capaz de reativar uma conta já marcada como revogada.
+    await studentPortalApi('/rpc/portal_revoke_student_invites',{method:'POST',auth:true,body:{p_workspace_id:workspaceId,p_student_id:studentKey}});
     await studentPortalApi(`/portal_student_accounts?workspace_id=eq.${wid}&student_id=eq.${sid}`,{method:'PATCH',auth:true,headers:{'Prefer':'return=minimal'},body:{status:'revoked',revoked_at:now,updated_at:now}});
-    await studentPortalApi(`/portal_student_invites?workspace_id=eq.${wid}&student_id=eq.${sid}&used_at=is.null&revoked_at=is.null`,{method:'PATCH',auth:true,headers:{'Prefer':'return=minimal'},body:{revoked_at:now}});
-    const row=studentPortalEntry(studentId,{create:true});row.remoteStatus='revoked';row.updatedAt=now;row.accessCheckedAt=now;addAudit('Acesso remoto do Portal revogado',state.students.find(x=>String(x.id)===String(studentId))?.name||String(studentId));saveState();return true;
+    const row=studentPortalEntry(studentId,{create:true});row.remoteStatus='revoked';row.updatedAt=now;row.accessCheckedAt=now;addAudit('Acesso remoto do Portal revogado',`${state.students.find(x=>String(x.id)===String(studentId))?.name||String(studentId)} • convites invalidados por RPC`);saveState();return true;
   }
   function openStudentPortalInviteReady(studentId,result){
     const student=state.students.find(x=>String(x.id)===String(studentId));if(!student)return;
@@ -2512,7 +2836,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#copyStudentPortalOwnerLinkSql')?.addEventListener('click',()=>copyText(studentPortalOwnerLinkSql()));
     $('#verifyStudentPortalMembership')?.addEventListener('click',async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Verificando…';try{await verifyStudentPortalWorkspaceMembership();toast('Workspace validado com RLS na SuperDB.');openStudentPortalBackendSetup()}catch(err){toast(err?.message||'Vínculo do Workspace não encontrado.');btn.disabled=false;btn.textContent='Verificar Workspace'}});
     $('#copyStudentPortalEtapa2Sql')?.addEventListener('click',()=>copyText(studentPortalEtapa2MigrationSql()));
-    $('#verifyStudentPortalAccessFoundation')?.addEventListener('click',async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Validando…';try{await verifyStudentPortalAccessFoundation();toast('Etapa 2A validada: tabelas de identidade e convite protegidas por RLS.');btn.textContent='Etapa 2A validada'}catch(err){console.error('Portal Etapa 2A',err);toast('Etapa 2A ainda não está aplicada. Execute o SQL e tente novamente.');btn.disabled=false;btn.textContent='Validar Etapa 2A'}});
+    $('#verifyStudentPortalAccessFoundation')?.addEventListener('click',async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Validando…';try{await verifyStudentPortalAccessFoundation();toast('Etapa 2A validada no cliente: identidade e auditoria acessíveis; convites usam RPC protegida.');btn.textContent='Etapa 2A validada'}catch(err){console.error('Portal Etapa 2A',err);toast('Etapa 2A ainda não está aplicada. Execute o SQL e tente novamente.');btn.disabled=false;btn.textContent='Validar Etapa 2A'}});
     $('#studentPortalBackendSignOut')?.addEventListener('click',async()=>{await signOutStudentPortalOwner();toast('Sessão remota encerrada.');openStudentPortalBackendSetup()});
     $('#backStudentPortalCenter')?.addEventListener('click',()=>openStudentPortalCenter());
   }
@@ -5854,7 +6178,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <div class="section-head"><div><h3>Proteção e histórico</h3><p>Recuperação e rastreabilidade do sistema</p></div></div>
       <section class="card system-maintenance-card"><div class="settings-row"><div><strong>Lixeira protegida</strong><span>${(state.trash||[]).length} item${(state.trash||[]).length===1?'':'s'} disponível${(state.trash||[]).length===1?'':'is'} para recuperação.</span></div><button class="btn btn-secondary btn-small" id="openTrash">Abrir</button></div><div class="settings-row"><div><strong>Histórico de alterações</strong><span>${(state.auditLog||[]).length} evento${(state.auditLog||[]).length===1?'':'s'} registrado${(state.auditLog||[]).length===1?'':'s'}.</span></div><button class="btn btn-secondary btn-small" id="openAudit">Ver histórico</button></div><div class="settings-row"><div><strong>Fechamento mensal</strong><span>Preserve os indicadores do mês e compare a evolução.</span></div><button class="btn btn-secondary btn-small" id="settingsMonthClose">Abrir</button></div></section>
       <div class="section-head"><div><h3>Sobre o MB Gestor</h3><p>Informações do produto e preparação comercial</p></div></div>
-      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Equipe e permissões</strong><span>V${ACCESS_SCHEMA_VERSION} • ${accessStats.total} ${accessStats.total===1?'perfil local':'perfis locais'} • ${commercialAccess().mode==='local-session'?'sessão por perfil ativa':'sessão por perfil preparada'}.</span></div><span class="pill">V12.14.2</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div><div class="settings-row"><div><strong>Cofre de backup protegido</strong><span>AES-256-GCM + PBKDF2-HMAC-SHA-256; a frase-senha nunca é persistida. Sincronização automática permanece desligada.</span></div><span class="pill">V12.15.1</span></div><div class="settings-row"><div><strong>Portal do Aluno</strong><span>Fundação V${STUDENT_PORTAL_SCHEMA_VERSION} • identidade individual • cliente remoto isolado • SuperDB Auth + RLS.</span></div><span class="pill">V12.18</span></div></section>
+      <section class="card"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION} • identidade comercial ativa</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Workspace do Studio</strong><span>ID ${escapeHTML(workspaceShortId())} • separação lógica preparada para conta e nuvem.</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Esquema de dados</strong><span>V${DATA_SCHEMA_VERSION} • migração automática compatível com instalações anteriores.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Conta e instalação</strong><span>Estrutura V${COMMERCIAL_SCHEMA_VERSION} • ${commercialOwnerConfigured()?'proprietário configurado':'proprietário opcional'} • ${escapeHTML(commercialLicenseStatusLabel())} • dispositivo ${escapeHTML(installationShortId())}.</span></div><span class="pill">Local</span></div><div class="settings-row"><div><strong>Equipe e permissões</strong><span>V${ACCESS_SCHEMA_VERSION} • ${accessStats.total} ${accessStats.total===1?'perfil local':'perfis locais'} • ${commercialAccess().mode==='local-session'?'sessão por perfil ativa':'sessão por perfil preparada'}.</span></div><span class="pill">V12.14.2</span></div><div class="settings-row"><div><strong>Fundação de propriedade dos dados</strong><span>V${DATA_OWNERSHIP_SCHEMA_VERSION} • ${escapeHTML(dataFoundationStatusLabel(ownership))} • Workspace ${escapeHTML(workspaceShortId())}.</span></div><span class="pill">V12.11</span></div><div class="settings-row"><div><strong>Privacidade e dados</strong><span>Dados permanecem neste dispositivo enquanto o app estiver em modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup com integridade</strong><span>Novos backups registram origem e, quando disponível, impressão SHA-256 para detectar alteração acidental do arquivo.</span></div><span class="pill">V12.5</span></div><div class="settings-row"><div><strong>Cofre de backup protegido</strong><span>AES-256-GCM + PBKDF2-HMAC-SHA-256; a frase-senha nunca é persistida. Sincronização automática permanece desligada.</span></div><span class="pill">V12.15.1</span></div><div class="settings-row"><div><strong>Portal do Aluno</strong><span>Fundação V${STUDENT_PORTAL_SCHEMA_VERSION} • identidade individual • cliente remoto isolado • SuperDB Auth + RLS.</span></div><span class="pill">V12.18.1</span></div></section>
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
       <section class="metrics">${metricCard('users',m.activeStudents,'Alunos ativos')}${metricCard('wallet',privateMoney(m.expected),'Receita prevista')}${metricCard('chart',privateMoney(m.received),'Recebido no mês','good')}${metricCard('receipt',privateMoney(m.expenses),'Gastos no mês',m.expenses?'danger':'')}</section>
     `;
