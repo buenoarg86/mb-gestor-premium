@@ -2203,3 +2203,32 @@ body.access-session-locked .toast-root{z-index:5200}
 }
 
 /* V12.18.7 • Portal Clean UX: acesso online sai da Central do Portal; configurações avançadas permanecem recolhidas. */
+
+
+/* V12.18.8 • Portal do Aluno — Central compacta no mobile */
+.student-portal-admin-modal{max-height:96dvh}
+.student-portal-admin-modal .modal-head{padding:14px 16px}
+.student-portal-admin-modal .modal-head h3{font-size:1.34rem;line-height:1.15}
+.student-portal-admin-modal .modal-head .mini-icon{width:40px;height:40px;border-radius:13px}
+.student-portal-admin-modal .modal-body{padding:12px 14px 14px}
+.student-portal-center-summary{display:grid;grid-template-columns:38px minmax(0,1fr);gap:11px;align-items:center;padding:11px 12px;margin-bottom:12px;border-radius:16px;border:1px solid rgba(var(--brand-primary-rgb),.18);background:rgba(var(--brand-primary-rgb),.045)}
+.student-portal-center-summary>span{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--gold2);background:rgba(var(--brand-primary-rgb),.09)}
+.student-portal-center-summary>span svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.student-portal-center-summary>div{min-width:0;display:grid;gap:2px}.student-portal-center-summary strong{font-size:.94rem;line-height:1.2}.student-portal-center-summary small{font-size:.78rem;line-height:1.3;color:var(--muted)}
+.student-portal-search-field{margin-bottom:10px}.student-portal-search-field label{margin-bottom:6px}.student-portal-search-field input{padding:12px 13px}
+.student-portal-admin-modal .student-portal-admin-list{max-height:60dvh;margin-top:8px}
+.student-portal-admin-modal .modal-actions{margin-top:12px}
+@media(max-width:620px){
+  .student-portal-admin-modal{width:calc(100vw - 12px)!important;max-width:calc(100vw - 12px)!important;max-height:97dvh;border-radius:23px 23px 16px 16px}
+  .student-portal-admin-modal .modal-head{padding:12px 13px}
+  .student-portal-admin-modal .modal-head h3{font-size:1.28rem}
+  .student-portal-admin-modal .modal-head .mini-icon{width:38px;height:38px}
+  .student-portal-admin-modal .modal-body{padding:10px 12px 12px}
+  .student-portal-center-summary{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:9px 10px;margin-bottom:10px;border-radius:15px}
+  .student-portal-center-summary>span{width:34px;height:34px;border-radius:11px}
+  .student-portal-center-summary>span svg{width:18px;height:18px}
+  .student-portal-center-summary strong{font-size:.9rem}.student-portal-center-summary small{font-size:.74rem}
+  .student-portal-search-field{margin-bottom:8px}.student-portal-search-field input{padding:11px 12px}
+  .student-portal-admin-modal .student-portal-admin-list{max-height:64dvh;gap:8px;margin-top:6px}
+  .student-portal-admin-modal .modal-actions{margin-top:10px}
+}
