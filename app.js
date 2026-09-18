@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V13.0.0 — Comercial • Fundação SaaS Segura
+// MB Gestor Luxury Pro V13.1.0 — Comercial • Isolamento Multi-Studio Seguro
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V13.0.0 — Comercial • Fundação SaaS Segura
+  // MB Gestor Luxury Pro V13.1.0 — Comercial • Isolamento Multi-Studio Seguro
 
-  const APP_VERSION = '13.0.0';
+  const APP_VERSION = '13.1.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -13,7 +13,7 @@
   const COMMERCIAL_ONBOARDING_SCHEMA_VERSION = 1;
   const COMMERCIAL_PRIVACY_SCHEMA_VERSION = 1;
   const COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION = 1;
-  const COMMERCIAL_BACKEND_FOUNDATION_VERSION = 1;
+  const COMMERCIAL_BACKEND_FOUNDATION_VERSION = 2;
   const COMMERCIAL_TERMS_VERSION = 'pending-legal-review';
   const COMMERCIAL_PRIVACY_VERSION = 'pending-legal-review';
   const COMMERCIAL_DEFAULT_ENTITLEMENTS = Object.freeze({students:true,schedule:true,finance:true,receipts:true,assessments:true,intelligence:true,team:true,portal:true,reminders:true,protectedBackup:true});
@@ -374,7 +374,7 @@
   }
   function normalizeCommercialInfrastructure(raw={}){
     const source=raw&&typeof raw==='object'?raw:{},allowed=new Set(['local','pending','connected','error']);
-    return {schemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,backendFoundationVersion:Math.max(0,Math.floor(Number(source.backendFoundationVersion)||0)),status:allowed.has(String(source.status||''))?String(source.status):'local',verifiedAt:source.verifiedAt||null,provisionedAt:source.provisionedAt||null,lastError:String(source.lastError||'').slice(0,240)||null,productionDomain:String(source.productionDomain||'').trim().slice(0,160),pilotValidatedAt:source.pilotValidatedAt||null,releaseChannel:String(source.releaseChannel||'pwa').trim().slice(0,32)||'pwa'};
+    return {schemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,backendFoundationVersion:Math.max(0,Math.floor(Number(source.backendFoundationVersion)||0)),status:allowed.has(String(source.status||''))?String(source.status):'local',verifiedAt:source.verifiedAt||null,provisionedAt:source.provisionedAt||null,lastError:String(source.lastError||'').slice(0,240)||null,productionDomain:String(source.productionDomain||'').trim().slice(0,160),pilotValidatedAt:source.pilotValidatedAt||null,releaseChannel:String(source.releaseChannel||'pwa').trim().slice(0,32)||'pwa',securityPosture:['unknown','ok','warning','error'].includes(String(source.securityPosture||''))?String(source.securityPosture):'unknown',securityVerifiedAt:source.securityVerifiedAt||null,activationMode:String(source.activationMode||'').slice(0,32)||null,migrationId:String(source.migrationId||'').slice(0,80)||null};
   }
 
   function normalizeCommercial(raw={}, settings={}){
@@ -6228,7 +6228,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       {id:'isolation',label:'Isolamento dos dados',detail:'Todos os registros pertencem ao Workspace correto.',ok:state.dataFoundation?.ownershipMode==='workspace-bound'&&!ownership.foreign&&!ownership.missing},
       {id:'backup',label:'Recuperação e backup',detail:'Existe ao menos uma cópia registrada desta instalação.',ok:Boolean(state.settings?.lastBackupAt)},
       {id:'portal',label:'Acesso online e Portal',detail:'Conta online conectada e Portal protegido por RLS.',ok:portal.remoteConnected===true},
-      {id:'backend',label:'Fundação SaaS do backend',detail:`Estrutura multi-tenant comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION} verificada.`,ok:commercialBackendFoundationReady()},
+      {id:'backend',label:'Fundação SaaS do backend',detail:`Estrutura multi-tenant V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}, RLS e menor privilégio verificados.`,ok:commercialBackendFoundationReady()&&infra.securityPosture==='ok'},
       {id:'legal',label:'Termos e Privacidade',detail:'Documentos jurídicos finais publicados e versionados.',ok:privacy.documentsPublished===true&&Boolean(privacy.termsVersion&&privacy.privacyVersion)},
       {id:'billing',label:'Assinatura e cobrança',detail:'Plano online ligado ao cliente e controlado pelo servidor.',ok:billingLinked},
       {id:'updates',label:'Atualização segura do PWA',detail:'Aplicativo publicado em HTTPS com camada de atualização.',ok:httpsReady},
@@ -6238,8 +6238,27 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return {checks,done:checks.filter(x=>x.ok).length,total:checks.length};
   }
 
+  function commercialCanAdoptServerWorkspace(){
+    const audit=workspaceOwnershipAudit(state);
+    return !stateHasBusinessData(state)&&audit.total===0&&!studentPortalStats().enabled;
+  }
+
+  function commercialAdoptServerWorkspace(remoteWorkspaceId){
+    const next=String(remoteWorkspaceId||'').trim(),current=String(state.workspace?.id||'').trim();
+    if(!/^ws_[A-Za-z0-9_-]{8,120}$/.test(next))throw new Error('O servidor retornou uma identificação de Studio inválida.');
+    if(next===current)return false;
+    if(!commercialCanAdoptServerWorkspace())throw new Error('O servidor retornou outro Studio. A ativação foi interrompida para proteger os dados locais.');
+    state.workspace=normalizeWorkspace({...state.workspace,id:next,createdAt:state.workspace?.createdAt||new Date().toISOString()});
+    state.dataFoundation=normalizeDataFoundation({...state.dataFoundation,workspaceId:next},next,false);
+    if(state.commercial?.installation)state.commercial.installation={...state.commercial.installation,workspaceId:next};
+    addAudit('Conta do Studio criada no servidor',`Nova identificação ${workspaceShortId()} adotada antes do primeiro cadastro.`);
+    return true;
+  }
+
   function commercialApplyRemoteContext(raw={}){
     const ctx=Array.isArray(raw)?(raw[0]||{}):(raw||{}),now=new Date().toISOString();
+    const remoteWorkspaceId=String(ctx.workspace_id||'').trim(),localWorkspaceId=String(state.workspace?.id||'').trim();
+    if(remoteWorkspaceId&&remoteWorkspaceId!==localWorkspaceId)commercialAdoptServerWorkspace(remoteWorkspaceId);
     state.commercial.accountMode='hybrid';state.workspace=normalizeWorkspace({...state.workspace,mode:'hybrid',remoteStatus:'connected',provisionedAt:ctx.provisioned_at||state.workspace?.provisionedAt||now,lastVerifiedAt:now,status:ctx.workspace_status||state.workspace?.status||'active'});
     const infra=commercialInfrastructure();
     state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'connected',backendFoundationVersion:Number(ctx.foundation_version)||COMMERCIAL_BACKEND_FOUNDATION_VERSION,verifiedAt:now,provisionedAt:infra.provisionedAt||now,lastError:null});
@@ -6258,6 +6277,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       await ensureStudentPortalBackendSession();
       const result=await studentPortalApi('/rpc/app_get_context',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}});
       const ctx=commercialApplyRemoteContext(result);
+      if(Number(ctx.foundation_version||0)>=COMMERCIAL_BACKEND_FOUNDATION_VERSION)await verifyCommercialSecurityPosture({silent:true});
       if(!silent)toast(`Fundação comercial V${ctx.foundation_version||COMMERCIAL_BACKEND_FOUNDATION_VERSION} verificada.`);
       return ctx;
     }catch(err){
@@ -6267,29 +6287,72 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     }
   }
 
+  async function verifyCommercialSecurityPosture({silent=false}={}){
+    try{
+      if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
+      await ensureStudentPortalBackendSession();
+      const raw=await studentPortalApi('/rpc/app_security_posture',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}}),result=Array.isArray(raw)?(raw[0]||{}):(raw||{});
+      const ok=result.ok===true&&Number(result.foundation_version)>=COMMERCIAL_BACKEND_FOUNDATION_VERSION&&result.rls_all===true&&result.force_rls_all===true&&result.policies_present===true&&result.request_role_safe===true&&result.subscription_client_write===false;
+      const infra=commercialInfrastructure(),now=new Date().toISOString();
+      state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,securityPosture:ok?'ok':'warning',securityVerifiedAt:now,migrationId:String(result.migration_id||infra.migrationId||''),lastError:ok?null:'A verificação de isolamento não passou em todos os controles.'});
+      saveState();
+      if(!ok)throw new Error('A infraestrutura respondeu, mas algum controle de isolamento ainda precisa ser corrigido.');
+      if(!silent)toast('Isolamento multi-Studio e RLS verificados.');
+      return result;
+    }catch(err){
+      const infra=commercialInfrastructure();state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,securityPosture:'error',securityVerifiedAt:new Date().toISOString(),lastError:err?.message||'Falha na verificação de segurança.'});saveState();
+      if(!silent)toast(err?.message||'Não foi possível verificar o isolamento multi-Studio.');
+      throw err;
+    }
+  }
+
   async function bootstrapCommercialWorkspaceOnline(){
     if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
     await ensureStudentPortalBackendSession();
-    const profile=commercialStudioProfile(),owner=commercialOwner(),installation=commercialInstallation(),now=new Date().toISOString(),infra=commercialInfrastructure();
-    state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'pending',lastError:null});state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'provisioning'});saveState();
+    const profile=commercialStudioProfile(),owner=commercialOwner(),installation=commercialInstallation(),infra=commercialInfrastructure(),audit=workspaceOwnershipAudit(state),hasBusiness=stateHasBusinessData(state);
+    if(hasBusiness&&(audit.foreign||audit.missing))throw new Error('A ativação foi bloqueada porque a separação dos dados deste Studio precisa ser revisada primeiro.');
+    if(hasBusiness&&!state.settings?.lastBackupAt)throw new Error('Faça um backup antes de ativar a infraestrutura online deste Studio.');
+    // Snapshot local automático: permite retornar ao estado anterior sem depender do backend.
+    await createRestoreSafetySnapshot();
+    state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'pending',securityPosture:'unknown',lastError:null,activationMode:hasBusiness?'existing-verified':'new-server-id'});state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'provisioning'});saveState();
     try{
-      const result=await studentPortalApi('/rpc/app_bootstrap_workspace',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),p_display_name:String(profile.studioName||state.settings?.studioName||'Meu Studio'),p_professional_name:String(profile.professionalName||state.settings?.trainerName||owner.name||''),p_installation_id:String(installation.id||''),p_installation_label:String(installation.label||'Este dispositivo'),p_app_version:APP_VERSION}});
+      const common={p_display_name:String(profile.studioName||state.settings?.studioName||'Meu Studio'),p_professional_name:String(profile.professionalName||state.settings?.trainerName||owner.name||''),p_installation_id:String(installation.id||''),p_installation_label:String(installation.label||'Este dispositivo'),p_app_version:APP_VERSION};
+      let result;
+      if(hasBusiness){
+        // Studio existente: o backend só aceita a importação se a conta autenticada já for proprietária no Portal.
+        result=await studentPortalApi('/rpc/app_bootstrap_existing_workspace',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),...common}});
+      }else{
+        // Studio novo: o identificador nasce no servidor, evitando que o cliente escolha/"reivindique" um tenant.
+        result=await studentPortalApi('/rpc/app_create_workspace',{method:'POST',auth:true,body:common});
+      }
       commercialApplyRemoteContext(result);
+      await verifyCommercialSecurityPosture({silent:true});
       try{await verifyStudentPortalWorkspaceMembership()}catch(err){console.warn('Portal membership após bootstrap',err)}
-      addAudit('Fundação SaaS ativada',`Workspace ${workspaceShortId()} • backend comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}`);saveState();toast('Estrutura comercial online ativada para este Studio.');return result;
+      addAudit('Fundação SaaS ativada',`Workspace ${workspaceShortId()} • backend comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION} • isolamento verificado`);saveState();toast('Estrutura comercial online ativada com isolamento verificado.');return result;
     }catch(err){
-      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'error'});state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',lastError:err?.message||'Falha no provisionamento.'});saveState();throw err;
+      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'error'});state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',securityPosture:'error',lastError:err?.message||'Falha no provisionamento.'});saveState();throw err;
     }
   }
 
   function commercialFoundationSql(){
     const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
-    return `-- MB Gestor Luxury Pro V13.0.0
--- Fundação SaaS Comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}
--- Multi-tenant • menor privilégio • RLS • assinatura server-side • LGPD/data rights
--- Execute no SQL Editor da SuperDB com uma conta administrativa. Nunca coloque service_role no app.
+    return `-- MB Gestor Luxury Pro V13.1.0
+-- Fundação SaaS Comercial V2 • Isolamento multi-Studio endurecido
+-- Princípios: tenant verificado no servidor, RLS default-deny, menor privilégio,
+-- assinatura server-authoritative, auditoria e provisionamento seguro.
+-- Execute no SQL Editor da SuperDB com uma conta administrativa.
+-- Nunca coloque service_role, senha administrativa ou segredo de webhook no app.
 
 begin;
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
+create table if not exists ${schema}.app_foundation_meta (
+  key text primary key,
+  value jsonb not null default '{{}}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+revoke all on ${schema}.app_foundation_meta from public, anon, authenticated;
 
 create table if not exists ${schema}.app_workspaces (
   workspace_id text primary key,
@@ -6301,7 +6364,7 @@ create table if not exists ${schema}.app_workspaces (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz,
-  constraint app_workspace_id_format check (workspace_id ~ '^ws_[A-Za-z0-9_-]{8,120}$')
+  constraint app_workspace_id_format check (workspace_id ~ '^ws_[A-Za-z0-9_-]{{8,120}}$')
 );
 
 create table if not exists ${schema}.app_workspace_members (
@@ -6309,7 +6372,7 @@ create table if not exists ${schema}.app_workspace_members (
   auth_user_id uuid not null,
   role text not null check (role in ('owner','admin','trainer','reception','finance')),
   status text not null default 'active' check (status in ('active','inactive','revoked')),
-  permissions jsonb not null default '{}'::jsonb,
+  permissions jsonb not null default '{{}}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (workspace_id, auth_user_id)
@@ -6341,8 +6404,8 @@ create table if not exists ${schema}.app_subscriptions (
   current_period_start timestamptz,
   current_period_end timestamptz,
   grace_until timestamptz,
-  entitlements jsonb not null default '{}'::jsonb,
-  limits jsonb not null default '{}'::jsonb,
+  entitlements jsonb not null default '{{}}'::jsonb,
+  limits jsonb not null default '{{}}'::jsonb,
   checked_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -6365,7 +6428,7 @@ create table if not exists ${schema}.app_data_requests (
   kind text not null check (kind in ('export','delete')),
   status text not null default 'pending' check (status in ('pending','processing','completed','rejected','cancelled')),
   reason text,
-  detail jsonb not null default '{}'::jsonb,
+  detail jsonb not null default '{{}}'::jsonb,
   requested_at timestamptz not null default now(),
   completed_at timestamptz
 );
@@ -6378,12 +6441,12 @@ create table if not exists ${schema}.app_audit_log (
   event text not null,
   entity_type text,
   entity_id text,
-  detail jsonb not null default '{}'::jsonb,
+  detail jsonb not null default '{{}}'::jsonb,
   created_at timestamptz not null default now()
 );
 create index if not exists idx_app_audit_workspace on ${schema}.app_audit_log(workspace_id, created_at desc);
 
--- Compatibilidade com o Portal do Aluno: o bootstrap comercial também cria o vínculo do proprietário.
+-- Ponte com o Portal existente. Não recria snapshots/contas dos alunos.
 create table if not exists ${schema}.portal_workspace_members (
   workspace_id text not null,
   auth_user_id uuid not null,
@@ -6409,6 +6472,8 @@ revoke execute on function ${schema}.app_has_workspace_role(text,text[]) from pu
 grant execute on function ${schema}.app_is_workspace_member(text) to authenticated;
 grant execute on function ${schema}.app_has_workspace_role(text,text[]) to authenticated;
 
+-- RLS é a fronteira de defesa em profundidade. A função administrativa continua
+-- sendo o único caminho de escrita para o cliente autenticado.
 alter table ${schema}.app_workspaces enable row level security;
 alter table ${schema}.app_workspace_members enable row level security;
 alter table ${schema}.app_installations enable row level security;
@@ -6416,15 +6481,25 @@ alter table ${schema}.app_subscriptions enable row level security;
 alter table ${schema}.app_legal_acceptances enable row level security;
 alter table ${schema}.app_data_requests enable row level security;
 alter table ${schema}.app_audit_log enable row level security;
+alter table ${schema}.app_workspaces force row level security;
+alter table ${schema}.app_workspace_members force row level security;
+alter table ${schema}.app_installations force row level security;
+alter table ${schema}.app_subscriptions force row level security;
+alter table ${schema}.app_legal_acceptances force row level security;
+alter table ${schema}.app_data_requests force row level security;
+alter table ${schema}.app_audit_log force row level security;
 
 revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from anon, public;
 revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from authenticated;
+grant usage on schema ${schema} to authenticated;
 grant select on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log to authenticated;
+revoke create on schema ${schema} from anon, authenticated;
 
+-- Políticas explícitas. Sem política aplicável = default deny.
 drop policy if exists app_workspace_read on ${schema}.app_workspaces;
 create policy app_workspace_read on ${schema}.app_workspaces for select to authenticated using (${schema}.app_is_workspace_member(workspace_id));
 drop policy if exists app_member_read on ${schema}.app_workspace_members;
-create policy app_member_read on ${schema}.app_workspace_members for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
+create policy app_member_read on ${schema}.app_workspace_members for select to authenticated using (auth_user_id=auth.uid() or ${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
 drop policy if exists app_installation_read on ${schema}.app_installations;
 create policy app_installation_read on ${schema}.app_installations for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
 drop policy if exists app_subscription_read on ${schema}.app_subscriptions;
@@ -6441,11 +6516,12 @@ returns jsonb language plpgsql stable security definer set search_path = ${schem
 declare v_uid uuid:=auth.uid(); v_result jsonb;
 begin
   if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
-  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{8,120}$' then raise exception 'Workspace inválido.'; end if;
+  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{{8,120}}$' then raise exception 'Workspace inválido.'; end if;
   if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso a este Workspace.'; end if;
   select jsonb_build_object(
-    'workspace_id',w.workspace_id,'workspace_status',w.status,'role',m.role,'foundation_version',${COMMERCIAL_BACKEND_FOUNDATION_VERSION},'provisioned_at',w.created_at,
-    'plan',s.plan,'subscription_status',s.status,'trial_ends_at',s.trial_ends_at,'current_period_end',s.current_period_end,'grace_until',s.grace_until,'entitlements',coalesce(s.entitlements,'{}'::jsonb),'limits',coalesce(s.limits,'{}'::jsonb),'customer_ref',s.customer_ref,'subscription_ref',s.subscription_ref
+    'workspace_id',w.workspace_id,'workspace_status',w.status,'role',m.role,'foundation_version',2,'provisioned_at',w.created_at,
+    'plan',s.plan,'subscription_status',s.status,'trial_ends_at',s.trial_ends_at,'current_period_end',s.current_period_end,'grace_until',s.grace_until,
+    'entitlements',coalesce(s.entitlements,'{{}}'::jsonb),'limits',coalesce(s.limits,'{{}}'::jsonb),'customer_ref',s.customer_ref,'subscription_ref',s.subscription_ref
   ) into v_result
   from ${schema}.app_workspaces w
   join ${schema}.app_workspace_members m on m.workspace_id=w.workspace_id and m.auth_user_id=v_uid and m.status='active'
@@ -6455,43 +6531,59 @@ begin
   return v_result;
 end; $$;
 
-create or replace function ${schema}.app_bootstrap_workspace(
+-- Studio novo: ID nasce no servidor. O cliente não escolhe o tenant.
+create or replace function ${schema}.app_create_workspace(
+  p_display_name text, p_professional_name text,
+  p_installation_id text, p_installation_label text, p_app_version text
+) returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_workspace text; v_now timestamptz:=now();
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if trim(coalesce(p_display_name,''))='' then raise exception 'Nome do Studio obrigatório.'; end if;
+  if trim(coalesce(p_installation_id,''))='' then raise exception 'Identificação deste aparelho ausente.'; end if;
+  v_workspace := 'ws_' || replace(gen_random_uuid()::text,'-','');
+  insert into ${schema}.app_workspaces(workspace_id,display_name,professional_name,created_by)
+  values(v_workspace,left(trim(p_display_name),120),nullif(left(trim(coalesce(p_professional_name,'')),120),''),v_uid);
+  insert into ${schema}.app_workspace_members(workspace_id,auth_user_id,role,status) values(v_workspace,v_uid,'owner','active');
+  insert into ${schema}.app_installations(workspace_id,installation_id,label,app_version,created_by,last_seen_at)
+  values(v_workspace,left(trim(p_installation_id),160),left(trim(coalesce(nullif(p_installation_label,''),'Este dispositivo')),80),left(trim(coalesce(p_app_version,'')),32),v_uid,v_now);
+  insert into ${schema}.portal_workspace_members(workspace_id,auth_user_id,role,status) values(v_workspace,v_uid,'owner','active')
+  on conflict(workspace_id,auth_user_id) do update set role='owner',status='active';
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+  values(v_workspace,v_uid,'workspace.created','workspace',v_workspace,jsonb_build_object('app_version',left(coalesce(p_app_version,''),32)));
+  return ${schema}.app_get_context(v_workspace);
+end; $$;
+
+-- Studio já existente: só pode ser importado se a mesma conta já for proprietária
+-- no Portal (ou se já for owner na fundação comercial). Isso impede pre-claim.
+create or replace function ${schema}.app_bootstrap_existing_workspace(
   p_workspace_id text, p_display_name text, p_professional_name text,
   p_installation_id text, p_installation_label text, p_app_version text
 ) returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
-declare v_uid uuid:=auth.uid(); v_exists boolean; v_now timestamptz:=now(); v_status text;
+declare v_uid uuid:=auth.uid(); v_exists boolean; v_portal_owner boolean; v_now timestamptz:=now();
 begin
   if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
-  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{8,120}$' then raise exception 'Workspace inválido.'; end if;
+  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{{8,120}}$' then raise exception 'Workspace inválido.'; end if;
   if trim(coalesce(p_display_name,''))='' then raise exception 'Nome do Studio obrigatório.'; end if;
   if trim(coalesce(p_installation_id,''))='' then raise exception 'Identificação deste aparelho ausente.'; end if;
-  select exists(select 1 from ${schema}.app_workspaces w where w.workspace_id=p_workspace_id),
-         (select w.status from ${schema}.app_workspaces w where w.workspace_id=p_workspace_id)
-    into v_exists,v_status;
-  if v_exists and v_status='deleted' then raise exception 'Este Workspace não está disponível.'; end if;
-  if v_exists and not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Este Workspace já pertence a outra conta.'; end if;
-  if not v_exists then
+  select exists(select 1 from ${schema}.app_workspaces where workspace_id=p_workspace_id) into v_exists;
+  select exists(select 1 from ${schema}.portal_workspace_members p where p.workspace_id=p_workspace_id and p.auth_user_id=v_uid and coalesce(p.status,'active')='active' and p.role='owner') into v_portal_owner;
+  if v_exists then
+    if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Este Workspace já pertence a outra conta.'; end if;
+  else
+    if not v_portal_owner then raise exception 'Para importar um Studio existente, confirme primeiro a mesma conta proprietária no Portal.'; end if;
     insert into ${schema}.app_workspaces(workspace_id,display_name,professional_name,created_by)
     values(p_workspace_id,left(trim(p_display_name),120),nullif(left(trim(coalesce(p_professional_name,'')),120),''),v_uid);
-    insert into ${schema}.app_workspace_members(workspace_id,auth_user_id,role,status)
-    values(p_workspace_id,v_uid,'owner','active');
-  else
-    update ${schema}.app_workspaces
-       set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=v_now
-     where workspace_id=p_workspace_id;
-    update ${schema}.app_workspace_members
-       set status='active',updated_at=v_now
-     where workspace_id=p_workspace_id and auth_user_id=v_uid and role='owner';
+    insert into ${schema}.app_workspace_members(workspace_id,auth_user_id,role,status) values(p_workspace_id,v_uid,'owner','active');
   end if;
+  update ${schema}.app_workspaces set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=v_now where workspace_id=p_workspace_id;
   insert into ${schema}.app_installations(workspace_id,installation_id,label,app_version,created_by,last_seen_at)
   values(p_workspace_id,left(trim(p_installation_id),160),left(trim(coalesce(nullif(p_installation_label,''),'Este dispositivo')),80),left(trim(coalesce(p_app_version,'')),32),v_uid,v_now)
-  on conflict(workspace_id,installation_id) do update
-    set label=excluded.label,app_version=excluded.app_version,last_seen_at=v_now,revoked_at=null;
-  insert into ${schema}.portal_workspace_members(workspace_id,auth_user_id,role,status)
-  values(p_workspace_id,v_uid,'owner','active')
+  on conflict(workspace_id,installation_id) do update set label=excluded.label,app_version=excluded.app_version,last_seen_at=v_now,revoked_at=null;
+  insert into ${schema}.portal_workspace_members(workspace_id,auth_user_id,role,status) values(p_workspace_id,v_uid,'owner','active')
   on conflict(workspace_id,auth_user_id) do update set role='owner',status='active';
   insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
-  values(p_workspace_id,v_uid,'workspace.bootstrap','workspace',p_workspace_id,jsonb_build_object('app_version',left(coalesce(p_app_version,''),32),'installation_id',left(trim(p_installation_id),160)));
+  values(p_workspace_id,v_uid,'workspace.bootstrap_existing','workspace',p_workspace_id,jsonb_build_object('app_version',left(coalesce(p_app_version,''),32)));
   return ${schema}.app_get_context(p_workspace_id);
 end; $$;
 
@@ -6501,61 +6593,95 @@ begin
   if auth.uid() is null then raise exception 'Autenticação obrigatória.'; end if;
   if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner','admin']) then raise exception 'Sem permissão.'; end if;
   if trim(coalesce(p_display_name,''))='' then raise exception 'Nome do Studio obrigatório.'; end if;
-  update ${schema}.app_workspaces
-     set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=now()
-   where workspace_id=p_workspace_id and status<>'deleted';
-  if not found then raise exception 'Workspace indisponível.'; end if;
-  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id)
-  values(p_workspace_id,auth.uid(),'workspace.profile.updated','workspace',p_workspace_id);
+  update ${schema}.app_workspaces set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=now() where workspace_id=p_workspace_id;
   return ${schema}.app_get_context(p_workspace_id);
 end; $$;
 
-create or replace function ${schema}.app_register_legal_acceptance(p_workspace_id text,p_terms_version text,p_privacy_version text,p_marketing_consent boolean default false)
+create or replace function ${schema}.app_register_legal_acceptance(p_workspace_id text,p_terms_version text,p_privacy_version text,p_marketing_consent boolean)
 returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_id uuid;
 begin
-  if auth.uid() is null or not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso.'; end if;
-  if trim(coalesce(p_terms_version,''))='' or trim(coalesce(p_privacy_version,''))='' then raise exception 'Versões jurídicas obrigatórias.'; end if;
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso.'; end if;
+  if trim(coalesce(p_terms_version,''))='' or trim(coalesce(p_privacy_version,''))='' then raise exception 'Versão jurídica obrigatória.'; end if;
   insert into ${schema}.app_legal_acceptances(workspace_id,auth_user_id,terms_version,privacy_version,marketing_consent)
-  values(p_workspace_id,auth.uid(),left(trim(p_terms_version),64),left(trim(p_privacy_version),64),coalesce(p_marketing_consent,false))
-  on conflict(workspace_id,auth_user_id,terms_version,privacy_version) do update set marketing_consent=excluded.marketing_consent,accepted_at=now();
-  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id) values(p_workspace_id,auth.uid(),'legal.accepted','legal',p_terms_version||'/'||p_privacy_version);
-  return jsonb_build_object('ok',true,'accepted_at',now());
+  values(p_workspace_id,v_uid,left(trim(p_terms_version),64),left(trim(p_privacy_version),64),coalesce(p_marketing_consent,false))
+  on conflict(workspace_id,auth_user_id,terms_version,privacy_version) do update set marketing_consent=excluded.marketing_consent,accepted_at=now()
+  returning id into v_id;
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+  values(p_workspace_id,v_uid,'legal.accepted','legal',v_id::text,jsonb_build_object('terms',left(trim(p_terms_version),64),'privacy',left(trim(p_privacy_version),64),'marketing',coalesce(p_marketing_consent,false)));
+  return jsonb_build_object('id',v_id,'accepted',true);
 end; $$;
 
-create or replace function ${schema}.app_request_data_action(p_workspace_id text,p_kind text,p_reason text default null)
+create or replace function ${schema}.app_request_data_action(p_workspace_id text,p_kind text,p_reason text)
 returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
-declare v_id uuid; v_kind text:=lower(trim(coalesce(p_kind,'')));
+declare v_uid uuid:=auth.uid(); v_id uuid;
 begin
-  if auth.uid() is null or not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso.'; end if;
-  if v_kind not in ('export','delete') then raise exception 'Solicitação inválida.'; end if;
-  if v_kind='delete' and not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Somente o proprietário pode solicitar exclusão.'; end if;
-  insert into ${schema}.app_data_requests(workspace_id,auth_user_id,kind,reason) values(p_workspace_id,auth.uid(),v_kind,left(trim(coalesce(p_reason,'')),500)) returning id into v_id;
-  if v_kind='delete' then update ${schema}.app_workspaces set status='deletion-pending',updated_at=now() where workspace_id=p_workspace_id; end if;
-  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail) values(p_workspace_id,auth.uid(),'data.requested','data_request',v_id::text,jsonb_build_object('kind',v_kind));
-  return jsonb_build_object('ok',true,'request_id',v_id,'kind',v_kind,'status','pending');
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Somente o proprietário pode criar esta solicitação.'; end if;
+  if p_kind not in ('export','delete') then raise exception 'Solicitação inválida.'; end if;
+  insert into ${schema}.app_data_requests(workspace_id,auth_user_id,kind,reason) values(p_workspace_id,v_uid,p_kind,nullif(left(trim(coalesce(p_reason,'')),500),'')) returning id into v_id;
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail) values(p_workspace_id,v_uid,'data.requested','data_request',v_id::text,jsonb_build_object('kind',p_kind));
+  if p_kind='delete' then update ${schema}.app_workspaces set status='deletion-pending',updated_at=now() where workspace_id=p_workspace_id and status='active'; end if;
+  return jsonb_build_object('request_id',v_id,'status','pending');
 end; $$;
 
-revoke execute on function ${schema}.app_bootstrap_workspace(text,text,text,text,text,text) from public, anon;
+-- Verificação catalog-driven: confirma configuração, não substitui teste real com 2 tenants.
+create or replace function ${schema}.app_security_posture(p_workspace_id text)
+returns jsonb language plpgsql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+declare
+  v_uid uuid:=auth.uid(); v_expected int:=7; v_rls int:=0; v_force int:=0; v_policy_tables int:=0; v_write_grants int:=0;
+  v_super boolean:=false; v_bypass boolean:=false; v_ok boolean;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner','admin']) then raise exception 'Sem permissão.'; end if;
+  select count(*) filter(where c.relrowsecurity),count(*) filter(where c.relforcerowsecurity)
+    into v_rls,v_force
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='${schema}' and c.relname in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log');
+  select count(distinct tablename) into v_policy_tables from pg_policies where schemaname='${schema}' and tablename in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log');
+  select coalesce(rolsuper,false),coalesce(rolbypassrls,false) into v_super,v_bypass from pg_roles where rolname='authenticated';
+  select count(*) into v_write_grants from information_schema.role_table_grants where grantee='authenticated' and table_schema='${schema}' and table_name in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log') and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER');
+  v_ok := v_rls=v_expected and v_force=v_expected and v_policy_tables=v_expected and not coalesce(v_super,false) and not coalesce(v_bypass,false) and v_write_grants=0;
+  return jsonb_build_object('ok',v_ok,'foundation_version',2,'migration_id','v13.1-tenant-isolation-v2','expected_tables',v_expected,'rls_enabled',v_rls,'rls_forced',v_force,'policy_tables',v_policy_tables,'rls_all',v_rls=v_expected,'force_rls_all',v_force=v_expected,'policies_present',v_policy_tables=v_expected,'request_role_safe',not coalesce(v_super,false) and not coalesce(v_bypass,false),'subscription_client_write',v_write_grants>0,'direct_write_grants',v_write_grants,'verified_at',now());
+end; $$;
+
+-- RPCs são a superfície de mutação do cliente. Tabelas continuam sem escrita direta.
+revoke execute on function ${schema}.app_create_workspace(text,text,text,text,text) from public, anon;
+revoke execute on function ${schema}.app_bootstrap_existing_workspace(text,text,text,text,text,text) from public, anon;
 revoke execute on function ${schema}.app_get_context(text) from public, anon;
 revoke execute on function ${schema}.app_update_workspace_profile(text,text,text) from public, anon;
 revoke execute on function ${schema}.app_register_legal_acceptance(text,text,text,boolean) from public, anon;
 revoke execute on function ${schema}.app_request_data_action(text,text,text) from public, anon;
-grant execute on function ${schema}.app_bootstrap_workspace(text,text,text,text,text,text) to authenticated;
+revoke execute on function ${schema}.app_security_posture(text) from public, anon;
+grant execute on function ${schema}.app_create_workspace(text,text,text,text,text) to authenticated;
+grant execute on function ${schema}.app_bootstrap_existing_workspace(text,text,text,text,text,text) to authenticated;
 grant execute on function ${schema}.app_get_context(text) to authenticated;
 grant execute on function ${schema}.app_update_workspace_profile(text,text,text) to authenticated;
 grant execute on function ${schema}.app_register_legal_acceptance(text,text,text,boolean) to authenticated;
 grant execute on function ${schema}.app_request_data_action(text,text,text) to authenticated;
+grant execute on function ${schema}.app_security_posture(text) to authenticated;
 
--- IMPORTANTE: app_subscriptions não possui INSERT/UPDATE para authenticated.
--- Cobrança, upgrade, downgrade e cancelamento devem ser escritos somente pelo backend/webhook confiável.
+-- A RPC antiga fica sem execução para evitar o modelo "client-chosen tenant".
+do $$ begin
+  if to_regprocedure('${schema}.app_bootstrap_workspace(text,text,text,text,text,text)') is not null then
+    execute 'revoke execute on function ${schema}.app_bootstrap_workspace(text,text,text,text,text,text) from public, anon, authenticated';
+  end if;
+end $$;
 
+insert into ${schema}.app_foundation_meta(key,value,updated_at)
+values('commercial_foundation',jsonb_build_object('version',2,'migration_id','v13.1-tenant-isolation-v2','applied_at',now()),now())
+on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at;
+
+-- IMPORTANTE: app_subscriptions continua sem INSERT/UPDATE/DELETE para authenticated.
+-- Cobrança, upgrade, downgrade e cancelamento devem ser escritos somente por backend/webhook confiável.
 commit;
 `;
   }
 
   function downloadCommercialFoundationSql(){
     const sql=commercialFoundationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema do backend.');
-    downloadText(`MB_Gestor_V13_Fundacao_SaaS_SuperDB_${isoToday()}.sql`,sql);toast('SQL da Fundação SaaS gerado.');
+    downloadText(`MB_Gestor_V13.1_Fundacao_SaaS_V2_SuperDB_${isoToday()}.sql`,sql);toast('SQL da Fundação SaaS gerado.');
   }
 
   async function copyCommercialFoundationSql(){
@@ -6597,9 +6723,10 @@ commit;
 
   function openCommercialLaunchCenter(){
     const readiness=commercialLaunchReadiness(),infra=commercialInfrastructure(),portal=studentPortalBackendStatus(),backendAction=commercialBackendFoundationReady()?'Verificar novamente':portal.connected?'Ativar estrutura online':portal.configured?'Confirmar / conectar conta':'Configurar acesso online';
-    openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS cria tabelas multi-tenant, RLS, dispositivos, assinatura, aceite jurídico, solicitações de dados e auditoria. A chave service_role nunca deve ir para o app.</p><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialVerifyIsolation" ${portal.authenticated?'':'disabled'}>Verificar isolamento multi-Studio</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS V2 usa ID de Studio gerado/validado no servidor, RLS com FORCE, menor privilégio, dispositivos, assinatura server-side, aceite jurídico, solicitações de dados e auditoria. Segredos administrativos nunca vão para o app.</p><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
     $('#commercialBackendAction')?.addEventListener('click',async()=>{if(!studentPortalBackendConfigured()){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}if(!studentPortalBackendStatus().authenticated){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}const btn=$('#commercialBackendAction');btn.disabled=true;btn.textContent='Verificando…';try{if(commercialBackendFoundationReady())await verifyCommercialBackendFoundation();else await bootstrapCommercialWorkspaceOnline();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch(err){toast(err?.message||'Não foi possível ativar a estrutura comercial.');btn.disabled=false;btn.textContent=backendAction}});
     $('#commercialVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialBackendFoundation();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{btn.disabled=false;btn.textContent='Verificar backend comercial'}});
+    $('#commercialVerifyIsolation')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyIsolation');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialSecurityPosture();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{btn.disabled=false;btn.textContent='Verificar isolamento multi-Studio'}});
     $('#commercialOpenPrivacy')?.addEventListener('click',()=>{closeModal();setTimeout(openPrivacyDataCenter,60)});$('#commercialOpenPlan')?.addEventListener('click',()=>{closeModal();setTimeout(openPlanLicenseCenter,60)});$('#commercialDeploymentSettings')?.addEventListener('click',()=>{closeModal();setTimeout(saveCommercialDeploymentSettings,60)});$('#commercialCopySql')?.addEventListener('click',copyCommercialFoundationSql);$('#commercialDownloadSql')?.addEventListener('click',downloadCommercialFoundationSql);
   }
 
