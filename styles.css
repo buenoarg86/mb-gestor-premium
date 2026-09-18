@@ -2201,3 +2201,5 @@ body.access-session-locked .toast-root{z-index:5200}
   .settings-section-collapse>summary{grid-template-columns:minmax(0,1fr) auto;padding:15px 14px}.settings-section-collapse>summary>b{grid-column:2;grid-row:1;justify-self:end}.settings-collapse-pill{grid-column:1;justify-self:start;margin-top:2px}.settings-section-collapse>summary>div{grid-row:1 / span 2}
   .settings-simple-details-body .settings-row{align-items:flex-start;flex-direction:column}.settings-simple-details-body .settings-row .btn{width:100%}
 }
+
+/* V12.18.7 • Portal Clean UX: acesso online sai da Central do Portal; configurações avançadas permanecem recolhidas. */
