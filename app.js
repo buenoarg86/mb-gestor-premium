@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V12.16.3 — Portal do Aluno • Isolamento de Horários
+// MB Gestor Luxury Pro V12.16.4 — Portal do Aluno • Retorno de Navegação
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.16.3 — Portal do Aluno • Isolamento de Horários
+  // MB Gestor Luxury Pro V12.16.4 — Portal do Aluno • Retorno de Navegação
 
-  const APP_VERSION = '12.16.3';
+  const APP_VERSION = '12.16.4';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 1;
   const COMMERCIAL_SCHEMA_VERSION = 5;
@@ -228,6 +228,9 @@
   // Mantém a origem e a posição de rolagem sem alterar a navegação dos demais módulos.
   let intelligenceReturnContext = null;
   let intelligenceHistoryIgnoreNextPop = false;
+  // V12.16.4 • retorno contextual da Prévia do Portal do Aluno.
+  // Estado apenas de navegação: nunca é persistido nos dados do Studio.
+  let studentPortalPreviewReturnContext = null;
   let intelligenceRetentionFilter = 'all';
   let deferredInstallPrompt = null;
   let financeTab = 'summary';
@@ -2240,8 +2243,15 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const assessmentDate=assessment.physical?.date?fmtDate(assessment.physical.date):'Ainda não realizada',paymentLabel=finance.paidThisMonth?'Pago no mês':(finance.due?.text||'Pendente');
     return `<section class="student-portal-panel"><div class="student-portal-welcome"><span>RESUMO DE HOJE</span><strong>Olá, ${escapeHTML((student.name||'Aluno').split(' ')[0])}</strong><p>Tudo importante em um só lugar.</p></div><div class="student-portal-home-grid">${sections.schedule===true?`<article><i>${icon('calendar')}</i><span>Meus horários</span><strong>${escapeHTML(fixed)}</strong></article>`:''}${sections.attendance===true?`<article><i>${icon('check')}</i><span>Treinos no mês</span><strong>${month.present} presença${month.present===1?'':'s'}</strong><small>${month.absent} falta${month.absent===1?'':'s'} • ${month.makeups} reposição${month.makeups===1?'':'ões'}</small></article>`:''}${sections.assessments===true?`<article><i>${icon('chart')}</i><span>Última avaliação</span><strong>${assessmentDate}</strong><small>${assessment.physical?'Evolução disponível':'Aguardando avaliação'}</small></article>`:''}${sections.finance===true?`<article><i>${icon('wallet')}</i><span>Financeiro</span><strong>${escapeHTML(paymentLabel)}</strong><small>Vencimento ${fmtDate(finance.dueDate)}</small></article>`:''}</div><div class="student-portal-note secure">🔒 Esta visualização mostra somente dados deste aluno e nunca exibe informações internas do Studio.</div></section>`;
   }
-  function openStudentPortalPreview(studentId,tab='home',{force=false}={}){
+  function restoreStudentPortalPreviewReturn(){
+    const ctx=studentPortalPreviewReturnContext;studentPortalPreviewReturnContext=null;
+    if(ctx?.view==='settings'&&ctx.studentId){openStudentPortalStudentSettings(ctx.studentId);return true}
+    if(ctx?.view==='center'){openStudentPortalCenter({search:ctx.search||''});return true}
+    closeModal();return true;
+  }
+  function openStudentPortalPreview(studentId,tab='home',{force=false,returnTo=null,returnSearch=''}={}){
     const student=state.students.find(x=>String(x.id)===String(studentId));if(!student)return;
+    if(returnTo){studentPortalPreviewReturnContext={view:returnTo,studentId:String(studentId),search:String(returnSearch||'')}}
     const entry=studentPortalEntry(studentId,{create:true});if(!entry.enabled&&!force)return toast('O Portal do Aluno está desativado para este cadastro.');
     const allowed=['home','attendance','assessments','finance','profile'].filter(key=>key==='home'||entry.sections?.[key]===true),active=allowed.includes(tab)?tab:'home';
     const labels={home:['home','Início'],attendance:['calendar','Presenças'],assessments:['chart','Evolução'],finance:['wallet','Financeiro'],profile:['users','Perfil']},scheduleSummary=entry.sections?.schedule===true?`<span>${escapeHTML(fixedScheduleText(studentId))}</span>`:'';
@@ -2253,15 +2263,16 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const student=state.students.find(x=>String(x.id)===String(studentId));if(!student)return;
     const entry=structuredClone(studentPortalEntry(studentId,{create:true})),sections=entry.sections;
     openModal(`Portal • ${student.name}`,`<div class="student-portal-config-hero"><span>${icon('users')}</span><div><small>VISIBILIDADE DO ALUNO</small><strong>${escapeHTML(student.name)}</strong><p>Escolha somente o que faz sentido o aluno acompanhar.</p></div></div><form id="studentPortalConfigForm" class="form-grid"><label class="portal-toggle"><span><strong>Portal liberado</strong><small>Permite visualizar a experiência do aluno.</small></span><input type="checkbox" name="enabled" ${entry.enabled?'checked':''}></label><div class="student-portal-permission-grid"><label><input type="checkbox" name="schedule" ${sections.schedule===true?'checked':''}><span>${icon('calendar')} Horários</span></label><label><input type="checkbox" name="attendance" ${sections.attendance===true?'checked':''}><span>${icon('check')} Presenças</span></label><label><input type="checkbox" name="assessments" ${sections.assessments===true?'checked':''}><span>${icon('chart')} Avaliações</span></label><label><input type="checkbox" name="finance" ${sections.finance===true?'checked':''}><span>${icon('wallet')} Financeiro</span></label><label><input type="checkbox" name="profile" ${sections.profile===true?'checked':''}><span>${icon('users')} Perfil</span></label></div><div class="student-portal-security-note"><strong>Acesso remoto seguro</strong><p>Login em outro aparelho só será liberado quando o backend com autenticação, sessão e isolamento por aluno estiver conectado. O MB Gestor não gera senha permanente em texto aberto.</p></div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="previewStudentPortal">Visualizar como aluno</button><button class="btn btn-primary" type="submit">Salvar permissões</button></div></form>`);
-    $('#previewStudentPortal')?.addEventListener('click',()=>openStudentPortalPreview(studentId,'home',{force:true}));
+    $('#previewStudentPortal')?.addEventListener('click',()=>openStudentPortalPreview(studentId,'home',{force:true,returnTo:'settings'}));
     $('#studentPortalConfigForm')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),row=studentPortalEntry(studentId,{create:true});row.enabled=fd.get('enabled')==='on';row.sections={home:true,schedule:fd.get('schedule')==='on',attendance:fd.get('attendance')==='on',assessments:fd.get('assessments')==='on',finance:fd.get('finance')==='on',profile:fd.get('profile')==='on'};row.updatedAt=new Date().toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Portal do Aluno atualizado',`${student.name} • ${row.enabled?'liberado':'desativado'}`);saveState();closeModal();toast('Permissões do Portal do Aluno salvas.');});
   }
-  function openStudentPortalCenter(){
+  function openStudentPortalCenter({search=''}={}){
     const stats=studentPortalStats(),students=[...(state.students||[])].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
     openModal('Portal do Aluno',`<div class="student-portal-center-hero"><span class="student-portal-center-icon">${icon('users')}</span><div><small>FUNDAÇÃO PREMIUM V${STUDENT_PORTAL_SCHEMA_VERSION}</small><strong>Experiência simples para o aluno</strong><p>Presenças, evolução e financeiro em leitura resumida, com permissões por aluno.</p></div><em>${stats.remoteConnected?'Nuvem conectada':'Prévia local'}</em></div><div class="student-portal-market-note"><strong>Segurança primeiro.</strong><span>A experiência foi preparada para autenticação remota com convite de uso único e autorização por linha. Até o backend estar conectado, nenhum login remoto é simulado.</span></div><div class="field"><label>Buscar aluno</label><input id="studentPortalSearch" type="search" placeholder="Nome ou e-mail" /></div><div id="studentPortalList" class="student-portal-admin-list"></div><div class="student-portal-cloud-card"><div><small>ACESSO EM OUTRO APARELHO</small><strong>${stats.remoteConnected?'Backend seguro conectado':'Backend seguro ainda não conectado'}</strong><span>${stats.remoteConnected?'Convites remotos podem ser ativados com sessão individual.':'Conecte autenticação + banco com RLS antes de liberar login para alunos.'}</span></div><button class="btn btn-secondary btn-small" id="studentPortalRemoteInfo">Como será</button></div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Concluir</button></div>`);
     $('.modal',modalRoot)?.classList.add('student-portal-admin-modal');
-    const draw=()=>{const q=String($('#studentPortalSearch')?.value||'').trim().toLocaleLowerCase('pt-BR'),list=students.filter(st=>!q||String(st.name||'').toLocaleLowerCase('pt-BR').includes(q)||String(st.email||'').toLocaleLowerCase('pt-BR').includes(q));$('#studentPortalList').innerHTML=list.length?list.map(st=>{const row=studentPortalEntry(st.id),active=row.enabled===true;return `<article class="student-portal-admin-row"><div class="student-photo tiny-photo">${st.photoData?`<img src="${st.photoData}" alt="" />`:`<span>${escapeHTML((st.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(st.name)}</strong><span>${escapeHTML(st.email||'Sem e-mail')} • ${active?'Portal liberado':'Portal desativado'}</span></div><em class="${active?'active':''}">${active?'Ativo':'Off'}</em><button class="btn btn-secondary btn-small js-portal-config" data-id="${escapeHTML(st.id)}">Configurar</button><button class="btn btn-primary btn-small js-portal-preview" data-id="${escapeHTML(st.id)}">Prévia</button></article>`}).join(''):`<div class="student-portal-empty">Nenhum aluno encontrado.</div>`;$$('.js-portal-config',modalRoot).forEach(b=>b.addEventListener('click',()=>openStudentPortalStudentSettings(b.dataset.id)));$$('.js-portal-preview',modalRoot).forEach(b=>b.addEventListener('click',()=>openStudentPortalPreview(b.dataset.id,'home',{force:true})));};
-    $('#studentPortalSearch')?.addEventListener('input',draw);draw();
+    const draw=()=>{const q=String($('#studentPortalSearch')?.value||'').trim().toLocaleLowerCase('pt-BR'),list=students.filter(st=>!q||String(st.name||'').toLocaleLowerCase('pt-BR').includes(q)||String(st.email||'').toLocaleLowerCase('pt-BR').includes(q));$('#studentPortalList').innerHTML=list.length?list.map(st=>{const row=studentPortalEntry(st.id),active=row.enabled===true;return `<article class="student-portal-admin-row"><div class="student-photo tiny-photo">${st.photoData?`<img src="${st.photoData}" alt="" />`:`<span>${escapeHTML((st.name||'?').charAt(0).toUpperCase())}</span>`}</div><div><strong>${escapeHTML(st.name)}</strong><span>${escapeHTML(st.email||'Sem e-mail')} • ${active?'Portal liberado':'Portal desativado'}</span></div><em class="${active?'active':''}">${active?'Ativo':'Off'}</em><button class="btn btn-secondary btn-small js-portal-config" data-id="${escapeHTML(st.id)}">Configurar</button><button class="btn btn-primary btn-small js-portal-preview" data-id="${escapeHTML(st.id)}">Prévia</button></article>`}).join(''):`<div class="student-portal-empty">Nenhum aluno encontrado.</div>`;$$('.js-portal-config',modalRoot).forEach(b=>b.addEventListener('click',()=>openStudentPortalStudentSettings(b.dataset.id)));$$('.js-portal-preview',modalRoot).forEach(b=>b.addEventListener('click',()=>openStudentPortalPreview(b.dataset.id,'home',{force:true,returnTo:'center',returnSearch:$('#studentPortalSearch')?.value||''})));};
+    const searchInput=$('#studentPortalSearch');if(searchInput)searchInput.value=String(search||'');
+    searchInput?.addEventListener('input',draw);draw();
     $('#studentPortalRemoteInfo')?.addEventListener('click',()=>openModal('Acesso remoto do aluno',`<div class="student-portal-security-note"><strong>Fluxo planejado</strong><p>1. O professor libera o aluno. 2. Um convite de uso único é enviado. 3. O aluno confirma a conta e cria a própria senha. 4. Cada sessão recebe somente as linhas vinculadas ao próprio aluno. 5. Convites usados expiram e sessões podem ser revogadas.</p></div><div class="notice">Para isso funcionar em outro celular sem expor dados, precisamos conectar um backend real com autenticação e Row Level Security. Esta versão prepara a interface e o modelo de permissões sem fingir que a nuvem já existe.</div><div class="modal-actions"><button class="btn btn-primary" data-close-modal>Entendi</button></div>`));
   }
 
@@ -2504,6 +2515,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     openPremiumConfirm({title:'Descartar alterações?',message:'Existem dados preenchidos nesta avaliação que ainda não foram salvos. Descartar apagará somente este rascunho; avaliações já salvas não serão alteradas.',confirmLabel:'Descartar rascunho',cancelLabel:'Continuar avaliação',tone:'danger',onConfirm:()=>finishAssessmentSession({clearDraft:true})});
   }
   function requestModalClose(){
+    if($('.student-portal-modal',modalRoot)){restoreStudentPortalPreviewReturn();return}
     const assessmentForm=$('#physicalAssessmentForm',modalRoot);
     if(assessmentSession&&assessmentForm){
       persistAssessmentDraftFromForm(assessmentForm,{dirty:assessmentSession.dirty});
