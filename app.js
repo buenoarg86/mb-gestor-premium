@@ -1,14 +1,29 @@
-// MB Gestor Luxury Pro V12.18.10 — Portal do Aluno • Autenticação Simplificada
+// MB Gestor Luxury Pro V13.0.0 — Comercial • Fundação SaaS Segura
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V12.18.10 — Portal do Aluno • Autenticação Simplificada
+  // MB Gestor Luxury Pro V13.0.0 — Comercial • Fundação SaaS Segura
 
-  const APP_VERSION = '12.18.10';
+  const APP_VERSION = '13.0.0';
   const DATA_SCHEMA_VERSION = 3;
-  const WORKSPACE_SCHEMA_VERSION = 1;
-  const COMMERCIAL_SCHEMA_VERSION = 5;
+  const WORKSPACE_SCHEMA_VERSION = 2;
+  const COMMERCIAL_SCHEMA_VERSION = 6;
   const ACCESS_SCHEMA_VERSION = 2;
   const DATA_OWNERSHIP_SCHEMA_VERSION = 1;
+  const COMMERCIAL_LICENSE_SCHEMA_VERSION = 2;
+  const COMMERCIAL_ONBOARDING_SCHEMA_VERSION = 1;
+  const COMMERCIAL_PRIVACY_SCHEMA_VERSION = 1;
+  const COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION = 1;
+  const COMMERCIAL_BACKEND_FOUNDATION_VERSION = 1;
+  const COMMERCIAL_TERMS_VERSION = 'pending-legal-review';
+  const COMMERCIAL_PRIVACY_VERSION = 'pending-legal-review';
+  const COMMERCIAL_DEFAULT_ENTITLEMENTS = Object.freeze({students:true,schedule:true,finance:true,receipts:true,assessments:true,intelligence:true,team:true,portal:true,reminders:true,protectedBackup:true});
+  const COMMERCIAL_PLAN_CATALOG = Object.freeze({
+    local:{label:'Local',description:'Operação atual neste aparelho, sem cobrança online.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}},
+    trial:{label:'Teste',description:'Período de avaliação gerenciado pelo servidor.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}},
+    starter:{label:'Starter',description:'Plano comercial de entrada. Limites e recursos vêm da assinatura.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}},
+    pro:{label:'Pro',description:'Plano profissional. Limites e recursos vêm da assinatura.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}},
+    studio:{label:'Studio',description:'Plano para operações com equipe e maior escala.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}}
+  });
   const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const ACCESS_SESSION_KEY = `${STORAGE_KEY}_access_session_v1`;
@@ -138,7 +153,7 @@
 
   const DEFAULT_STATE = {
     version: DATA_SCHEMA_VERSION,
-    workspace: {schemaVersion:WORKSPACE_SCHEMA_VERSION,id:'',createdAt:'',mode:'local'},
+    workspace: {schemaVersion:WORKSPACE_SCHEMA_VERSION,id:'',createdAt:'',mode:'local',status:'active',region:'br',remoteStatus:'not-provisioned',provisionedAt:null,lastVerifiedAt:null},
     commercial: {
       schemaVersion: COMMERCIAL_SCHEMA_VERSION,
       product: 'mb-gestor-luxury-pro',
@@ -146,7 +161,10 @@
       owner: {name:'',email:'',configuredAt:null,updatedAt:null},
       studioProfile: {studioName:'',professionalName:'',whatsapp:'',email:'',document:'',updatedAt:null},
       installation: {id:'',createdAt:'',label:'Este dispositivo'},
-      license: {schemaVersion:1,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,externalRef:null},
+      license: {schemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,graceUntil:null,serverVerifiedAt:null,verificationState:'local',customerRef:null,subscriptionRef:null,externalRef:null,entitlements:{},limits:{}},
+      onboarding: {schemaVersion:COMMERCIAL_ONBOARDING_SCHEMA_VERSION,status:'not-started',startedAt:null,completedAt:null,dismissedAt:null,lastStep:1,steps:{identity:false,operation:false,security:false,backup:false,online:false}},
+      privacy: {schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,documentsPublished:false,termsVersion:'',privacyVersion:'',termsAcceptedAt:null,privacyAcceptedAt:null,acceptedBy:null,marketingConsent:false,marketingConsentAt:null,lastPortableExportAt:null,lastDataRequestAt:null},
+      infrastructure: {schemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,backendFoundationVersion:0,status:'local',verifiedAt:null,provisionedAt:null,lastError:null,productionDomain:'',pilotValidatedAt:null,releaseChannel:'pwa'},
       sync: {mode:'off',lastSyncAt:null},
       access: {schemaVersion:ACCESS_SCHEMA_VERSION,mode:'local-prepared',ownerMemberId:'owner',members:[],updatedAt:null}
     },
@@ -290,12 +308,18 @@
   }
 
   function normalizeWorkspace(raw={}){
-    const source=raw&&typeof raw==='object'?raw:{};
+    const source=raw&&typeof raw==='object'?raw:{},allowedMode=new Set(['local','hybrid','cloud']),allowedStatus=new Set(['active','suspended','deletion-pending','deleted']),allowedRemote=new Set(['not-provisioned','provisioning','connected','error']);
     return {
+      ...source,
       schemaVersion:WORKSPACE_SCHEMA_VERSION,
       id:String(source.id||'').trim()||makeSecureId('ws'),
       createdAt:String(source.createdAt||'').trim()||new Date().toISOString(),
-      mode:'local'
+      mode:allowedMode.has(String(source.mode||''))?String(source.mode):'local',
+      status:allowedStatus.has(String(source.status||''))?String(source.status):'active',
+      region:String(source.region||'br').trim().slice(0,24)||'br',
+      remoteStatus:allowedRemote.has(String(source.remoteStatus||''))?String(source.remoteStatus):'not-provisioned',
+      provisionedAt:source.provisionedAt||null,
+      lastVerifiedAt:source.lastVerifiedAt||null
     };
   }
 
@@ -332,15 +356,39 @@
     return {schemaVersion:ACCESS_SCHEMA_VERSION,mode,ownerMemberId:'owner',members,activatedAt:mode==='local-session'?(source.activatedAt||now):null,recoverySalt:String(source.recoverySalt||'').trim().slice(0,120),recoveryHash:String(source.recoveryHash||'').trim().slice(0,160),recoveryUpdatedAt:source.recoveryUpdatedAt||null,updatedAt:source.updatedAt||null};
   }
 
+  function normalizeCommercialEntitlements(raw={}){
+    const source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
+    const out={};Object.keys(COMMERCIAL_DEFAULT_ENTITLEMENTS).forEach(key=>{if(typeof source[key]==='boolean')out[key]=source[key]});return out;
+  }
+  function normalizeCommercialLimits(raw={}){
+    const source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{},out={};
+    ['students','teamMembers','portalStudents'].forEach(key=>{const value=source[key];out[key]=value==null||value===''?null:Math.max(0,Math.floor(Number(value)||0))});return out;
+  }
+  function normalizeCommercialOnboarding(raw={}){
+    const source=raw&&typeof raw==='object'?raw:{},allowed=new Set(['not-started','in-progress','completed','dismissed']),steps=source.steps&&typeof source.steps==='object'?source.steps:{};
+    return {schemaVersion:COMMERCIAL_ONBOARDING_SCHEMA_VERSION,status:allowed.has(String(source.status||''))?String(source.status):'not-started',startedAt:source.startedAt||null,completedAt:source.completedAt||null,dismissedAt:source.dismissedAt||null,lastStep:Math.max(1,Math.min(5,Number(source.lastStep)||1)),steps:{identity:steps.identity===true,operation:steps.operation===true,security:steps.security===true,backup:steps.backup===true,online:steps.online===true}};
+  }
+  function normalizeCommercialPrivacy(raw={}){
+    const source=raw&&typeof raw==='object'?raw:{};
+    return {schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,documentsPublished:source.documentsPublished===true,termsVersion:String(source.termsVersion||'').slice(0,64),privacyVersion:String(source.privacyVersion||'').slice(0,64),termsAcceptedAt:source.termsAcceptedAt||null,privacyAcceptedAt:source.privacyAcceptedAt||null,acceptedBy:String(source.acceptedBy||'').slice(0,120)||null,marketingConsent:source.marketingConsent===true,marketingConsentAt:source.marketingConsentAt||null,lastPortableExportAt:source.lastPortableExportAt||null,lastDataRequestAt:source.lastDataRequestAt||null};
+  }
+  function normalizeCommercialInfrastructure(raw={}){
+    const source=raw&&typeof raw==='object'?raw:{},allowed=new Set(['local','pending','connected','error']);
+    return {schemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,backendFoundationVersion:Math.max(0,Math.floor(Number(source.backendFoundationVersion)||0)),status:allowed.has(String(source.status||''))?String(source.status):'local',verifiedAt:source.verifiedAt||null,provisionedAt:source.provisionedAt||null,lastError:String(source.lastError||'').slice(0,240)||null,productionDomain:String(source.productionDomain||'').trim().slice(0,160),pilotValidatedAt:source.pilotValidatedAt||null,releaseChannel:String(source.releaseChannel||'pwa').trim().slice(0,32)||'pwa'};
+  }
+
   function normalizeCommercial(raw={}, settings={}){
     const source=raw&&typeof raw==='object'?raw:{};
     const ownerSource=source.owner&&typeof source.owner==='object'?source.owner:{};
     const studioSource=source.studioProfile&&typeof source.studioProfile==='object'?source.studioProfile:{};
     const installationSource=source.installation&&typeof source.installation==='object'?source.installation:{};
     const licenseSource=source.license&&typeof source.license==='object'?source.license:{};
+    const onboardingSource=source.onboarding&&typeof source.onboarding==='object'?source.onboarding:{};
+    const privacySource=source.privacy&&typeof source.privacy==='object'?source.privacy:{};
+    const infrastructureSource=source.infrastructure&&typeof source.infrastructure==='object'?source.infrastructure:{};
     const syncSource=source.sync&&typeof source.sync==='object'?source.sync:{};
     const accessSource=source.access&&typeof source.access==='object'?source.access:{};
-    const allowedLicense=new Set(['not-configured','local-active','trial','active','past-due','suspended','expired']);
+    const allowedLicense=new Set(['not-configured','local-active','trial','active','past-due','suspended','expired','canceled']);
     const allowedPlan=new Set(['local','trial','starter','pro','studio']);
     const plan=allowedPlan.has(String(licenseSource.plan||''))?String(licenseSource.plan):'local';
     const licenseSourceMode=licenseSource.source==='online'?'online':'local';
@@ -357,7 +405,7 @@
       ...source,
       schemaVersion:COMMERCIAL_SCHEMA_VERSION,
       product:'mb-gestor-luxury-pro',
-      accountMode:source.accountMode==='cloud'?'cloud':'local',
+      accountMode:['local','hybrid','cloud'].includes(String(source.accountMode||''))?String(source.accountMode):'local',
       owner:{
         ...ownerSource,
         name:ownerName,
@@ -382,7 +430,7 @@
       },
       license:{
         ...licenseSource,
-        schemaVersion:1,
+        schemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,
         status:licenseStatus,
         plan,
         checkedAt:licenseSource.checkedAt||null,
@@ -391,8 +439,18 @@
         validUntil:licenseSource.validUntil||null,
         trialEndsAt:licenseSource.trialEndsAt||null,
         renewalAt:licenseSource.renewalAt||null,
-        externalRef:licenseSource.externalRef||null
+        graceUntil:licenseSource.graceUntil||null,
+        serverVerifiedAt:licenseSource.serverVerifiedAt||null,
+        verificationState:['local','fresh','grace','stale','offline'].includes(String(licenseSource.verificationState||''))?String(licenseSource.verificationState):(licenseSourceMode==='online'?'stale':'local'),
+        customerRef:String(licenseSource.customerRef||'').slice(0,160)||null,
+        subscriptionRef:String(licenseSource.subscriptionRef||'').slice(0,160)||null,
+        externalRef:licenseSource.externalRef||null,
+        entitlements:normalizeCommercialEntitlements(licenseSource.entitlements),
+        limits:normalizeCommercialLimits(licenseSource.limits)
       },
+      onboarding:normalizeCommercialOnboarding(onboardingSource),
+      privacy:normalizeCommercialPrivacy(privacySource),
+      infrastructure:normalizeCommercialInfrastructure(infrastructureSource),
       sync:{
         ...syncSource,
         mode:syncSource.mode==='on'?'on':'off',
@@ -1338,7 +1396,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       if(!raw)return createFreshState();
       const parsed=JSON.parse(raw);
       const hydrated=hydrateState(parsed);
-      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.commercial?.access?.schemaVersion)!==ACCESS_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||Number(parsed.studentPortal?.schemaVersion)!==STUDENT_PORTAL_SCHEMA_VERSION||!parsed.settings?.operationConfig;
+      const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.workspace?.schemaVersion)!==WORKSPACE_SCHEMA_VERSION||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.commercial?.access?.schemaVersion)!==ACCESS_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||Number(parsed.studentPortal?.schemaVersion)!==STUDENT_PORTAL_SCHEMA_VERSION||!parsed.settings?.operationConfig;
       if(needsFoundationMigration){
         // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
         // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
@@ -3020,7 +3078,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#publishStudentPortal')?.addEventListener('click',async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Publicando…';try{await publishStudentPortalSnapshot(studentId);toast('Dados do aluno atualizados online.');openStudentPortalStudentSettings(studentId)}catch(err){console.error('Portal publish',err);toast(err?.message||'Falha ao publicar o Portal.');btn.disabled=false;btn.textContent='Tentar novamente'}});
     $('#refreshStudentPortalAccess')?.addEventListener('click',async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Verificando…';try{const remote=await refreshStudentPortalAccessStatus(studentId);toast(remote?.status==='active'?'Acesso do aluno ativo.':remote?.status==='revoked'?'Acesso do aluno encerrado.':'Nenhum acesso ativo encontrado.');openStudentPortalStudentSettings(studentId)}catch(err){toast(err?.message||'Não foi possível verificar o acesso.');btn.disabled=false;btn.textContent='Atualizar acesso'}});
     $('#revokeStudentPortalAccess')?.addEventListener('click',async()=>{if(!confirm(`Encerrar agora o acesso de ${student.name}? O aluno deixará de visualizar o Portal neste acesso.`))return;try{await revokeStudentPortalAccess(studentId);toast('Acesso do aluno encerrado.');openStudentPortalStudentSettings(studentId)}catch(err){toast(err?.message||'Não foi possível revogar o acesso.')}});
-    $('#studentPortalConfigForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),row=studentPortalEntry(studentId,{create:true}),wasPublished=Boolean(row.lastPublishedAt),backendNow=studentPortalBackendStatus(),hadAccess=row.remoteStatus==='active';row.enabled=fd.get('enabled')==='on';row.sections={home:true,schedule:fd.get('schedule')==='on',attendance:fd.get('attendance')==='on',assessments:fd.get('assessments')==='on',finance:fd.get('finance')==='on',profile:fd.get('profile')==='on'};row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?(backendNow.connected?row.remoteStatus:'published-pending'):(studentPortalBackendConfigured()?'ready':'not-invited')):(wasPublished?(backendNow.connected?row.remoteStatus:'delete-pending'):'not-invited');row.updatedAt=new Date().toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Portal do Aluno atualizado',`${student.name} • ${row.enabled?'liberado':'desativado'}`);saveState();let synced=false,syncError=false;try{if(backendNow.connected){if(row.enabled){await publishStudentPortalSnapshot(studentId);if(hadAccess)row.remoteStatus='active';synced=true}else if(wasPublished){if(hadAccess)await revokeStudentPortalAccess(studentId);await deleteStudentPortalSnapshot(studentId);synced=true}}}catch(err){console.error('Portal auto-sync',err);syncError=true;row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?'published-pending':'ready'):(wasPublished?'delete-pending':'error');saveState();}openStudentPortalCenter({search:student.name});if(synced)toast('Preferências salvas e dados atualizados.');else if(syncError)toast('Preferências salvas. A atualização online ficou pendente.');else if(wasPublished&&row.enabled)toast('Preferências salvas. Os dados online serão atualizados quando a conta reconectar.');else if(wasPublished&&!row.enabled)toast('Portal desativado. A remoção online será concluída quando a conta reconectar.');else toast('Preferências do Portal salvas.');});
+    $('#studentPortalConfigForm')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget),row=studentPortalEntry(studentId,{create:true}),wasEnabled=Boolean(row.enabled),wasPublished=Boolean(row.lastPublishedAt),backendNow=studentPortalBackendStatus(),hadAccess=row.remoteStatus==='active',nextEnabled=fd.get('enabled')==='on';if(nextEnabled&&!wasEnabled&&!commercialPlanLimitAllows('portalStudents',studentPortalStats().enabled,{label:'Portal do Aluno',unit:'Portais liberados'}))return;row.enabled=nextEnabled;row.sections={home:true,schedule:fd.get('schedule')==='on',attendance:fd.get('attendance')==='on',assessments:fd.get('assessments')==='on',finance:fd.get('finance')==='on',profile:fd.get('profile')==='on'};row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?(backendNow.connected?row.remoteStatus:'published-pending'):(studentPortalBackendConfigured()?'ready':'not-invited')):(wasPublished?(backendNow.connected?row.remoteStatus:'delete-pending'):'not-invited');row.updatedAt=new Date().toISOString();state.studentPortal.updatedAt=row.updatedAt;addAudit('Portal do Aluno atualizado',`${student.name} • ${row.enabled?'liberado':'desativado'}`);saveState();let synced=false,syncError=false;try{if(backendNow.connected){if(row.enabled){await publishStudentPortalSnapshot(studentId);if(hadAccess)row.remoteStatus='active';synced=true}else if(wasPublished){if(hadAccess)await revokeStudentPortalAccess(studentId);await deleteStudentPortalSnapshot(studentId);synced=true}}}catch(err){console.error('Portal auto-sync',err);syncError=true;row.remoteStatus=row.enabled?(hadAccess?'active':wasPublished?'published-pending':'ready'):(wasPublished?'delete-pending':'error');saveState();}openStudentPortalCenter({search:student.name});if(synced)toast('Preferências salvas e dados atualizados.');else if(syncError)toast('Preferências salvas. A atualização online ficou pendente.');else if(wasPublished&&row.enabled)toast('Preferências salvas. Os dados online serão atualizados quando a conta reconectar.');else if(wasPublished&&!row.enabled)toast('Portal desativado. A remoção online será concluída quando a conta reconectar.');else toast('Preferências do Portal salvas.');});
   }
   async function openStudentPortalBackendSetup(){
     await restoreStudentPortalTrustedSession();
@@ -4948,6 +5006,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function openStudentModal(id=null) {
     const s = id ? state.students.find(x=>x.id===id) : null;
+    if(!s&&!commercialPlanLimitAllows('students',(state.students||[]).length,{label:'alunos',unit:'alunos cadastrados'}))return;
     const title = s ? 'Editar aluno' : 'Novo aluno';
     openModal(title, `
       <form id="studentForm" class="form-grid two">
@@ -6051,9 +6110,17 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     return Boolean(String(commercialOwner()?.name||'').trim());
   }
 
-  function commercialPlanLabel(){
-    const plan=String(state.commercial?.license?.plan||'local');
-    return ({local:'Local',trial:'Teste',starter:'Starter',pro:'Pro',studio:'Studio'})[plan]||'Local';
+  function commercialPlanDefinition(plan=state.commercial?.license?.plan||'local'){return COMMERCIAL_PLAN_CATALOG[String(plan)]||COMMERCIAL_PLAN_CATALOG.local}
+  function commercialPlanLabel(){return commercialPlanDefinition().label}
+  function commercialEffectiveEntitlements(){const license=commercialLicense(),base=commercialPlanDefinition(license.plan).entitlements||COMMERCIAL_DEFAULT_ENTITLEMENTS;return {...base,...normalizeCommercialEntitlements(license.entitlements)}}
+  function commercialEffectiveLimits(){const license=commercialLicense(),base=commercialPlanDefinition(license.plan).limits||{};return {...base,...normalizeCommercialLimits(license.limits)}}
+  function commercialLimitLabel(value){return value==null?'Sem limite definido':Number(value).toLocaleString('pt-BR')}
+  function commercialPlanLimitAllows(limitKey,currentCount,{label='recurso',unit='itens'}={}){
+    const license=commercialLicense(),limits=commercialEffectiveLimits(),raw=limits?.[limitKey],limit=raw==null?null:Number(raw);
+    if(license.source!=='online'||limit==null||!Number.isFinite(limit)||limit<0||Number(currentCount)<limit)return true;
+    openModal('Limite do plano',`<div class="commercial-limit-card"><small>PLANO ${escapeHTML(commercialPlanLabel().toUpperCase())}</small><strong>Limite de ${escapeHTML(label)} atingido</strong><p>Este plano permite até <b>${limit.toLocaleString('pt-BR')}</b> ${escapeHTML(unit)}. Seus dados atuais continuam preservados.</p></div><div class="notice compact">A liberação de limites e recursos de planos online é validada pelo servidor. O app não concede um plano pago apenas por alteração local.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Agora não</button><button class="btn btn-primary" id="openPlanFromLimit">Ver plano</button></div>`);
+    $('#openPlanFromLimit')?.addEventListener('click',()=>{closeModal();openPlanLicenseCenter()});
+    return false;
   }
 
   function commercialLicense(){
@@ -6063,14 +6130,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function commercialLicenseStatusLabel(){
     const status=String(commercialLicense()?.status||'local-active');
-    return ({'local-active':'Ativo local','not-configured':'Não vinculada',trial:'Período de teste',active:'Ativa','past-due':'Pagamento pendente',suspended:'Suspensa',expired:'Expirada'})[status]||'Ativo local';
+    return ({'local-active':'Ativo local','not-configured':'Não vinculada',trial:'Período de teste',active:'Ativa','past-due':'Pagamento pendente',suspended:'Suspensa',expired:'Expirada',canceled:'Cancelada'})[status]||'Ativo local';
   }
 
   function commercialLicenseTone(){
     const status=String(commercialLicense()?.status||'local-active');
     if(['active','trial','local-active'].includes(status))return 'good';
     if(status==='past-due')return 'warn';
-    if(['suspended','expired'].includes(status))return 'danger';
+    if(['suspended','expired','canceled'].includes(status))return 'danger';
     return 'neutral';
   }
 
@@ -6101,6 +6168,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function openTeamMemberEditor(memberId=''){
     state.commercial=normalizeCommercial(state.commercial,state.settings||{});
     const access=commercialAccess(),existing=memberId?access.members.find(x=>x.id===memberId):null;
+    if(!memberId&&!commercialPlanLimitAllows('teamMembers',(access.members||[]).filter(x=>x.id!=='owner'&&x.status!=='inactive').length,{label:'equipe',unit:'membros ativos'}))return;
     if(memberId&&!existing)return toast('Perfil não encontrado.');
     const isOwner=existing?.id==='owner',role=existing?.role||'trainer';
     const selectableRoles=['admin','trainer','reception','finance'];
@@ -6146,12 +6214,415 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $$('.js-remove-team',modalRoot).forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.id;closeModal();confirmRemoveTeamMember(id)}));
   }
 
+  function commercialOnboarding(){state.commercial=normalizeCommercial(state.commercial,state.settings||{});return state.commercial.onboarding}
+  function commercialPrivacy(){state.commercial=normalizeCommercial(state.commercial,state.settings||{});return state.commercial.privacy}
+  function commercialInfrastructure(){state.commercial=normalizeCommercial(state.commercial,state.settings||{});return state.commercial.infrastructure}
+  function commercialBackendFoundationReady(){const infra=commercialInfrastructure();return infra.status==='connected'&&Number(infra.backendFoundationVersion)>=COMMERCIAL_BACKEND_FOUNDATION_VERSION}
+
+  function commercialLaunchReadiness(){
+    const ownership=workspaceOwnershipAudit(state),privacy=commercialPrivacy(),infra=commercialInfrastructure(),portal=studentPortalStats(),license=commercialLicense();
+    const httpsReady=location.protocol==='https:'&&'serviceWorker' in navigator;
+    const billingLinked=license.source==='online'&&Boolean(license.customerRef||license.subscriptionRef||license.externalRef);
+    const checks=[
+      {id:'owner',label:'Studio e responsável',detail:'Identidade comercial e responsável configurados.',ok:commercialOwnerConfigured()&&Boolean(commercialStudioProfile().studioName&&commercialStudioProfile().professionalName)},
+      {id:'isolation',label:'Isolamento dos dados',detail:'Todos os registros pertencem ao Workspace correto.',ok:state.dataFoundation?.ownershipMode==='workspace-bound'&&!ownership.foreign&&!ownership.missing},
+      {id:'backup',label:'Recuperação e backup',detail:'Existe ao menos uma cópia registrada desta instalação.',ok:Boolean(state.settings?.lastBackupAt)},
+      {id:'portal',label:'Acesso online e Portal',detail:'Conta online conectada e Portal protegido por RLS.',ok:portal.remoteConnected===true},
+      {id:'backend',label:'Fundação SaaS do backend',detail:`Estrutura multi-tenant comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION} verificada.`,ok:commercialBackendFoundationReady()},
+      {id:'legal',label:'Termos e Privacidade',detail:'Documentos jurídicos finais publicados e versionados.',ok:privacy.documentsPublished===true&&Boolean(privacy.termsVersion&&privacy.privacyVersion)},
+      {id:'billing',label:'Assinatura e cobrança',detail:'Plano online ligado ao cliente e controlado pelo servidor.',ok:billingLinked},
+      {id:'updates',label:'Atualização segura do PWA',detail:'Aplicativo publicado em HTTPS com camada de atualização.',ok:httpsReady},
+      {id:'domain',label:'Domínio comercial',detail:'Endereço próprio de produção definido.',ok:Boolean(String(infra.productionDomain||'').trim())},
+      {id:'pilot',label:'Piloto externo',detail:'Uso real validado com outro Studio antes da venda pública.',ok:Boolean(infra.pilotValidatedAt)}
+    ];
+    return {checks,done:checks.filter(x=>x.ok).length,total:checks.length};
+  }
+
+  function commercialApplyRemoteContext(raw={}){
+    const ctx=Array.isArray(raw)?(raw[0]||{}):(raw||{}),now=new Date().toISOString();
+    state.commercial.accountMode='hybrid';state.workspace=normalizeWorkspace({...state.workspace,mode:'hybrid',remoteStatus:'connected',provisionedAt:ctx.provisioned_at||state.workspace?.provisionedAt||now,lastVerifiedAt:now,status:ctx.workspace_status||state.workspace?.status||'active'});
+    const infra=commercialInfrastructure();
+    state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'connected',backendFoundationVersion:Number(ctx.foundation_version)||COMMERCIAL_BACKEND_FOUNDATION_VERSION,verifiedAt:now,provisionedAt:infra.provisionedAt||now,lastError:null});
+    if(ctx.plan&&ctx.subscription_status){
+      const current=commercialLicense(),plan=String(ctx.plan),status=String(ctx.subscription_status);
+      state.commercial.license={...current,schemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,source:'online',plan:COMMERCIAL_PLAN_CATALOG[plan]?plan:current.plan,status:['trial','active','past-due','suspended','expired','canceled'].includes(status)?status:current.status,trialEndsAt:ctx.trial_ends_at||current.trialEndsAt,validUntil:ctx.current_period_end||current.validUntil,renewalAt:ctx.current_period_end||current.renewalAt,graceUntil:ctx.grace_until||current.graceUntil,serverVerifiedAt:now,checkedAt:now,verificationState:'fresh',entitlements:normalizeCommercialEntitlements(ctx.entitlements||current.entitlements),limits:normalizeCommercialLimits(ctx.limits||current.limits),customerRef:String(ctx.customer_ref||current.customerRef||'')||null,subscriptionRef:String(ctx.subscription_ref||current.subscriptionRef||'')||null};
+    }
+    const onboarding=commercialOnboarding();onboarding.steps.online=true;if(onboarding.status==='not-started')onboarding.status='in-progress';state.commercial.onboarding=normalizeCommercialOnboarding(onboarding);
+    saveState();
+    return ctx;
+  }
+
+  async function verifyCommercialBackendFoundation({silent=false}={}){
+    try{
+      if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
+      await ensureStudentPortalBackendSession();
+      const result=await studentPortalApi('/rpc/app_get_context',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}});
+      const ctx=commercialApplyRemoteContext(result);
+      if(!silent)toast(`Fundação comercial V${ctx.foundation_version||COMMERCIAL_BACKEND_FOUNDATION_VERSION} verificada.`);
+      return ctx;
+    }catch(err){
+      const infra=commercialInfrastructure();state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'error',lastError:err?.message||'Falha na verificação.'});saveState();
+      if(!silent)toast(err?.message||'Não foi possível verificar a infraestrutura comercial.');
+      throw err;
+    }
+  }
+
+  async function bootstrapCommercialWorkspaceOnline(){
+    if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
+    await ensureStudentPortalBackendSession();
+    const profile=commercialStudioProfile(),owner=commercialOwner(),installation=commercialInstallation(),now=new Date().toISOString(),infra=commercialInfrastructure();
+    state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'pending',lastError:null});state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'provisioning'});saveState();
+    try{
+      const result=await studentPortalApi('/rpc/app_bootstrap_workspace',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),p_display_name:String(profile.studioName||state.settings?.studioName||'Meu Studio'),p_professional_name:String(profile.professionalName||state.settings?.trainerName||owner.name||''),p_installation_id:String(installation.id||''),p_installation_label:String(installation.label||'Este dispositivo'),p_app_version:APP_VERSION}});
+      commercialApplyRemoteContext(result);
+      try{await verifyStudentPortalWorkspaceMembership()}catch(err){console.warn('Portal membership após bootstrap',err)}
+      addAudit('Fundação SaaS ativada',`Workspace ${workspaceShortId()} • backend comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}`);saveState();toast('Estrutura comercial online ativada para este Studio.');return result;
+    }catch(err){
+      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'error'});state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',lastError:err?.message||'Falha no provisionamento.'});saveState();throw err;
+    }
+  }
+
+  function commercialFoundationSql(){
+    const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
+    return `-- MB Gestor Luxury Pro V13.0.0
+-- Fundação SaaS Comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}
+-- Multi-tenant • menor privilégio • RLS • assinatura server-side • LGPD/data rights
+-- Execute no SQL Editor da SuperDB com uma conta administrativa. Nunca coloque service_role no app.
+
+begin;
+
+create table if not exists ${schema}.app_workspaces (
+  workspace_id text primary key,
+  display_name text not null,
+  professional_name text,
+  status text not null default 'active' check (status in ('active','suspended','deletion-pending','deleted')),
+  region text not null default 'br',
+  created_by uuid not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  constraint app_workspace_id_format check (workspace_id ~ '^ws_[A-Za-z0-9_-]{8,120}$')
+);
+
+create table if not exists ${schema}.app_workspace_members (
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  auth_user_id uuid not null,
+  role text not null check (role in ('owner','admin','trainer','reception','finance')),
+  status text not null default 'active' check (status in ('active','inactive','revoked')),
+  permissions jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (workspace_id, auth_user_id)
+);
+create index if not exists idx_app_members_user on ${schema}.app_workspace_members(auth_user_id, status, workspace_id);
+
+create table if not exists ${schema}.app_installations (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  installation_id text not null,
+  label text not null default 'Este dispositivo',
+  platform text not null default 'pwa',
+  app_version text,
+  created_by uuid not null,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  unique (workspace_id, installation_id)
+);
+
+create table if not exists ${schema}.app_subscriptions (
+  workspace_id text primary key references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  provider text,
+  customer_ref text,
+  subscription_ref text,
+  plan text not null check (plan in ('trial','starter','pro','studio')),
+  status text not null check (status in ('trial','active','past-due','suspended','expired','canceled')),
+  trial_ends_at timestamptz,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  grace_until timestamptz,
+  entitlements jsonb not null default '{}'::jsonb,
+  limits jsonb not null default '{}'::jsonb,
+  checked_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists ${schema}.app_legal_acceptances (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  auth_user_id uuid not null,
+  terms_version text not null,
+  privacy_version text not null,
+  marketing_consent boolean not null default false,
+  accepted_at timestamptz not null default now(),
+  unique (workspace_id, auth_user_id, terms_version, privacy_version)
+);
+
+create table if not exists ${schema}.app_data_requests (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  auth_user_id uuid not null,
+  kind text not null check (kind in ('export','delete')),
+  status text not null default 'pending' check (status in ('pending','processing','completed','rejected','cancelled')),
+  reason text,
+  detail jsonb not null default '{}'::jsonb,
+  requested_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+create index if not exists idx_app_data_requests_workspace on ${schema}.app_data_requests(workspace_id, requested_at desc);
+
+create table if not exists ${schema}.app_audit_log (
+  id bigint generated always as identity primary key,
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  actor_user_id uuid,
+  event text not null,
+  entity_type text,
+  entity_id text,
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_app_audit_workspace on ${schema}.app_audit_log(workspace_id, created_at desc);
+
+-- Compatibilidade com o Portal do Aluno: o bootstrap comercial também cria o vínculo do proprietário.
+create table if not exists ${schema}.portal_workspace_members (
+  workspace_id text not null,
+  auth_user_id uuid not null,
+  role text not null default 'owner',
+  status text not null default 'active',
+  created_at timestamptz not null default now()
+);
+alter table ${schema}.portal_workspace_members add column if not exists status text not null default 'active';
+create unique index if not exists uq_portal_workspace_members on ${schema}.portal_workspace_members(workspace_id, auth_user_id);
+
+create or replace function ${schema}.app_is_workspace_member(target_workspace text)
+returns boolean language sql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+  select exists(select 1 from ${schema}.app_workspace_members m where m.workspace_id=target_workspace and m.auth_user_id=auth.uid() and m.status='active');
+$$;
+
+create or replace function ${schema}.app_has_workspace_role(target_workspace text, allowed_roles text[])
+returns boolean language sql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+  select exists(select 1 from ${schema}.app_workspace_members m where m.workspace_id=target_workspace and m.auth_user_id=auth.uid() and m.status='active' and m.role=any(allowed_roles));
+$$;
+
+revoke execute on function ${schema}.app_is_workspace_member(text) from public, anon;
+revoke execute on function ${schema}.app_has_workspace_role(text,text[]) from public, anon;
+grant execute on function ${schema}.app_is_workspace_member(text) to authenticated;
+grant execute on function ${schema}.app_has_workspace_role(text,text[]) to authenticated;
+
+alter table ${schema}.app_workspaces enable row level security;
+alter table ${schema}.app_workspace_members enable row level security;
+alter table ${schema}.app_installations enable row level security;
+alter table ${schema}.app_subscriptions enable row level security;
+alter table ${schema}.app_legal_acceptances enable row level security;
+alter table ${schema}.app_data_requests enable row level security;
+alter table ${schema}.app_audit_log enable row level security;
+
+revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from anon, public;
+revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from authenticated;
+grant select on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log to authenticated;
+
+drop policy if exists app_workspace_read on ${schema}.app_workspaces;
+create policy app_workspace_read on ${schema}.app_workspaces for select to authenticated using (${schema}.app_is_workspace_member(workspace_id));
+drop policy if exists app_member_read on ${schema}.app_workspace_members;
+create policy app_member_read on ${schema}.app_workspace_members for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
+drop policy if exists app_installation_read on ${schema}.app_installations;
+create policy app_installation_read on ${schema}.app_installations for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
+drop policy if exists app_subscription_read on ${schema}.app_subscriptions;
+create policy app_subscription_read on ${schema}.app_subscriptions for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin','finance']));
+drop policy if exists app_legal_read on ${schema}.app_legal_acceptances;
+create policy app_legal_read on ${schema}.app_legal_acceptances for select to authenticated using (auth_user_id=auth.uid() or ${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
+drop policy if exists app_data_request_read on ${schema}.app_data_requests;
+create policy app_data_request_read on ${schema}.app_data_requests for select to authenticated using (auth_user_id=auth.uid() or ${schema}.app_has_workspace_role(workspace_id,array['owner']));
+drop policy if exists app_audit_read on ${schema}.app_audit_log;
+create policy app_audit_read on ${schema}.app_audit_log for select to authenticated using (${schema}.app_has_workspace_role(workspace_id,array['owner','admin']));
+
+create or replace function ${schema}.app_get_context(p_workspace_id text)
+returns jsonb language plpgsql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_result jsonb;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{8,120}$' then raise exception 'Workspace inválido.'; end if;
+  if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso a este Workspace.'; end if;
+  select jsonb_build_object(
+    'workspace_id',w.workspace_id,'workspace_status',w.status,'role',m.role,'foundation_version',${COMMERCIAL_BACKEND_FOUNDATION_VERSION},'provisioned_at',w.created_at,
+    'plan',s.plan,'subscription_status',s.status,'trial_ends_at',s.trial_ends_at,'current_period_end',s.current_period_end,'grace_until',s.grace_until,'entitlements',coalesce(s.entitlements,'{}'::jsonb),'limits',coalesce(s.limits,'{}'::jsonb),'customer_ref',s.customer_ref,'subscription_ref',s.subscription_ref
+  ) into v_result
+  from ${schema}.app_workspaces w
+  join ${schema}.app_workspace_members m on m.workspace_id=w.workspace_id and m.auth_user_id=v_uid and m.status='active'
+  left join ${schema}.app_subscriptions s on s.workspace_id=w.workspace_id
+  where w.workspace_id=p_workspace_id and w.status<>'deleted';
+  if v_result is null then raise exception 'Workspace indisponível.'; end if;
+  return v_result;
+end; $$;
+
+create or replace function ${schema}.app_bootstrap_workspace(
+  p_workspace_id text, p_display_name text, p_professional_name text,
+  p_installation_id text, p_installation_label text, p_app_version text
+) returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_exists boolean; v_now timestamptz:=now(); v_status text;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if trim(coalesce(p_workspace_id,'')) !~ '^ws_[A-Za-z0-9_-]{8,120}$' then raise exception 'Workspace inválido.'; end if;
+  if trim(coalesce(p_display_name,''))='' then raise exception 'Nome do Studio obrigatório.'; end if;
+  if trim(coalesce(p_installation_id,''))='' then raise exception 'Identificação deste aparelho ausente.'; end if;
+  select exists(select 1 from ${schema}.app_workspaces w where w.workspace_id=p_workspace_id),
+         (select w.status from ${schema}.app_workspaces w where w.workspace_id=p_workspace_id)
+    into v_exists,v_status;
+  if v_exists and v_status='deleted' then raise exception 'Este Workspace não está disponível.'; end if;
+  if v_exists and not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Este Workspace já pertence a outra conta.'; end if;
+  if not v_exists then
+    insert into ${schema}.app_workspaces(workspace_id,display_name,professional_name,created_by)
+    values(p_workspace_id,left(trim(p_display_name),120),nullif(left(trim(coalesce(p_professional_name,'')),120),''),v_uid);
+    insert into ${schema}.app_workspace_members(workspace_id,auth_user_id,role,status)
+    values(p_workspace_id,v_uid,'owner','active');
+  else
+    update ${schema}.app_workspaces
+       set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=v_now
+     where workspace_id=p_workspace_id;
+    update ${schema}.app_workspace_members
+       set status='active',updated_at=v_now
+     where workspace_id=p_workspace_id and auth_user_id=v_uid and role='owner';
+  end if;
+  insert into ${schema}.app_installations(workspace_id,installation_id,label,app_version,created_by,last_seen_at)
+  values(p_workspace_id,left(trim(p_installation_id),160),left(trim(coalesce(nullif(p_installation_label,''),'Este dispositivo')),80),left(trim(coalesce(p_app_version,'')),32),v_uid,v_now)
+  on conflict(workspace_id,installation_id) do update
+    set label=excluded.label,app_version=excluded.app_version,last_seen_at=v_now,revoked_at=null;
+  insert into ${schema}.portal_workspace_members(workspace_id,auth_user_id,role,status)
+  values(p_workspace_id,v_uid,'owner','active')
+  on conflict(workspace_id,auth_user_id) do update set role='owner',status='active';
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+  values(p_workspace_id,v_uid,'workspace.bootstrap','workspace',p_workspace_id,jsonb_build_object('app_version',left(coalesce(p_app_version,''),32),'installation_id',left(trim(p_installation_id),160)));
+  return ${schema}.app_get_context(p_workspace_id);
+end; $$;
+
+create or replace function ${schema}.app_update_workspace_profile(p_workspace_id text,p_display_name text,p_professional_name text)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner','admin']) then raise exception 'Sem permissão.'; end if;
+  if trim(coalesce(p_display_name,''))='' then raise exception 'Nome do Studio obrigatório.'; end if;
+  update ${schema}.app_workspaces
+     set display_name=left(trim(p_display_name),120),professional_name=nullif(left(trim(coalesce(p_professional_name,'')),120),''),updated_at=now()
+   where workspace_id=p_workspace_id and status<>'deleted';
+  if not found then raise exception 'Workspace indisponível.'; end if;
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id)
+  values(p_workspace_id,auth.uid(),'workspace.profile.updated','workspace',p_workspace_id);
+  return ${schema}.app_get_context(p_workspace_id);
+end; $$;
+
+create or replace function ${schema}.app_register_legal_acceptance(p_workspace_id text,p_terms_version text,p_privacy_version text,p_marketing_consent boolean default false)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+begin
+  if auth.uid() is null or not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso.'; end if;
+  if trim(coalesce(p_terms_version,''))='' or trim(coalesce(p_privacy_version,''))='' then raise exception 'Versões jurídicas obrigatórias.'; end if;
+  insert into ${schema}.app_legal_acceptances(workspace_id,auth_user_id,terms_version,privacy_version,marketing_consent)
+  values(p_workspace_id,auth.uid(),left(trim(p_terms_version),64),left(trim(p_privacy_version),64),coalesce(p_marketing_consent,false))
+  on conflict(workspace_id,auth_user_id,terms_version,privacy_version) do update set marketing_consent=excluded.marketing_consent,accepted_at=now();
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id) values(p_workspace_id,auth.uid(),'legal.accepted','legal',p_terms_version||'/'||p_privacy_version);
+  return jsonb_build_object('ok',true,'accepted_at',now());
+end; $$;
+
+create or replace function ${schema}.app_request_data_action(p_workspace_id text,p_kind text,p_reason text default null)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_id uuid; v_kind text:=lower(trim(coalesce(p_kind,'')));
+begin
+  if auth.uid() is null or not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso.'; end if;
+  if v_kind not in ('export','delete') then raise exception 'Solicitação inválida.'; end if;
+  if v_kind='delete' and not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Somente o proprietário pode solicitar exclusão.'; end if;
+  insert into ${schema}.app_data_requests(workspace_id,auth_user_id,kind,reason) values(p_workspace_id,auth.uid(),v_kind,left(trim(coalesce(p_reason,'')),500)) returning id into v_id;
+  if v_kind='delete' then update ${schema}.app_workspaces set status='deletion-pending',updated_at=now() where workspace_id=p_workspace_id; end if;
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail) values(p_workspace_id,auth.uid(),'data.requested','data_request',v_id::text,jsonb_build_object('kind',v_kind));
+  return jsonb_build_object('ok',true,'request_id',v_id,'kind',v_kind,'status','pending');
+end; $$;
+
+revoke execute on function ${schema}.app_bootstrap_workspace(text,text,text,text,text,text) from public, anon;
+revoke execute on function ${schema}.app_get_context(text) from public, anon;
+revoke execute on function ${schema}.app_update_workspace_profile(text,text,text) from public, anon;
+revoke execute on function ${schema}.app_register_legal_acceptance(text,text,text,boolean) from public, anon;
+revoke execute on function ${schema}.app_request_data_action(text,text,text) from public, anon;
+grant execute on function ${schema}.app_bootstrap_workspace(text,text,text,text,text,text) to authenticated;
+grant execute on function ${schema}.app_get_context(text) to authenticated;
+grant execute on function ${schema}.app_update_workspace_profile(text,text,text) to authenticated;
+grant execute on function ${schema}.app_register_legal_acceptance(text,text,text,boolean) to authenticated;
+grant execute on function ${schema}.app_request_data_action(text,text,text) to authenticated;
+
+-- IMPORTANTE: app_subscriptions não possui INSERT/UPDATE para authenticated.
+-- Cobrança, upgrade, downgrade e cancelamento devem ser escritos somente pelo backend/webhook confiável.
+
+commit;
+`;
+  }
+
+  function downloadCommercialFoundationSql(){
+    const sql=commercialFoundationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema do backend.');
+    downloadText(`MB_Gestor_V13_Fundacao_SaaS_SuperDB_${isoToday()}.sql`,sql);toast('SQL da Fundação SaaS gerado.');
+  }
+
+  async function copyCommercialFoundationSql(){
+    const sql=commercialFoundationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema do backend.');
+    try{await navigator.clipboard.writeText(sql);toast('SQL da Fundação SaaS copiado.')}catch{downloadCommercialFoundationSql()}
+  }
+
+  function privacyPortableState(){
+    const snapshot=structuredClone(state);
+    if(snapshot.settings){snapshot.settings.financePinHash='';snapshot.settings.financePinEnabled=false;}
+    if(snapshot.commercial?.access){snapshot.commercial.access.recoverySalt='';snapshot.commercial.access.recoveryHash='';snapshot.commercial.access.members=(snapshot.commercial.access.members||[]).map(m=>({...m,pinSalt:'',pinHash:'',pinUpdatedAt:null}));}
+    if(snapshot.commercial?.license){snapshot.commercial.license.customerRef=null;snapshot.commercial.license.subscriptionRef=null;snapshot.commercial.license.externalRef=null;}
+    if(snapshot.commercial?.installation)snapshot.commercial.installation={label:snapshot.commercial.installation.label||'Este dispositivo'};
+    return snapshot;
+  }
+
+  async function exportPortableData(){
+    const exportedAt=new Date().toISOString(),portable=privacyPortableState(),summary=backupSummaryFor(portable),digest=await sha256Hex(JSON.stringify(portable));
+    const payload={app:'MB Gestor Luxury Pro',kind:'data-portability',formatVersion:1,appVersion:APP_VERSION,exportedAt,workspace:{id:state.workspace?.id,studio:backupStudioName()},summary,integrity:digest?{algorithm:'SHA-256',digest}:null,data:portable};
+    downloadText(`MB_Gestor_Exportacao_Dados_${isoToday()}.json`,JSON.stringify(payload,null,2));
+    const privacy=commercialPrivacy();state.commercial.privacy=normalizeCommercialPrivacy({...privacy,lastPortableExportAt:exportedAt});addAudit('Exportação de dados gerada',`${summary.students} alunos • pacote de portabilidade sem credenciais locais`);saveState();toast('Exportação dos dados preparada. Use Backup para recuperação do app.');
+  }
+
+  function openCommercialDeletionRequest(){
+    if(!commercialBackendFoundationReady())return toast('A fundação SaaS online precisa estar conectada antes de solicitar exclusão da conta.');
+    openModal('Solicitar exclusão da conta',`<form id="commercialDeletionForm" class="form-grid"><div class="commercial-danger-hero"><span>!</span><div><small>SOLICITAÇÃO DE DADOS</small><strong>Exclusão da conta online</strong><p>Esta ação cria uma solicitação para o backend. Os dados deste aparelho não são apagados automaticamente.</p></div></div><div class="notice danger"><strong>Faça um backup antes.</strong><br>A exclusão online deve respeitar retenções legais, cobrança e prazos definidos na Política de Privacidade.</div><div class="field"><label>Para confirmar, digite EXCLUIR</label><input name="confirm" autocomplete="off" autocapitalize="characters" required /></div><div class="field"><label>Motivo <span class="muted">(opcional)</span></label><textarea name="reason" maxlength="500" rows="3" placeholder="Conte o motivo, se desejar"></textarea></div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-danger">Criar solicitação</button></div></form>`);
+    $('#commercialDeletionForm')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,fd=new FormData(form),confirm=String(fd.get('confirm')||'').trim().toUpperCase(),reason=String(fd.get('reason')||'').trim();if(confirm!=='EXCLUIR')return toast('Digite EXCLUIR para confirmar.');const btn=form.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='Enviando…';try{await ensureStudentPortalBackendSession();const result=await studentPortalApi('/rpc/app_request_data_action',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),p_kind:'delete',p_reason:reason||null}});const now=new Date().toISOString(),privacy=commercialPrivacy();state.commercial.privacy=normalizeCommercialPrivacy({...privacy,lastDataRequestAt:now});state.workspace=normalizeWorkspace({...state.workspace,status:'deletion-pending'});addAudit('Exclusão online solicitada',`Solicitação ${String(result?.request_id||'').slice(0,12)||'registrada'}`);saveState();closeModal();renderSettings();toast('Solicitação de exclusão registrada.');}catch(err){toast(err?.message||'Não foi possível registrar a solicitação.');btn.disabled=false;btn.textContent='Criar solicitação';}});
+  }
+
+  function openPrivacyDataCenter(){
+    const privacy=commercialPrivacy(),infra=commercialInfrastructure(),published=privacy.documentsPublished===true;
+    openModal('Privacidade e dados',`<div class="privacy-center-hero"><span>${icon('lock')}</span><div><small>CONTROLE DOS SEUS DADOS</small><strong>Portabilidade, transparência e solicitações</strong><p>Recursos técnicos preparados para uma operação comercial alinhada à LGPD. Os textos jurídicos finais devem ser revisados por profissional habilitado.</p></div></div><section class="privacy-center-grid"><article><span>Exportação</span><strong>${privacy.lastPortableExportAt?`Última: ${escapeHTML(formatDateTimeBR(privacy.lastPortableExportAt))}`:'Disponível'}</strong><p>Gera um arquivo legível com os dados do Studio e remove hashes, PINs e identificadores sensíveis de assinatura.</p><button class="btn btn-primary btn-small" id="privacyExportPortable">Exportar meus dados</button></article><article><span>Termos e Privacidade</span><strong>${published?'Publicados':'Aguardando versão jurídica final'}</strong><p>${published?`Termos ${escapeHTML(privacy.termsVersion)} • Privacidade ${escapeHTML(privacy.privacyVersion)}.`:'A estrutura de versionamento está pronta. Não registramos aceite de documentos que ainda não foram publicados.'}</p></article><article><span>Conta online</span><strong>${commercialBackendFoundationReady()?'Fundação conectada':'Ainda não ativada'}</strong><p>A exclusão online é tratada como solicitação auditável; o app nunca apaga silenciosamente dados remotos.</p>${commercialBackendFoundationReady()?'<button class="btn btn-danger btn-small" id="privacyRequestDeletion">Solicitar exclusão</button>':'<span class="pill">Disponível após ativação SaaS</span>'}</article></section><div class="notice compact"><strong>Backup ≠ portabilidade.</strong><br>Use Backup para recuperar o aplicativo. Use Exportar meus dados para transparência e portabilidade.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#privacyExportPortable')?.addEventListener('click',exportPortableData);$('#privacyRequestDeletion')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialDeletionRequest,60)});
+  }
+
+  function saveCommercialDeploymentSettings(){
+    const infra=commercialInfrastructure();openModal('Produção comercial',`<form id="commercialDeploymentForm" class="form-grid"><div class="field"><label>Domínio comercial</label><input name="domain" maxlength="160" value="${escapeHTML(infra.productionDomain||'')}" placeholder="app.seudominio.com.br" /></div><label class="toggle-row"><input name="pilot" type="checkbox" ${infra.pilotValidatedAt?'checked':''}><span><strong>Piloto externo validado</strong><small>Marque somente depois de um segundo Studio usar dados reais e concluir os testes definidos.</small></span></label><div class="notice compact">O domínio deve usar HTTPS. O piloto não substitui auditoria de segurança nem revisão jurídica.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar</button></div></form>`);$('#commercialDeploymentForm')?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget),domain=String(fd.get('domain')||'').trim().replace(/^https?:\/\//i,'').replace(/\/$/,'').slice(0,160),pilot=fd.get('pilot')==='on',now=new Date().toISOString();state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),productionDomain:domain,pilotValidatedAt:pilot?(commercialInfrastructure().pilotValidatedAt||now):null});saveState();closeModal();renderSettings();toast('Configuração de produção atualizada.');});
+  }
+
+  function openCommercialLaunchCenter(){
+    const readiness=commercialLaunchReadiness(),infra=commercialInfrastructure(),portal=studentPortalBackendStatus(),backendAction=commercialBackendFoundationReady()?'Verificar novamente':portal.connected?'Ativar estrutura online':portal.configured?'Confirmar / conectar conta':'Configurar acesso online';
+    openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS cria tabelas multi-tenant, RLS, dispositivos, assinatura, aceite jurídico, solicitações de dados e auditoria. A chave service_role nunca deve ir para o app.</p><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#commercialBackendAction')?.addEventListener('click',async()=>{if(!studentPortalBackendConfigured()){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}if(!studentPortalBackendStatus().authenticated){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}const btn=$('#commercialBackendAction');btn.disabled=true;btn.textContent='Verificando…';try{if(commercialBackendFoundationReady())await verifyCommercialBackendFoundation();else await bootstrapCommercialWorkspaceOnline();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch(err){toast(err?.message||'Não foi possível ativar a estrutura comercial.');btn.disabled=false;btn.textContent=backendAction}});
+    $('#commercialVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialBackendFoundation();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{btn.disabled=false;btn.textContent='Verificar backend comercial'}});
+    $('#commercialOpenPrivacy')?.addEventListener('click',()=>{closeModal();setTimeout(openPrivacyDataCenter,60)});$('#commercialOpenPlan')?.addEventListener('click',()=>{closeModal();setTimeout(openPlanLicenseCenter,60)});$('#commercialDeploymentSettings')?.addEventListener('click',()=>{closeModal();setTimeout(saveCommercialDeploymentSettings,60)});$('#commercialCopySql')?.addEventListener('click',copyCommercialFoundationSql);$('#commercialDownloadSql')?.addEventListener('click',downloadCommercialFoundationSql);
+  }
+
+  function commercialOnboardingShouldOpen(){
+    const onboarding=commercialOnboarding();return !stateHasBusinessData(state)&&!commercialOwnerConfigured()&&!onboarding.completedAt&&onboarding.status!=='dismissed'&&!sessionStorage.getItem(`${STORAGE_KEY}_onboarding_seen_v1`);
+  }
+  function maybeOpenCommercialOnboarding(){if(!commercialOnboardingShouldOpen()||modalRoot.children.length)return;sessionStorage.setItem(`${STORAGE_KEY}_onboarding_seen_v1`,'1');openCommercialOnboarding()}
+  function openCommercialOnboarding(){
+    const onboarding=commercialOnboarding(),now=new Date().toISOString();if(!onboarding.startedAt){onboarding.startedAt=now;onboarding.status='in-progress';state.commercial.onboarding=normalizeCommercialOnboarding(onboarding);saveState()}
+    openModal('Bem-vindo ao MB Gestor',`<form id="commercialOnboardingForm" class="form-grid"><div class="commercial-onboarding-hero"><span>MB</span><div><small>CONFIGURAÇÃO INICIAL</small><strong>Deixe seu Studio pronto para começar</strong><p>Primeiro identificamos o negócio e escolhemos um modelo de agenda. Você poderá alterar tudo depois.</p></div></div><div class="field"><label>Nome do Studio *</label><input name="studioName" maxlength="80" required placeholder="Ex.: Studio Movimento" /></div><div class="field"><label>Profissional responsável *</label><input name="professionalName" maxlength="80" autocomplete="name" required placeholder="Ex.: João Silva" /></div><div class="field"><label>E-mail do responsável *</label><input name="ownerEmail" type="email" maxlength="120" autocomplete="email" required placeholder="voce@studio.com" /></div><div class="field"><label>WhatsApp <span class="muted">(opcional)</span></label><input name="whatsapp" inputmode="tel" maxlength="20" placeholder="DDD + número" /></div><div class="commercial-onboarding-models"><span>Como você atende?</span><input type="hidden" name="preset" value="personal-flex" /><button type="button" class="active" data-onboarding-preset="personal-flex"><b>01</b><strong>Personal / semi-personal</strong><small>Individual ou pequenos grupos</small></button><button type="button" data-onboarding-preset="studio-grupos"><b>∞</b><strong>Studio de grupos</strong><small>Turmas com mais vagas</small></button></div><div class="notice compact">Seus dados começam neste aparelho. A conta online, assinatura e recursos comerciais podem ser ativados depois sem refazer os cadastros.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="commercialOnboardingLater">Agora não</button><button class="btn btn-primary" type="submit">Continuar</button></div></form>`);
+    const form=$('#commercialOnboardingForm');$$('[data-onboarding-preset]',form).forEach(btn=>btn.addEventListener('click',()=>{form.elements.preset.value=btn.dataset.onboardingPreset;$$('[data-onboarding-preset]',form).forEach(x=>x.classList.toggle('active',x===btn))}));
+    $('#commercialOnboardingLater')?.addEventListener('click',()=>{closeModal();toast('Você pode configurar o Studio depois em Mais > Ajustes.');});
+    form?.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),studioName=String(fd.get('studioName')||'').trim().slice(0,80),professionalName=String(fd.get('professionalName')||'').trim().slice(0,80),email=String(fd.get('ownerEmail')||'').trim().slice(0,120),whatsapp=String(fd.get('whatsapp')||'').replace(/\D/g,'').slice(0,15),preset=String(fd.get('preset')||'personal-flex');if(!studioName||!professionalName)return toast('Informe o Studio e o profissional.');if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return toast('Confira o e-mail do responsável.');const at=new Date().toISOString();state.commercial=normalizeCommercial(state.commercial,state.settings||{});state.commercial.owner={...state.commercial.owner,name:professionalName,email,configuredAt:at,updatedAt:at};state.commercial.studioProfile={...state.commercial.studioProfile,studioName,professionalName,whatsapp,email,updatedAt:at};state.settings.studioName=studioName;state.settings.trainerName=professionalName;state.settings.operationConfig=normalizeOperationConfig(agendaFlexPreset(preset));const ob=commercialOnboarding();ob.status='in-progress';ob.steps.identity=true;ob.steps.operation=true;ob.lastStep=3;state.commercial.onboarding=normalizeCommercialOnboarding(ob);addAudit('Configuração inicial criada',`${studioName} • ${professionalName} • modelo ${preset}`);saveState();applyBranding();closeModal();render();toast('Studio configurado. Agora ajuste sua semana de atendimento.');setTimeout(()=>openAgendaFlexSettings({initialConfig:state.settings.operationConfig,startStep:3}),100);});
+  }
+
+
   function openPlanLicenseCenter(){
     state.commercial=normalizeCommercial(state.commercial,state.settings||{});
-    const license=commercialLicense(),local=license.plan==='local'&&license.source==='local',statusLabel=commercialLicenseStatusLabel(),tone=commercialLicenseTone();
+    const license=commercialLicense(),local=license.plan==='local'&&license.source==='local',statusLabel=commercialLicenseStatusLabel(),tone=commercialLicenseTone(),limits=commercialEffectiveLimits(),entitlements=commercialEffectiveEntitlements();
     const renewal=local?'Não se aplica':licenseDateLabel(license.renewalAt||license.validUntil,'Não informado');
-    const validation=license.checkedAt?formatDateTimeBR(license.checkedAt):(local?'Uso local':'Ainda não verificado');
-    openModal('Seu plano',`<div class="license-center-hero ${tone}"><span>${['good'].includes(tone)?'✓':tone==='warn'?'!':tone==='danger'?'×':'MB'}</span><div><small>PLANO ATUAL</small><strong>${escapeHTML(commercialPlanLabel())}</strong><p>${local?'Uso local neste aparelho • sem assinatura vinculada.':`Status: ${escapeHTML(statusLabel)}.`}</p></div></div><div class="license-center-grid"><div><span>Status</span><strong>${escapeHTML(statusLabel)}</strong></div><div><span>Assinatura online</span><strong>${license.source==='online'?'Vinculada':'Não vinculada'}</strong></div><div><span>Renovação</span><strong>${escapeHTML(renewal)}</strong></div><div><span>Última verificação</span><strong>${escapeHTML(validation)}</strong></div></div><details class="settings-simple-details"><summary><span>Informações para suporte</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="account-device-grid"><div><span>Aparelho</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyLicenseSupportCode" type="button">Copiar código</button></div></details><div class="notice compact">Se um plano online for ativado no futuro, esta tela mostrará as informações da assinatura. Seus dados locais continuam funcionando normalmente.</div><div class="modal-actions"><button type="button" class="btn btn-primary" data-close-modal>Concluir</button></div>`);
+    const validation=license.serverVerifiedAt?formatDateTimeBR(license.serverVerifiedAt):license.checkedAt?formatDateTimeBR(license.checkedAt):(local?'Uso local':'Ainda não verificado');
+    const featureCount=Object.values(entitlements).filter(Boolean).length;
+    openModal('Seu plano',`<div class="license-center-hero ${tone}"><span>${['good'].includes(tone)?'✓':tone==='warn'?'!':tone==='danger'?'×':'MB'}</span><div><small>PLANO ATUAL</small><strong>${escapeHTML(commercialPlanLabel())}</strong><p>${local?'Uso local neste aparelho • sem assinatura vinculada.':`Status: ${escapeHTML(statusLabel)}.`}</p></div></div><div class="license-center-grid"><div><span>Status</span><strong>${escapeHTML(statusLabel)}</strong></div><div><span>Assinatura online</span><strong>${license.source==='online'?'Vinculada':'Não vinculada'}</strong></div><div><span>Renovação</span><strong>${escapeHTML(renewal)}</strong></div><div><span>Última verificação</span><strong>${escapeHTML(validation)}</strong></div></div><div class="commercial-plan-entitlements"><div><span>Recursos liberados</span><strong>${featureCount}</strong></div><div><span>Limite de alunos</span><strong>${escapeHTML(commercialLimitLabel(limits.students))}</strong></div><div><span>Perfis de equipe</span><strong>${escapeHTML(commercialLimitLabel(limits.teamMembers))}</strong></div><div><span>Portais de alunos</span><strong>${escapeHTML(commercialLimitLabel(limits.portalStudents))}</strong></div></div><details class="settings-simple-details"><summary><span>Informações para suporte</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="account-device-grid"><div><span>Aparelho</span><strong>${escapeHTML(installationShortId())}</strong></div><div><span>Código de suporte</span><strong>${escapeHTML(supportAccessCode())}</strong></div></div><button class="btn btn-secondary btn-small account-copy-code" id="copyLicenseSupportCode" type="button">Copiar código</button></div></details><div class="notice compact">Em planos online, o servidor é a fonte de verdade da assinatura e dos limites. O aplicativo mantém apenas um cache para continuidade temporária e nunca deve conceder um plano pago por alteração local.</div><div class="modal-actions"><button type="button" class="btn btn-primary" data-close-modal>Concluir</button></div>`);
     $('#copyLicenseSupportCode')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(supportAccessCode());toast('Código de suporte copiado.')}catch{toast(`Código de suporte: ${supportAccessCode()}`)}});
   }
 
@@ -6238,7 +6709,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     const workspaceOk=Boolean(state.workspace?.id&&state.workspace?.createdAt);
     push('workspace','Workspace do Studio',workspaceOk?'ok':'danger',workspaceOk?`Identidade ${workspaceShortId()} ativa.`:'Identidade lógica ausente. Faça backup antes de qualquer alteração.');
     push('schema','Esquema de dados',Number(state.version)===DATA_SCHEMA_VERSION?'ok':'danger',`Estado V${Number(state.version)||'—'} • esperado V${DATA_SCHEMA_VERSION}.`);
-    const commercialOk=Number(state.commercial?.schemaVersion)===COMMERCIAL_SCHEMA_VERSION&&Boolean(state.commercial?.installation?.id);
+    const commercialOk=Number(state.commercial?.schemaVersion)===COMMERCIAL_SCHEMA_VERSION&&Number(state.commercial?.license?.schemaVersion)===COMMERCIAL_LICENSE_SCHEMA_VERSION&&Number(state.commercial?.onboarding?.schemaVersion)===COMMERCIAL_ONBOARDING_SCHEMA_VERSION&&Number(state.commercial?.privacy?.schemaVersion)===COMMERCIAL_PRIVACY_SCHEMA_VERSION&&Number(state.commercial?.infrastructure?.schemaVersion)===COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION&&Boolean(state.commercial?.installation?.id);
     push('commercial','Conta e instalação',commercialOk?'ok':'danger',commercialOk?`Estrutura V${COMMERCIAL_SCHEMA_VERSION} • instalação ${installationShortId()} • proprietário ${commercialOwnerConfigured()?'configurado':'ainda não informado'}.`:'Estrutura comercial ou identidade desta instalação ausente.');
     const ownership=workspaceOwnershipAudit(state),foundationBound=state.dataFoundation?.ownershipMode==='workspace-bound';
     const ownershipStatus=ownership.foreign?'danger':(!foundationBound||ownership.missing)?'warn':'ok';
@@ -6247,6 +6718,10 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     push('profile','Perfil do Studio',profileOk?'ok':'warn',profileOk?`${profile.studioName} • identidade documental preparada.`:'Complete nome do Studio e profissional responsável em Conta e plano.');
     const license=commercialLicense(),licenseOk=Boolean(license&&license.plan&&license.status&&license.source);
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
+    const infrastructure=commercialInfrastructure(),infraReady=infrastructure.backendFoundationVersion>=COMMERCIAL_BACKEND_FOUNDATION_VERSION&&infrastructure.status==='connected';
+    push('commercial-backend','Fundação SaaS online',infraReady?'ok':studentPortalBackendConfigured()?'warn':'warn',infraReady?`Backend comercial V${infrastructure.backendFoundationVersion} verificado e ligado ao Workspace.`:studentPortalBackendConfigured()?'Backend do Portal configurado; fundação comercial ainda não verificada.':'Backend online ainda não configurado nesta instalação.');
+    const privacy=commercialPrivacy(),privacyReady=privacy.documentsPublished&&Boolean(privacy.termsVersion&&privacy.privacyVersion);
+    push('privacy','Privacidade e direitos de dados',privacyReady?'ok':'warn',privacyReady?`Documentos publicados • Termos ${privacy.termsVersion} • Privacidade ${privacy.privacyVersion}.`:'Mecanismo de portabilidade pronto; textos jurídicos finais ainda precisam ser publicados e revisados.');
     const access=commercialAccess(),accessMembers=Array.isArray(access.members)?access.members:[],ownerCount=accessMembers.filter(x=>x.id==='owner'&&x.role==='owner'&&x.status==='active').length,activeAccess=accessMembers.filter(x=>x.status!=='inactive'),credentialsOk=access.mode!=='local-session'||activeAccess.every(accessCredentialReady),recoveryOk=access.mode!=='local-session'||Boolean(access.recoverySalt&&access.recoveryHash),accessOk=Number(access.schemaVersion)===ACCESS_SCHEMA_VERSION&&ownerCount===1&&credentialsOk&&recoveryOk;
     push('access','Equipe e permissões',accessOk?'ok':'danger',accessOk?`${accessMembers.length} ${accessMembers.length===1?'perfil local':'perfis locais'} • ${activeAccess.length} ativo(s) • matriz V${ACCESS_SCHEMA_VERSION} • ${access.mode==='local-session'?'sessões por perfil ativas':'sessões por perfil desativadas'}.`:'Estrutura de acesso inválida, credencial pendente ou proprietário principal ausente.');
     const portal=normalizeStudentPortal(state.studentPortal),portalOk=Number(portal.schemaVersion)===STUDENT_PORTAL_SCHEMA_VERSION&&portal.students&&typeof portal.students==='object';
@@ -6287,6 +6762,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       `Workspace: ${workspaceShortId()}`,
       `Modo: ${state.workspace?.mode||'local'}`,
       `Base comercial: V${state.commercial?.schemaVersion||'—'} • conta ${state.commercial?.accountMode||'local'} • plano ${state.commercial?.license?.plan||'local'} • licença ${state.commercial?.license?.status||'—'}`,
+      `Fundação SaaS: V${commercialInfrastructure().backendFoundationVersion||0}/${COMMERCIAL_BACKEND_FOUNDATION_VERSION} • ${commercialInfrastructure().status} • Workspace ${state.workspace?.mode||'local'}` ,
       `Instalação: ${installationShortId()} • proprietário configurado ${commercialOwnerConfigured()?'sim':'não'} • código de suporte ${supportAccessCode()}`,
       `Equipe e permissões: V${commercialAccess().schemaVersion||'—'} • ${commercialAccess().members.length} perfil(is) local(is) • ${commercialAccess().members.filter(x=>x.status!=='inactive').length} ativo(s) • modo ${commercialAccess().mode||'local-prepared'}`,
       `Fundação de dados: V${state.dataFoundation?.schemaVersion||'—'} • modo ${state.dataFoundation?.ownershipMode||'—'} • cobertura ${workspaceOwnershipAudit(state).coverage}%`,
@@ -6367,8 +6843,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       <section class="card professional-account-card">
         <div class="professional-account-head"><div class="professional-account-mark">${commercialOwnerConfigured()?'✓':'MB'}</div><div><span>RESPONSÁVEL PELO APP</span><strong>${escapeHTML(commercialOwnerConfigured()?commercialOwner().name:'Responsável não configurado')}</strong><small>${commercialOwnerConfigured()?'Identificação salva com segurança neste aparelho.':'Configure uma vez para identificar o responsável pelo Studio.'}</small></div><button class="btn ${commercialOwnerConfigured()?'btn-secondary':'btn-primary'} btn-small" id="openAccountCenter">${commercialOwnerConfigured()?'Gerenciar':'Configurar'}</button></div>
         <div class="settings-row"><div><strong>Seu plano</strong><span>${escapeHTML(commercialPlanLabel())} • ${state.commercial?.license?.source==='online'?'assinatura vinculada':'uso local, sem assinatura vinculada'}</span></div><button class="btn btn-secondary btn-small" id="openPlanLicense">Detalhes</button></div>
+        <div class="settings-row"><div><strong>Privacidade e dados</strong><span>Exportação, transparência e solicitações de dados em um só lugar.</span></div><button class="btn btn-secondary btn-small" id="openPrivacyData">Gerenciar</button></div>
         <details class="settings-simple-details"><summary><span>Informações para suporte</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="settings-row"><div><strong>Aparelho</strong><span>${escapeHTML(installationShortId())}</span></div><span class="pill">Identificação</span></div><div class="settings-row"><div><strong>Código de suporte</strong><span>${escapeHTML(supportAccessCode())}</span></div><span class="pill">Ajuda</span></div></div></details>
       </section>
+
+      ${state.commercial?.license?.source==='local'?(()=>{const launch=commercialLaunchReadiness();return `<div class="section-head"><div><h3>Preparação comercial</h3><p>Estrutura para transformar esta instalação em produto SaaS</p></div></div><section class="card commercial-launch-settings-card"><div class="commercial-launch-settings-head"><span>${launch.done===launch.total?'✓':'↗'}</span><div><small>FUNDAÇÃO COMERCIAL</small><strong>${launch.done}/${launch.total} pilares preparados</strong><em>${launch.done===launch.total?'Estrutura técnica pronta para etapa de lançamento.':'Continue a preparação sem interromper o uso atual do Studio.'}</em></div><button class="btn btn-primary btn-small" id="openCommercialLaunch">Revisar</button></div></section>`})():''}
 
       <div class="section-head"><div><h3>Equipe e permissões</h3><p>Controle quem usa o app e o que cada pessoa pode acessar</p></div></div>
       <section class="card team-access-settings-card">
@@ -6418,7 +6897,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
       <details class="settings-section-collapse">
         <summary><div><strong>Sobre o MB Gestor</strong><small>Informações do aplicativo</small></div><span class="settings-collapse-pill">V${APP_VERSION}</span><b aria-hidden="true">⌄</b></summary>
-        <section class="card settings-collapse-body"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Conta do Studio</strong><span>Mantém os dados deste Studio separados e protegidos.</span></div><span class="pill">Protegida</span></div><div class="settings-row"><div><strong>Compatibilidade dos dados</strong><span>Suas informações continuam funcionando após as atualizações do app.</span></div><span class="pill">Automático</span></div><div class="settings-row"><div><strong>Privacidade</strong><span>Seus dados ficam neste aparelho enquanto você usar o modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup conferido</strong><span>O app verifica se as cópias estão completas antes de restaurar.</span></div><span class="pill">Seguro</span></div><div class="settings-row"><div><strong>Backup com senha</strong><span>Sua cópia pode ser protegida por uma senha que só você conhece.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Portal do Aluno</strong><span>Acesso individual e protegido para cada aluno.</span></div><span class="pill">Ativo</span></div><details class="settings-simple-details"><summary><span>Informações técnicas para suporte</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="settings-row"><div><strong>Aparelho</strong><span>${escapeHTML(installationShortId())} • suporte ${escapeHTML(supportAccessCode())}</span></div></div><div class="settings-row"><div><strong>Conta do Studio</strong><span>${escapeHTML(workspaceShortId())}</span></div></div><div class="settings-row"><div><strong>Versões internas</strong><span>Dados ${DATA_SCHEMA_VERSION} • comercial ${COMMERCIAL_SCHEMA_VERSION} • equipe ${ACCESS_SCHEMA_VERSION} • Portal ${STUDENT_PORTAL_SCHEMA_VERSION}</span></div></div></div></details></section>
+        <section class="card settings-collapse-body"><div class="settings-row"><div><strong>${escapeHTML(brandAppName())}</strong><span>MB Gestor Luxury Pro • versão ${APP_VERSION}</span></div><span class="pill">Ativo</span></div><div class="settings-row"><div><strong>Conta do Studio</strong><span>Mantém os dados deste Studio separados e protegidos.</span></div><span class="pill">Protegida</span></div><div class="settings-row"><div><strong>Compatibilidade dos dados</strong><span>Suas informações continuam funcionando após as atualizações do app.</span></div><span class="pill">Automático</span></div><div class="settings-row"><div><strong>Privacidade</strong><span>Seus dados ficam neste aparelho enquanto você usar o modo local.</span></div><span class="pill">Privado</span></div><div class="settings-row"><div><strong>Backup conferido</strong><span>O app verifica se as cópias estão completas antes de restaurar.</span></div><span class="pill">Seguro</span></div><div class="settings-row"><div><strong>Backup com senha</strong><span>Sua cópia pode ser protegida por uma senha que só você conhece.</span></div><span class="pill">Protegido</span></div><div class="settings-row"><div><strong>Portal do Aluno</strong><span>Acesso individual e protegido para cada aluno.</span></div><span class="pill">Ativo</span></div><details class="settings-simple-details"><summary><span>Informações técnicas para suporte</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="settings-row"><div><strong>Aparelho</strong><span>${escapeHTML(installationShortId())} • suporte ${escapeHTML(supportAccessCode())}</span></div></div><div class="settings-row"><div><strong>Conta do Studio</strong><span>${escapeHTML(workspaceShortId())}</span></div></div><div class="settings-row"><div><strong>Versões internas</strong><span>Dados ${DATA_SCHEMA_VERSION} • Workspace ${WORKSPACE_SCHEMA_VERSION} • comercial ${COMMERCIAL_SCHEMA_VERSION} • licença ${COMMERCIAL_LICENSE_SCHEMA_VERSION} • equipe ${ACCESS_SCHEMA_VERSION} • Portal ${STUDENT_PORTAL_SCHEMA_VERSION}</span></div></div></div></details></section>
       </details>
 
       <div class="section-head"><div><h3>Resumo atual</h3></div></div>
@@ -6433,6 +6912,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#configureAgendaFlex')?.addEventListener('click',openAgendaFlexSettings);
     $('#openAccountCenter')?.addEventListener('click',openProfessionalAccountCenter);
     $('#openPlanLicense')?.addEventListener('click',openPlanLicenseCenter);
+    $('#openPrivacyData')?.addEventListener('click',openPrivacyDataCenter);
+    $('#openCommercialLaunch')?.addEventListener('click',openCommercialLaunchCenter);
     $('#openTeamAccess')?.addEventListener('click',openTeamAccessCenter);
     $('#openStudentPortalCenter')?.addEventListener('click',openStudentPortalCenter);
     $('#openStudentPortalAccessSettings')?.addEventListener('click',openStudentPortalBackendSetup);
@@ -6715,13 +7196,17 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   function backupCompatibility(data={},incoming={}){
-    const format=Number(data.backupFormatVersion||1),dataSchema=Number(data.dataSchemaVersion||incoming.version||0),commercialSchema=Number(data.commercialSchemaVersion||incoming.commercial?.schemaVersion||0),accessSchema=Number(data.accessSchemaVersion||incoming.commercial?.access?.schemaVersion||0),ownershipSchema=Number(data.dataOwnershipSchemaVersion||incoming.dataFoundation?.schemaVersion||0),issues=[];
+    const format=Number(data.backupFormatVersion||1),dataSchema=Number(data.dataSchemaVersion||incoming.version||0),workspaceSchema=Number(data.workspaceSchemaVersion||incoming.workspace?.schemaVersion||0),commercialSchema=Number(data.commercialSchemaVersion||incoming.commercial?.schemaVersion||0),licenseSchema=Number(data.commercialLicenseSchemaVersion||incoming.commercial?.license?.schemaVersion||0),privacySchema=Number(data.commercialPrivacySchemaVersion||incoming.commercial?.privacy?.schemaVersion||0),infrastructureSchema=Number(data.commercialInfrastructureSchemaVersion||incoming.commercial?.infrastructure?.schemaVersion||0),accessSchema=Number(data.accessSchemaVersion||incoming.commercial?.access?.schemaVersion||0),ownershipSchema=Number(data.dataOwnershipSchemaVersion||incoming.dataFoundation?.schemaVersion||0),issues=[];
     if(format>BACKUP_FORMAT_VERSION)issues.push(`Formato de backup V${format} é mais novo que o suportado V${BACKUP_FORMAT_VERSION}.`);
     if(dataSchema>DATA_SCHEMA_VERSION)issues.push(`Esquema de dados V${dataSchema} é mais novo que o suportado V${DATA_SCHEMA_VERSION}.`);
+    if(workspaceSchema>WORKSPACE_SCHEMA_VERSION)issues.push(`Estrutura de Workspace V${workspaceSchema} é mais nova que a suportada V${WORKSPACE_SCHEMA_VERSION}.`);
     if(commercialSchema>COMMERCIAL_SCHEMA_VERSION)issues.push(`Estrutura comercial V${commercialSchema} é mais nova que a suportada V${COMMERCIAL_SCHEMA_VERSION}.`);
+    if(licenseSchema>COMMERCIAL_LICENSE_SCHEMA_VERSION)issues.push(`Estrutura de licença V${licenseSchema} é mais nova que a suportada V${COMMERCIAL_LICENSE_SCHEMA_VERSION}.`);
+    if(privacySchema>COMMERCIAL_PRIVACY_SCHEMA_VERSION)issues.push(`Estrutura de privacidade V${privacySchema} é mais nova que a suportada V${COMMERCIAL_PRIVACY_SCHEMA_VERSION}.`);
+    if(infrastructureSchema>COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION)issues.push(`Estrutura SaaS V${infrastructureSchema} é mais nova que a suportada V${COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION}.`);
     if(accessSchema>ACCESS_SCHEMA_VERSION)issues.push(`Estrutura de permissões V${accessSchema} é mais nova que a suportada V${ACCESS_SCHEMA_VERSION}.`);
     if(ownershipSchema>DATA_OWNERSHIP_SCHEMA_VERSION)issues.push(`Estrutura de propriedade V${ownershipSchema} é mais nova que a suportada V${DATA_OWNERSHIP_SCHEMA_VERSION}.`);
-    return {compatible:issues.length===0,issues,format,dataSchema,commercialSchema,accessSchema,ownershipSchema};
+    return {compatible:issues.length===0,issues,format,dataSchema,workspaceSchema,commercialSchema,licenseSchema,privacySchema,infrastructureSchema,accessSchema,ownershipSchema};
   }
 
   function readRestoreSafetySnapshot(){
@@ -6734,7 +7219,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   async function createRestoreSafetySnapshot(){
     const now=new Date(),snapshotState=structuredClone(state),summary=backupSummaryFor(snapshotState),digest=await sha256Hex(JSON.stringify(snapshotState));
-    const payload={app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,backupType:'pre-restore-safety',appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,accessSchemaVersion:ACCESS_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshotState.workspace},studio:{studioName:backupStudioName(snapshotState),professionalName:backupProfessionalName(snapshotState)},integrity:digest?{algorithm:'SHA-256',stateDigest:digest}:null,summary,state:snapshotState};
+    const payload={app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,backupType:'pre-restore-safety',appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,workspaceSchemaVersion:WORKSPACE_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,commercialLicenseSchemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,commercialPrivacySchemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,commercialInfrastructureSchemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,accessSchemaVersion:ACCESS_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshotState.workspace},studio:{studioName:backupStudioName(snapshotState),professionalName:backupProfessionalName(snapshotState)},integrity:digest?{algorithm:'SHA-256',stateDigest:digest}:null,summary,state:snapshotState};
     try{localStorage.setItem(RESTORE_SAFETY_BACKUP_KEY,JSON.stringify(payload));return payload}catch(err){console.error('Falha ao criar cópia pré-restauração',err);throw new Error('Não foi possível criar a cópia de segurança pré-restauração. Faça um backup manual antes de continuar.');}
   }
 
@@ -6767,7 +7252,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     snapshot.dataFoundation=normalizeDataFoundation(snapshot.dataFoundation,snapshot.workspace?.id,stateHasBusinessData(snapshot));
     snapshot.settings.lastBackupAt=now.toISOString();snapshot.settings.lastBackupExportedAt=now.toISOString();snapshot.settings.lastBackupVersion=APP_VERSION;snapshot.settings.lastBackupSummary=summary;
     const stateDigest=await sha256Hex(JSON.stringify(snapshot));
-    return {app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,accessSchemaVersion:ACCESS_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshot.workspace},studio:{studioName:backupStudioName(snapshot),professionalName:backupProfessionalName(snapshot)},backupType,dataFoundation:{...snapshot.dataFoundation},integrity:stateDigest?{algorithm:'SHA-256',stateDigest}:null,summary,state:snapshot};
+    return {app:'MB Gestor Luxury Pro',backupFormatVersion:BACKUP_FORMAT_VERSION,appVersion:APP_VERSION,dataSchemaVersion:DATA_SCHEMA_VERSION,workspaceSchemaVersion:WORKSPACE_SCHEMA_VERSION,commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,commercialLicenseSchemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,commercialPrivacySchemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,commercialInfrastructureSchemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,accessSchemaVersion:ACCESS_SCHEMA_VERSION,dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,foundationTag:DATA_FOUNDATION_BACKUP_TAG,exportedAt:now.toISOString(),workspace:{...snapshot.workspace},studio:{studioName:backupStudioName(snapshot),professionalName:backupProfessionalName(snapshot)},backupType,dataFoundation:{...snapshot.dataFoundation},integrity:stateDigest?{algorithm:'SHA-256',stateDigest}:null,summary,state:snapshot};
   }
   async function createProtectedBackupEnvelope(passphrase){
     if(!cloudCryptoAvailable())throw new Error('Criptografia protegida indisponível neste navegador.');
@@ -6843,7 +7328,11 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       backupFormatVersion:BACKUP_FORMAT_VERSION,
       appVersion:APP_VERSION,
       dataSchemaVersion:DATA_SCHEMA_VERSION,
+      workspaceSchemaVersion:WORKSPACE_SCHEMA_VERSION,
       commercialSchemaVersion:COMMERCIAL_SCHEMA_VERSION,
+      commercialLicenseSchemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,
+      commercialPrivacySchemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,
+      commercialInfrastructureSchemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,
       accessSchemaVersion:ACCESS_SCHEMA_VERSION,
       dataOwnershipSchemaVersion:DATA_OWNERSHIP_SCHEMA_VERSION,
       foundationTag:DATA_FOUNDATION_BACKUP_TAG,
@@ -7051,5 +7540,6 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   // V12.18.9: sessão confiável resiliente. LocalStorage continua primário e um espelho isolado em IndexedDB protege a reconexão entre atualizações normais.
   // Não exibe telas nem toasts; se a sessão realmente tiver sido revogada, a confirmação manual volta a ser solicitada.
   setTimeout(()=>{warmStudentPortalOwnerSession()},500);
+  setTimeout(()=>{maybeOpenCommercialOnboarding()},850);
   setTimeout(()=>{if(!accessModeEnabled()||accessCurrentMember()){if(accessCan('students')||accessCan('reminders'))checkBirthdayNotification(false)}},1200);
 })();
