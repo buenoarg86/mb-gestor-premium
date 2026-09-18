@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V12.18.9 — Portal do Aluno • Sessão Confiável Resiliente
-const CACHE='mb-gestor-luxury-pro-v12-18-9-session-resilient';
-const ASSETS=['./','./index.html','./styles.css?v=12.18.9','./app.js?v=12.18.9','./student-portal.html','./student-portal.js?v=12.18.9','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V12.18.10 — Portal do Aluno • Autenticação Simplificada
+const CACHE='mb-gestor-luxury-pro-v12-18-10-auth-clean';
+const ASSETS=['./','./index.html','./styles.css?v=12.18.10','./app.js?v=12.18.10','./student-portal.html','./student-portal.js?v=12.18.10','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

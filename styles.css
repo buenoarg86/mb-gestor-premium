@@ -2205,7 +2205,7 @@ body.access-session-locked .toast-root{z-index:5200}
 /* V12.18.7 • Portal Clean UX: acesso online sai da Central do Portal; configurações avançadas permanecem recolhidas. */
 
 
-/* V12.18.9 • Portal do Aluno — Central compacta + sessão confiável resiliente */
+/* V12.18.10 • Portal do Aluno — autenticação simplificada + sessão confiável resiliente */
 .student-portal-admin-modal{max-height:96dvh}
 .student-portal-admin-modal .modal-head{padding:14px 16px}
 .student-portal-admin-modal .modal-head h3{font-size:1.34rem;line-height:1.15}
@@ -2232,3 +2232,13 @@ body.access-session-locked .toast-root{z-index:5200}
   .student-portal-admin-modal .student-portal-admin-list{max-height:64dvh;gap:8px;margin-top:6px}
   .student-portal-admin-modal .modal-actions{margin-top:10px}
 }
+
+/* V12.18.10 • autenticação do Portal: um único e-mail, código como fluxo principal */
+.student-portal-owner-auth .student-portal-auth-email{margin-bottom:0}
+.student-portal-owner-auth>.form-grid{gap:10px}
+.student-portal-auth-hint{display:block;margin:2px 2px 0;color:var(--muted);font-size:.82rem;line-height:1.35}
+.student-portal-otp-step{padding-top:4px}
+.student-portal-password-option{margin-top:6px!important}
+.student-portal-password-option>summary{min-height:50px}
+.student-portal-owner-auth [hidden],.student-portal-otp-step[hidden]{display:none!important}
+@media(max-width:620px){.student-portal-owner-auth{margin-top:6px;padding-top:8px}.student-portal-owner-auth .compact-head{margin-top:6px!important}.student-portal-owner-auth .modal-actions{margin-top:2px}.student-portal-password-option{margin-bottom:8px!important}}
