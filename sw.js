@@ -1,6 +1,6 @@
 // VIGEXA360 V13.3.0 — Identidade Premium • Logo + Portal + Ícone
-const CACHE='vigexa360-v13-3-0-brand-identity';
-const ASSETS=['./','./index.html','./styles.css?v=13.3.0','./app.js?v=13.3.0','./student-portal.html','./student-portal.js?v=13.3.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png','./assets/vigexa360-icon-master.png'];
+const CACHE='vigexa360-v13-3-0-brand-identity-final';
+const ASSETS=['./','./index.html','./styles.css?v=13.3.0','./app.js?v=13.3.0','./student-portal.html','./student-portal.js?v=13.3.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/icon-maskable-512.png','./assets/apple-touch-icon.png','./assets/vigexa360-icon-master.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

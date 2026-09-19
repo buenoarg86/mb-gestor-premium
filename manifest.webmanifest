@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "MB Gestor Premium",
-  "short_name": "MB Gestor",
-  "description": "Gerenciador privado do Studio Márcio Bueno Personal Trainer",
+  "name": "VIGEXA360",
+  "short_name": "VIGEXA360",
+  "description": "Gestão completa para studios, profissionais e alunos.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
