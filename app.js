@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V13.1.0 — Comercial • Isolamento Multi-Studio Seguro
+// MB Gestor Luxury Pro V13.1.1 — Comercial • Ativação SuperDB Resiliente
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V13.1.0 — Comercial • Isolamento Multi-Studio Seguro
+  // MB Gestor Luxury Pro V13.1.1 — Comercial • Ativação SuperDB Resiliente
 
-  const APP_VERSION = '13.1.0';
+  const APP_VERSION = '13.1.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -6307,30 +6307,48 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   }
 
   async function bootstrapCommercialWorkspaceOnline(){
-    if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
-    await ensureStudentPortalBackendSession();
-    const profile=commercialStudioProfile(),owner=commercialOwner(),installation=commercialInstallation(),infra=commercialInfrastructure(),audit=workspaceOwnershipAudit(state),hasBusiness=stateHasBusinessData(state);
-    if(hasBusiness&&(audit.foreign||audit.missing))throw new Error('A ativação foi bloqueada porque a separação dos dados deste Studio precisa ser revisada primeiro.');
-    if(hasBusiness&&!state.settings?.lastBackupAt)throw new Error('Faça um backup antes de ativar a infraestrutura online deste Studio.');
-    // Snapshot local automático: permite retornar ao estado anterior sem depender do backend.
-    await createRestoreSafetySnapshot();
-    state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'pending',securityPosture:'unknown',lastError:null,activationMode:hasBusiness?'existing-verified':'new-server-id'});state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'provisioning'});saveState();
+    let safetySnapshotWarning='';
     try{
+      if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
+      await ensureStudentPortalBackendSession();
+      const profile=commercialStudioProfile(),owner=commercialOwner(),installation=commercialInstallation(),infra=commercialInfrastructure(),audit=workspaceOwnershipAudit(state),hasBusiness=stateHasBusinessData(state);
+      if(hasBusiness&&(audit.foreign||audit.missing))throw new Error('A ativação foi bloqueada porque a separação dos dados deste Studio precisa ser revisada primeiro.');
+      if(hasBusiness&&!state.settings?.lastBackupAt)throw new Error('Faça um backup antes de ativar a infraestrutura online deste Studio.');
+
+      // V13.1.1: a cópia local extra é desejável, mas não deve bloquear a ativação
+      // quando já existe um backup manual registrado. Isso evita falha silenciosa por
+      // limite de armazenamento local em aparelhos com muitos dados.
+      try{await createRestoreSafetySnapshot()}
+      catch(snapshotErr){
+        safetySnapshotWarning=snapshotErr?.message||'Não foi possível criar a cópia local extra de segurança.';
+        if(!state.settings?.lastBackupAt)throw snapshotErr;
+        console.warn('Ativação comercial sem snapshot local extra; backup manual existente será usado como proteção.',snapshotErr);
+      }
+
+      state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,status:'pending',securityPosture:'unknown',lastError:null,activationMode:hasBusiness?'existing-verified':'new-server-id'});
+      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'provisioning'});
+      saveState();
+
       const common={p_display_name:String(profile.studioName||state.settings?.studioName||'Meu Studio'),p_professional_name:String(profile.professionalName||state.settings?.trainerName||owner.name||''),p_installation_id:String(installation.id||''),p_installation_label:String(installation.label||'Este dispositivo'),p_app_version:APP_VERSION};
       let result;
       if(hasBusiness){
-        // Studio existente: o backend só aceita a importação se a conta autenticada já for proprietária no Portal.
         result=await studentPortalApi('/rpc/app_bootstrap_existing_workspace',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),...common}});
       }else{
-        // Studio novo: o identificador nasce no servidor, evitando que o cliente escolha/"reivindique" um tenant.
         result=await studentPortalApi('/rpc/app_create_workspace',{method:'POST',auth:true,body:common});
       }
       commercialApplyRemoteContext(result);
       await verifyCommercialSecurityPosture({silent:true});
       try{await verifyStudentPortalWorkspaceMembership()}catch(err){console.warn('Portal membership após bootstrap',err)}
-      addAudit('Fundação SaaS ativada',`Workspace ${workspaceShortId()} • backend comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION} • isolamento verificado`);saveState();toast('Estrutura comercial online ativada com isolamento verificado.');return result;
+      if(safetySnapshotWarning)addAudit('Ativação comercial com backup existente',`Snapshot local extra indisponível; backup manual já registrado. ${safetySnapshotWarning}`.slice(0,220));
+      addAudit('Fundação SaaS ativada',`Workspace ${workspaceShortId()} • backend comercial V${COMMERCIAL_BACKEND_FOUNDATION_VERSION} • isolamento verificado`);
+      saveState();
+      toast('Estrutura comercial online ativada com isolamento verificado.');
+      return result;
     }catch(err){
-      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'error'});state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',securityPosture:'error',lastError:err?.message||'Falha no provisionamento.'});saveState();throw err;
+      state.workspace=normalizeWorkspace({...state.workspace,remoteStatus:'error'});
+      state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',securityPosture:'error',lastError:err?.message||'Falha no provisionamento.'});
+      saveState();
+      throw err;
     }
   }
 
@@ -6724,9 +6742,9 @@ commit;
   function openCommercialLaunchCenter(){
     const readiness=commercialLaunchReadiness(),infra=commercialInfrastructure(),portal=studentPortalBackendStatus(),backendAction=commercialBackendFoundationReady()?'Verificar novamente':portal.connected?'Ativar estrutura online':portal.configured?'Confirmar / conectar conta':'Configurar acesso online';
     openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialVerifyIsolation" ${portal.authenticated?'':'disabled'}>Verificar isolamento multi-Studio</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS V2 usa ID de Studio gerado/validado no servidor, RLS com FORCE, menor privilégio, dispositivos, assinatura server-side, aceite jurídico, solicitações de dados e auditoria. Segredos administrativos nunca vão para o app.</p><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
-    $('#commercialBackendAction')?.addEventListener('click',async()=>{if(!studentPortalBackendConfigured()){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}if(!studentPortalBackendStatus().authenticated){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}const btn=$('#commercialBackendAction');btn.disabled=true;btn.textContent='Verificando…';try{if(commercialBackendFoundationReady())await verifyCommercialBackendFoundation();else await bootstrapCommercialWorkspaceOnline();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch(err){toast(err?.message||'Não foi possível ativar a estrutura comercial.');btn.disabled=false;btn.textContent=backendAction}});
-    $('#commercialVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialBackendFoundation();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{btn.disabled=false;btn.textContent='Verificar backend comercial'}});
-    $('#commercialVerifyIsolation')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyIsolation');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialSecurityPosture();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{btn.disabled=false;btn.textContent='Verificar isolamento multi-Studio'}});
+    $('#commercialBackendAction')?.addEventListener('click',async()=>{if(!studentPortalBackendConfigured()){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}if(!studentPortalBackendStatus().authenticated){closeModal();return setTimeout(openStudentPortalBackendSetup,60)}const btn=$('#commercialBackendAction');btn.disabled=true;btn.textContent='Verificando…';try{if(commercialBackendFoundationReady())await verifyCommercialBackendFoundation();else await bootstrapCommercialWorkspaceOnline();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch(err){toast(err?.message||'Não foi possível ativar a estrutura comercial.');closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
+    $('#commercialVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialBackendFoundation();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
+    $('#commercialVerifyIsolation')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyIsolation');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialSecurityPosture();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
     $('#commercialOpenPrivacy')?.addEventListener('click',()=>{closeModal();setTimeout(openPrivacyDataCenter,60)});$('#commercialOpenPlan')?.addEventListener('click',()=>{closeModal();setTimeout(openPlanLicenseCenter,60)});$('#commercialDeploymentSettings')?.addEventListener('click',()=>{closeModal();setTimeout(saveCommercialDeploymentSettings,60)});$('#commercialCopySql')?.addEventListener('click',copyCommercialFoundationSql);$('#commercialDownloadSql')?.addEventListener('click',downloadCommercialFoundationSql);
   }
 
