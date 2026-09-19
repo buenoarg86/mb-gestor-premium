@@ -1,9 +1,9 @@
-// Vigexa 360 V13.3.3 — Identidade Comercial Final • Hotfix de Consistência
+// Vigexa 360 V13.3.5 — Cabeçalho Clean • White Label Flexível
 (() => {
   'use strict';
-  // Vigexa 360 V13.3.3 — Identidade Comercial Final • Hotfix de Consistência
+  // Vigexa 360 V13.3.5 — Cabeçalho Clean • White Label Flexível
 
-  const APP_VERSION = '13.3.3';
+  const APP_VERSION = '13.3.5';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -220,6 +220,7 @@
       brandLogoFitIcon: structuredClone(BRAND_LOGO_FIT_LEGACY_DEFAULTS.icon),
       brandPrimaryColor: '#d7a33d',
       brandAccentColor: '#f3c76a',
+      brandShowStudioContext: true,
       chargeDaysBefore: 3,
       currency: 'BRL',
       financialValuesVisible: false,
@@ -238,7 +239,7 @@
   };
 
   const NAV = [
-    {id:'dashboard', label:'Início', icon:'home', title:'Visão geral'},
+    {id:'dashboard', label:'Início', icon:'home', title:'Início'},
     {id:'students', label:'Alunos', icon:'users', title:'Alunos'},
     {id:'assessments', label:'Avaliação', icon:'chart', title:'Avaliação física'},
     {id:'intelligence', label:'Inteligência', icon:'chart', title:'Inteligência do Studio'},
@@ -246,7 +247,7 @@
     {id:'charges', label:'Cobranças', icon:'bell', title:'Mensalidades e pendências'},
     {id:'reminders', label:'Lembretes', icon:'message', title:'Lembretes e WhatsApp'},
     {id:'consent', label:'Termos', icon:'file', title:'Termos de consentimento'},
-    {id:'schedule', label:'Agenda', icon:'calendar', title:'Agenda semanal'},
+    {id:'schedule', label:'Agenda', icon:'calendar', title:'Agenda'},
     {id:'settings', label:'Ajustes', icon:'settings', title:'Sistema, dados e preferências'}
   ];
 
@@ -1337,6 +1338,8 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       brandLogoFitIcon:normalizeLogoFit(src.brandLogoFitIcon,'icon'),
       brandPrimaryColor:String(src.brandPrimaryColor||''),
       brandAccentColor:String(src.brandAccentColor||''),
+      brandHeaderSignature:Object.prototype.hasOwnProperty.call(src,'brandHeaderSignature')?String(src.brandHeaderSignature||''):String(src.studioName||''),
+      brandShowStudioContext:src.brandShowStudioContext!==false,
       capturedAt:new Date().toISOString()
     };
   }
@@ -1357,7 +1360,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       const currentRaw=localStorage.getItem(BRAND_IDENTITY_RECOVERY_KEY);
       const current=currentRaw?JSON.parse(currentRaw):null;
       // Evita substituir uma recuperação útil por uma cópia idêntica.
-      const comparable=x=>JSON.stringify({appName:x?.appName||'',studioName:x?.studioName||'',trainerName:x?.trainerName||'',brandLogoData:x?.brandLogoData||'',brandLogoFitBanner:normalizeLogoFit(x?.brandLogoFitBanner,'banner'),brandLogoFitIcon:normalizeLogoFit(x?.brandLogoFitIcon,'icon'),brandPrimaryColor:x?.brandPrimaryColor||'',brandAccentColor:x?.brandAccentColor||''});
+      const comparable=x=>JSON.stringify({appName:x?.appName||'',studioName:x?.studioName||'',trainerName:x?.trainerName||'',brandLogoData:x?.brandLogoData||'',brandLogoFitBanner:normalizeLogoFit(x?.brandLogoFitBanner,'banner'),brandLogoFitIcon:normalizeLogoFit(x?.brandLogoFitIcon,'icon'),brandPrimaryColor:x?.brandPrimaryColor||'',brandAccentColor:x?.brandAccentColor||'',brandHeaderSignature:x?.brandHeaderSignature||'',brandShowStudioContext:x?.brandShowStudioContext!==false});
       if(current&&comparable(current)===comparable(snapshot))return true;
       localStorage.setItem(BRAND_IDENTITY_RECOVERY_KEY,JSON.stringify({...snapshot,reason:String(reason||'alteração')}));
       return true;
@@ -1381,6 +1384,8 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     state.settings.brandLogoFitIcon=normalizeLogoFit(snapshot.brandLogoFitIcon,'icon');
     state.settings.brandPrimaryColor=normalizeBrandColor(snapshot.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);
     state.settings.brandAccentColor=normalizeBrandColor(snapshot.brandAccentColor,BRAND_DEFAULTS.accentColor);
+    if(Object.prototype.hasOwnProperty.call(snapshot,'brandHeaderSignature'))state.settings.brandHeaderSignature=String(snapshot.brandHeaderSignature||'').trim().slice(0,80);
+    state.settings.brandShowStudioContext=snapshot.brandShowStudioContext!==false;
     return true;
   }
 
@@ -1398,7 +1403,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     const normalized=String(src.appName||'').trim().toLocaleUpperCase('pt-BR');
     const isLegacyDefault=normalized==='MB GESTOR'||normalized==='MB GESTOR LUXURY PRO'||normalized==='VIGEXA360';
     if(!isLegacyDefault)return src;
-    // V13.3.3 • migra apenas identidades-padrão antigas; White Label customizado permanece intocado.
+    // V13.3.5 • migra apenas identidades-padrão antigas; White Label customizado permanece intocado.
     return {...src,appName:PRODUCT_NAME,brandLogoData:'',brandLogoFitBanner:freshLogoFit('banner'),brandLogoFitIcon:freshLogoFit('icon'),brandPrimaryColor:normalizeBrandColor(src.brandPrimaryColor,'#d7a33d'),brandAccentColor:normalizeBrandColor(src.brandAccentColor,'#f3c76a')};
   }
 
@@ -1500,15 +1505,20 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
   const BRAND_DEFAULTS={appName:'Vigexa 360',studioName:'Meu Studio',trainerName:'Profissional',logoData:'',primaryColor:'#d7a33d',accentColor:'#f3c76a'};
   function normalizeBrandColor(value,fallback){const v=String(value||'').trim();return /^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():fallback}
   function brandingSettings(){
+    const settings=state?.settings||{};
+    const studioName=String(settings.studioName||BRAND_DEFAULTS.studioName).trim().slice(0,60)||BRAND_DEFAULTS.studioName;
+    const hasCustomHeaderSignature=Object.prototype.hasOwnProperty.call(settings,'brandHeaderSignature');
     return {
-      appName:String(state?.settings?.appName||BRAND_DEFAULTS.appName).trim().slice(0,36)||BRAND_DEFAULTS.appName,
-      studioName:String(state?.settings?.studioName||BRAND_DEFAULTS.studioName).trim().slice(0,60)||BRAND_DEFAULTS.studioName,
-      trainerName:String(state?.settings?.trainerName||BRAND_DEFAULTS.trainerName).trim().slice(0,60)||BRAND_DEFAULTS.trainerName,
-      logoData:String(state?.settings?.brandLogoData||''),
-      logoFitBanner:normalizeLogoFit(state?.settings?.brandLogoFitBanner,'banner'),
-      logoFitIcon:normalizeLogoFit(state?.settings?.brandLogoFitIcon,'icon'),
-      primaryColor:normalizeBrandColor(state?.settings?.brandPrimaryColor,BRAND_DEFAULTS.primaryColor),
-      accentColor:normalizeBrandColor(state?.settings?.brandAccentColor,BRAND_DEFAULTS.accentColor)
+      appName:String(settings.appName||BRAND_DEFAULTS.appName).trim().slice(0,36)||BRAND_DEFAULTS.appName,
+      studioName,
+      trainerName:String(settings.trainerName||BRAND_DEFAULTS.trainerName).trim().slice(0,60)||BRAND_DEFAULTS.trainerName,
+      logoData:String(settings.brandLogoData||''),
+      logoFitBanner:normalizeLogoFit(settings.brandLogoFitBanner,'banner'),
+      logoFitIcon:normalizeLogoFit(settings.brandLogoFitIcon,'icon'),
+      primaryColor:normalizeBrandColor(settings.brandPrimaryColor,BRAND_DEFAULTS.primaryColor),
+      accentColor:normalizeBrandColor(settings.brandAccentColor,BRAND_DEFAULTS.accentColor),
+      headerSignature:(hasCustomHeaderSignature?String(settings.brandHeaderSignature||''):studioName).trim().slice(0,80),
+      showStudioContext:settings.brandShowStudioContext!==false
     };
   }
   function logoFitVars(fit){
@@ -1536,6 +1546,9 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
   function productWordmarkHTML(){
     return `VIGE<span class="vigexa-wordmark-x-wrap"><img class="vigexa-wordmark-x" src="${PRODUCT_LOGO_SRC}" alt="" aria-hidden="true"></span>A<span class="vigexa-brand-360">360</span>`;
   }
+  function productMarkHTML(extraClass=''){
+    return `<img class="vigexa-product-mark ${escapeHTML(extraClass)}" src="${PRODUCT_LOGO_SRC}" alt="" aria-hidden="true" />`;
+  }
 
   function brandingLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
   function brandingReportLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
@@ -1544,16 +1557,14 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     const b=brandingSettings(),root=document.documentElement;
     root.style.setProperty('--gold',b.primaryColor);root.style.setProperty('--gold2',b.accentColor);
     root.style.setProperty('--brand-primary-rgb',brandRgb(b.primaryColor));root.style.setProperty('--brand-accent-rgb',brandRgb(b.accentColor));root.classList.add('brand-runtime');
-    const studioEl=$('#studioBrandName');if(studioEl)studioEl.textContent=`${b.studioName} • ${productEditionLabel()}`;
+    const studioEl=$('#studioBrandName');if(studioEl){const visible=Boolean(b.showStudioContext&&b.headerSignature);studioEl.textContent=visible?b.headerSignature:'';studioEl.hidden=!visible;studioEl.setAttribute('aria-hidden',visible?'false':'true');}
     // A marca do produto permanece Vigexa 360; nome/logo do Studio continuam independentes no White Label.
     const appEl=$('#appBrandName');if(appEl){appEl.classList.add('vigexa-lockup');appEl.innerHTML=productWordmarkHTML();}
     const topbarName=$('#topbarProductName');if(topbarName){topbarName.classList.add('vigexa-lockup');topbarName.innerHTML=productWordmarkHTML();}
-    const avatar=$('#brandAvatar');if(avatar)avatar.textContent=brandInitials();
+    const avatar=$('#brandAvatar');if(avatar){avatar.innerHTML=productMarkHTML('vigexa-product-mark-avatar');avatar.setAttribute('aria-label','Vigexa 360 • acesso e ajustes');avatar.title='Acesso e ajustes';}
     const productFit=freshLogoFit('icon');
     const sideLogo=$('#brandMiniLogo');if(sideLogo){sideLogo.src=PRODUCT_LOGO_SRC;sideLogo.alt=PRODUCT_NAME;}
-    const topLogo=$('#topbarProductLogo');if(topLogo){topLogo.src=PRODUCT_LOGO_SRC;topLogo.alt=PRODUCT_NAME;}
     applyLogoFitToFrame($('#brandMiniLogoFrame'),productFit);
-    applyLogoFitToFrame($('#topbarProductLogoFrame'),productFit);
     document.title=`${PRODUCT_NAME} • ${b.studioName}`;
     document.querySelector('meta[name="application-name"]')?.setAttribute('content',PRODUCT_NAME);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content',PRODUCT_NAME);
@@ -1993,7 +2004,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     closeModal();
     resetScheduleToToday();
     currentView='schedule';
-    pageTitle.textContent='Agenda semanal';
+    pageTitle.textContent='Agenda';
     renderNav();renderSchedule();
     window.scrollTo({top:0,behavior:'auto'});
     toast('Modo teste iniciado. Seus dados reais continuam intactos.');
@@ -2023,7 +2034,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     state.settings.operationConfig=next;
     addAudit('Agenda configurada',`${enabled.length} dias ativos • ${next.modalities.filter(m=>m.enabled).length} modalidades • intervalo ${next.slotMinutes} min${hidden.length?` • ${hidden.length} turmas preservadas fora da grade`:''} • Impact Guard ${impact.level}${impact.affectedSlots?` (${impact.affectedSlots} turmas / ${impact.impactedStudents} alunos)`:''}`);
     saveState();closeModal();resetScheduleToToday();
-    if(fromSimulation){currentView='schedule';pageTitle.textContent='Agenda semanal';renderNav();renderSchedule();window.scrollTo({top:0,behavior:'auto'});toast('Configuração aplicada à agenda real. Alterações feitas dentro do teste foram descartadas.');}
+    if(fromSimulation){currentView='schedule';pageTitle.textContent='Agenda';renderNav();renderSchedule();window.scrollTo({top:0,behavior:'auto'});toast('Configuração aplicada à agenda real. Alterações feitas dentro do teste foram descartadas.');}
     else{renderSettings();toast('Agenda atualizada. Histórico preservado.');}
   }
   function requestApplyAgendaConfiguration(config,{fromSimulation=false}={}){
@@ -2339,7 +2350,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function accessMemberInitials(member){return String(member?.name||'VX').trim().split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('')||'VX'}
   function renderAccessAvatar(){
     const avatar=$('#brandAvatar');if(!avatar)return;
-    const member=accessCurrentMember();avatar.textContent=accessMemberInitials(member);avatar.title=accessModeEnabled()?(member?`${member.name} • ${accessRoleLabel(member.role)}`:'Acesso bloqueado'):'Ajustes';
+    const member=accessCurrentMember();avatar.innerHTML=productMarkHTML('vigexa-product-mark-avatar');avatar.title=accessModeEnabled()?(member?`${member.name} • ${accessRoleLabel(member.role)}`:'Acesso bloqueado'):'Acesso e ajustes';avatar.setAttribute('aria-label',avatar.title);
   }
   function accessCredentialReady(member){return Boolean(member?.pinSalt&&member?.pinHash)}
   function accessCredentialSummary(){
@@ -2912,7 +2923,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="luxury-glow"></div>
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="badge">${escapeHTML(PRODUCT_NAME)} • ${escapeHTML(productEditionLabel())}</span>
+            <span class="badge">${escapeHTML(PRODUCT_NAME)}</span>
             <p class="luxury-kicker">${greetingText()}, ${escapeHTML(firstName)}</p>
             <h2>Sua gestão.<br><em>Sob controle.</em></h2>
             <p>Uma visão elegante e objetiva do que importa hoje.</p>
@@ -6069,6 +6080,8 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
   function openBrandingSettings(){
     const current=brandingSettings(),draft={
       ...current,
+      headerSignature:current.headerSignature,
+      showStudioContext:current.showStudioContext,
       logoFitBanner:normalizeLogoFit(current.logoFitBanner,'banner'),
       logoFitIcon:normalizeLogoFit(current.logoFitIcon,'icon')
     },recovery=readBrandingRecovery();
@@ -6082,7 +6095,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     ];
     let activeLogoSurface='banner',dragState=null;
     openModal('Identidade visual',`<form id="brandingForm" class="branding-editor-form">
-      <div class="brand-editor-preview" id="brandEditorPreview" style="--preview-primary:${escapeHTML(draft.primaryColor)};--preview-accent:${escapeHTML(draft.accentColor)}"><div class="brand-preview-glow"></div><span class="brand-editor-logo-frame brand-fitted-media" id="brandEditorLogoFrame" style="${escapeHTML(logoFitVars(draft.logoFitIcon))}"><img id="brandLogoPreview" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Prévia do logotipo" /></span><div><span id="brandPreviewApp">${escapeHTML(draft.appName)}</span><strong id="brandPreviewStudio">${escapeHTML(draft.studioName)}</strong><small>Identidade aplicada ao app e relatórios</small></div><em id="brandPreviewInitials">${escapeHTML(brandInitials())}</em></div>
+      <div class="brand-editor-preview" id="brandEditorPreview" style="--preview-primary:${escapeHTML(draft.primaryColor)};--preview-accent:${escapeHTML(draft.accentColor)}"><div class="brand-preview-glow"></div><span class="brand-editor-logo-frame brand-fitted-media" id="brandEditorLogoFrame" style="${escapeHTML(logoFitVars(draft.logoFitIcon))}"><img id="brandLogoPreview" src="${escapeHTML(draft.logoData||PRODUCT_LOGO_SRC)}" alt="Prévia do logotipo" /></span><div><span id="brandPreviewApp">${escapeHTML(draft.appName)}</span><strong id="brandPreviewStudio">${escapeHTML(draft.studioName)}</strong><small>Identidade aplicada ao app e relatórios</small></div><em id="brandPreviewInitials" class="brand-product-mark-tile" aria-label="Vigexa 360">${productMarkHTML('vigexa-product-mark-preview')}</em></div>
       <div class="branding-editor-section"><span class="section-overline">LOGOTIPO</span><div class="branding-logo-actions"><button type="button" class="btn btn-primary btn-small" id="chooseBrandLogo">Escolher imagem</button><button type="button" class="btn btn-secondary btn-small" id="useDefaultBrandLogo">Usar logo Vigexa 360</button><input id="brandLogoFile" class="hidden" type="file" accept="image/png,image/jpeg,image/webp" /></div><small class="brand-help">PNG, JPG ou WEBP • a imagem original otimizada é salva uma vez; banner e ícone guardam apenas o enquadramento.</small></div>
       <div class="branding-editor-section logo-fit-editor" id="logoFitEditor">
         <div class="logo-fit-title"><div><span class="section-overline">ENQUADRAMENTO</span><strong>Ajustar logotipo</strong><small>Arraste a imagem e defina um enquadramento independente para cada uso.</small></div><span class="logo-fit-status">V${APP_VERSION}</span></div>
@@ -6094,20 +6107,22 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="logo-fit-readout"><span id="logoFitModeReadout">Modo: preencher</span><span id="logoFitPositionReadout">X 0 • Y 0</span></div>
       </div>
       <div class="form-grid branding-name-grid"><div class="field"><label>Nome do aplicativo</label><input id="brandAppNameInput" maxlength="36" value="${escapeHTML(draft.appName)}" placeholder="Ex.: Studio Pro" /></div><div class="field"><label>Nome do studio / negócio</label><input id="brandStudioNameInput" maxlength="60" value="${escapeHTML(draft.studioName)}" placeholder="Ex.: Studio Movimento" /></div><div class="field"><label>Nome do profissional</label><input id="brandTrainerNameInput" maxlength="60" value="${escapeHTML(draft.trainerName)}" placeholder="Ex.: Ana Silva" /></div></div>
+      <div class="branding-editor-section brand-header-editor"><div class="brand-header-editor-head"><div><span class="section-overline">CABEÇALHO</span><strong>Assinatura do cliente</strong><small>Opcional e discreta. Deixe desativada para mostrar somente Vigexa 360 e o nome da página.</small></div><label class="brand-header-switch"><input id="brandShowStudioContext" type="checkbox" ${draft.showStudioContext?'checked':''}/><span></span></label></div><div class="field brand-header-signature-field ${draft.showStudioContext?'':'is-disabled'}" id="brandHeaderSignatureField"><label>Texto da assinatura</label><input id="brandHeaderSignatureInput" maxlength="80" value="${escapeHTML(draft.headerSignature)}" placeholder="Ex.: Studio Movimento" ${draft.showStudioContext?'':'disabled'} /><small>Não adicionamos “Private Edition” automaticamente.</small></div></div>
       <div class="branding-editor-section"><span class="section-overline">CORES</span><div class="brand-color-grid"><label class="brand-color-field"><span>Cor principal</span><div><input id="brandPrimaryPicker" type="color" value="${escapeHTML(draft.primaryColor)}" /><input id="brandPrimaryHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.primaryColor)}" /></div></label><label class="brand-color-field"><span>Cor de destaque</span><div><input id="brandAccentPicker" type="color" value="${escapeHTML(draft.accentColor)}" /><input id="brandAccentHex" inputmode="text" maxlength="7" value="${escapeHTML(draft.accentColor)}" /></div></label></div><div class="brand-palette-grid">${palettes.map((p,i)=>`<button type="button" class="brand-palette" data-brand-palette="${i}"><i style="--p1:${p.primary};--p2:${p.accent}"></i><span>${escapeHTML(p.name)}</span></button>`).join('')}</div></div>
       <div class="brand-safety-note"><strong>Prévia segura</strong><span>Nada muda na identidade real até você tocar em “Salvar identidade”. A imagem original e os dois enquadramentos são preservados no backup.</span></div>
       <div class="modal-actions branding-actions">${recovery?'<button type="button" class="btn btn-secondary" id="recoverPreviousBranding">Recuperar anterior</button>':''}<button type="button" class="btn btn-secondary" id="restoreBrandingDefaults">Prévia padrão Vigexa 360</button><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar identidade</button></div>
     </form>`);
     const root=$('#brandingForm');
-    const preview=$('#brandEditorPreview',root),logoPreview=$('#brandLogoPreview',root),editorLogoFrame=$('#brandEditorLogoFrame',root),appInput=$('#brandAppNameInput',root),studioInput=$('#brandStudioNameInput',root),trainerInput=$('#brandTrainerNameInput',root),primaryPicker=$('#brandPrimaryPicker',root),accentPicker=$('#brandAccentPicker',root),primaryHex=$('#brandPrimaryHex',root),accentHex=$('#brandAccentHex',root),logoFitStage=$('#logoFitStage',root),logoFitImage=$('#logoFitImage',root),zoomRange=$('#logoZoomRange',root),zoomOutput=$('#logoZoomOutput',root),modeReadout=$('#logoFitModeReadout',root),positionReadout=$('#logoFitPositionReadout',root),fitHint=$('#logoFitHint',root);
-    const draftInitials=()=>{const source=String(draft.appName||draft.studioName||'VX').replace(/[^\p{L}\p{N} ]/gu,' ').trim().split(/\s+/).filter(Boolean);return (source.length>1?`${source[0][0]}${source[1][0]}`:String(source[0]||'VX').slice(0,2)).toUpperCase()};
+    const preview=$('#brandEditorPreview',root),logoPreview=$('#brandLogoPreview',root),editorLogoFrame=$('#brandEditorLogoFrame',root),appInput=$('#brandAppNameInput',root),studioInput=$('#brandStudioNameInput',root),trainerInput=$('#brandTrainerNameInput',root),headerSignatureInput=$('#brandHeaderSignatureInput',root),showStudioContextInput=$('#brandShowStudioContext',root),headerSignatureField=$('#brandHeaderSignatureField',root),primaryPicker=$('#brandPrimaryPicker',root),accentPicker=$('#brandAccentPicker',root),primaryHex=$('#brandPrimaryHex',root),accentHex=$('#brandAccentHex',root),logoFitStage=$('#logoFitStage',root),logoFitImage=$('#logoFitImage',root),zoomRange=$('#logoZoomRange',root),zoomOutput=$('#logoZoomOutput',root),modeReadout=$('#logoFitModeReadout',root),positionReadout=$('#logoFitPositionReadout',root),fitHint=$('#logoFitHint',root);
     const fitKey=()=>activeLogoSurface==='banner'?'logoFitBanner':'logoFitIcon';
     const activeFit=()=>normalizeLogoFit(draft[fitKey()],activeLogoSurface);
     const setActiveFit=fit=>{draft[fitKey()]=normalizeLogoFit(fit,activeLogoSurface);refreshLogoFitEditor();};
-    const refreshPreview=()=>{preview.style.setProperty('--preview-primary',draft.primaryColor);preview.style.setProperty('--preview-accent',draft.accentColor);logoPreview.src=draft.logoData||PRODUCT_LOGO_SRC;applyLogoFitToFrame(editorLogoFrame,draft.logoFitIcon);$('#brandPreviewApp',root).textContent=draft.appName||BRAND_DEFAULTS.appName;$('#brandPreviewStudio',root).textContent=draft.studioName||BRAND_DEFAULTS.studioName;$('#brandPreviewInitials',root).textContent=draftInitials();};
+    const refreshPreview=()=>{preview.style.setProperty('--preview-primary',draft.primaryColor);preview.style.setProperty('--preview-accent',draft.accentColor);logoPreview.src=draft.logoData||PRODUCT_LOGO_SRC;applyLogoFitToFrame(editorLogoFrame,draft.logoFitIcon);$('#brandPreviewApp',root).textContent=draft.appName||BRAND_DEFAULTS.appName;$('#brandPreviewStudio',root).textContent=draft.studioName||BRAND_DEFAULTS.studioName;$('#brandPreviewInitials',root).innerHTML=productMarkHTML('vigexa-product-mark-preview');};
     const refreshLogoFitEditor=()=>{const fit=activeFit();logoFitImage.src=draft.logoData||PRODUCT_LOGO_SRC;logoFitStage.dataset.surface=activeLogoSurface;applyLogoFitToFrame(logoFitStage,fit);zoomRange.value=String(Math.round(fit.scale*100));zoomOutput.textContent=`${Math.round(fit.scale*100)}%`;modeReadout.textContent=`Modo: ${fit.fit==='contain'?'ajustar':'preencher'}`;positionReadout.textContent=`X ${Math.round(fit.x)} • Y ${Math.round(fit.y)}`;fitHint.textContent=activeLogoSurface==='banner'?'Banner • arraste para reposicionar. O quadro corresponde à proporção usada na tela de Identidade visual.':'Ícone • o círculo tracejado indica a área segura para avatares e miniaturas.';$$('[data-logo-surface]',root).forEach(btn=>btn.classList.toggle('active',btn.dataset.logoSurface===activeLogoSurface));refreshPreview();};
     const syncColors=(kind,value)=>{const fallback=kind==='primary'?current.primaryColor:current.accentColor,next=normalizeBrandColor(value,fallback);if(kind==='primary'){draft.primaryColor=next;primaryPicker.value=next;primaryHex.value=next}else{draft.accentColor=next;accentPicker.value=next;accentHex.value=next}refreshPreview();};
-    appInput.addEventListener('input',()=>{draft.appName=appInput.value.slice(0,36);refreshPreview()});studioInput.addEventListener('input',()=>{draft.studioName=studioInput.value.slice(0,60);refreshPreview()});trainerInput.addEventListener('input',()=>{draft.trainerName=trainerInput.value.slice(0,60)});
+    appInput.addEventListener('input',()=>{draft.appName=appInput.value.slice(0,36);refreshPreview()});studioInput.addEventListener('input',()=>{const previousStudio=draft.studioName;draft.studioName=studioInput.value.slice(0,60);if(headerSignatureInput&&draft.headerSignature===previousStudio){draft.headerSignature=draft.studioName;headerSignatureInput.value=draft.headerSignature}refreshPreview()});trainerInput.addEventListener('input',()=>{draft.trainerName=trainerInput.value.slice(0,60)});
+    headerSignatureInput?.addEventListener('input',()=>{draft.headerSignature=headerSignatureInput.value.slice(0,80)});
+    showStudioContextInput?.addEventListener('change',()=>{draft.showStudioContext=showStudioContextInput.checked;if(headerSignatureInput)headerSignatureInput.disabled=!draft.showStudioContext;headerSignatureField?.classList.toggle('is-disabled',!draft.showStudioContext)});
     primaryPicker.addEventListener('input',()=>syncColors('primary',primaryPicker.value));accentPicker.addEventListener('input',()=>syncColors('accent',accentPicker.value));primaryHex.addEventListener('change',()=>syncColors('primary',primaryHex.value));accentHex.addEventListener('change',()=>syncColors('accent',accentHex.value));
     $$('[data-brand-palette]',root).forEach(btn=>btn.addEventListener('click',()=>{const p=palettes[Number(btn.dataset.brandPalette)];if(!p)return;draft.primaryColor=p.primary;draft.accentColor=p.accent;primaryPicker.value=p.primary;primaryHex.value=p.primary;accentPicker.value=p.accent;accentHex.value=p.accent;refreshPreview()}));
     $$('[data-logo-surface]',root).forEach(btn=>btn.addEventListener('click',()=>{activeLogoSurface=btn.dataset.logoSurface==='icon'?'icon':'banner';refreshLogoFitEditor()}));
@@ -6125,17 +6140,17 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
     $('#useDefaultBrandLogo',root).addEventListener('click',()=>{draft.logoData='';draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');refreshLogoFitEditor()});
     $('#restoreBrandingDefaults',root).addEventListener('click',()=>{
       // V12.2.2: continua SOMENTE prévia; agora inclui os enquadramentos do logo.
-      draft.appName=BRAND_DEFAULTS.appName;draft.studioName=BRAND_DEFAULTS.studioName;draft.trainerName=BRAND_DEFAULTS.trainerName;draft.logoData='';draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');draft.primaryColor=BRAND_DEFAULTS.primaryColor;draft.accentColor=BRAND_DEFAULTS.accentColor;
-      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
+      draft.appName=BRAND_DEFAULTS.appName;draft.studioName=BRAND_DEFAULTS.studioName;draft.trainerName=BRAND_DEFAULTS.trainerName;draft.headerSignature=BRAND_DEFAULTS.studioName;draft.showStudioContext=true;draft.logoData='';draft.logoFitBanner=freshLogoFit('banner');draft.logoFitIcon=freshLogoFit('icon');draft.primaryColor=BRAND_DEFAULTS.primaryColor;draft.accentColor=BRAND_DEFAULTS.accentColor;
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;if(headerSignatureInput){headerSignatureInput.value=draft.headerSignature;headerSignatureInput.disabled=false}if(showStudioContextInput)showStudioContextInput.checked=true;headerSignatureField?.classList.remove('is-disabled');primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
       toast('Padrão Vigexa 360 preparado na prévia. Toque em “Salvar identidade” para aplicar.');
     });
     $('#recoverPreviousBranding',root)?.addEventListener('click',()=>{
       const previous=readBrandingRecovery();if(!previous)return toast('Nenhuma identidade anterior disponível.');
-      draft.appName=String(previous.appName||BRAND_DEFAULTS.appName);draft.studioName=String(previous.studioName||BRAND_DEFAULTS.studioName);draft.trainerName=String(previous.trainerName||BRAND_DEFAULTS.trainerName);draft.logoData=String(previous.brandLogoData||'');draft.logoFitBanner=normalizeLogoFit(previous.brandLogoFitBanner,'banner');draft.logoFitIcon=normalizeLogoFit(previous.brandLogoFitIcon,'icon');draft.primaryColor=normalizeBrandColor(previous.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);draft.accentColor=normalizeBrandColor(previous.brandAccentColor,BRAND_DEFAULTS.accentColor);
-      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
+      draft.appName=String(previous.appName||BRAND_DEFAULTS.appName);draft.studioName=String(previous.studioName||BRAND_DEFAULTS.studioName);draft.trainerName=String(previous.trainerName||BRAND_DEFAULTS.trainerName);draft.headerSignature=Object.prototype.hasOwnProperty.call(previous,'brandHeaderSignature')?String(previous.brandHeaderSignature||''):draft.studioName;draft.showStudioContext=previous.brandShowStudioContext!==false;draft.logoData=String(previous.brandLogoData||'');draft.logoFitBanner=normalizeLogoFit(previous.brandLogoFitBanner,'banner');draft.logoFitIcon=normalizeLogoFit(previous.brandLogoFitIcon,'icon');draft.primaryColor=normalizeBrandColor(previous.brandPrimaryColor,BRAND_DEFAULTS.primaryColor);draft.accentColor=normalizeBrandColor(previous.brandAccentColor,BRAND_DEFAULTS.accentColor);
+      appInput.value=draft.appName;studioInput.value=draft.studioName;trainerInput.value=draft.trainerName;if(headerSignatureInput){headerSignatureInput.value=draft.headerSignature;headerSignatureInput.disabled=!draft.showStudioContext}if(showStudioContextInput)showStudioContextInput.checked=draft.showStudioContext;headerSignatureField?.classList.toggle('is-disabled',!draft.showStudioContext);primaryPicker.value=draft.primaryColor;primaryHex.value=draft.primaryColor;accentPicker.value=draft.accentColor;accentHex.value=draft.accentColor;activeLogoSurface='banner';refreshLogoFitEditor();
       toast('Identidade anterior carregada na prévia. Salve apenas se estiver correta.');
     });
-    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandLogoData=draft.logoData;state.settings.brandLogoFitBanner=normalizeLogoFit(draft.logoFitBanner,'banner');state.settings.brandLogoFitIcon=normalizeLogoFit(draft.logoFitIcon,'icon');state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);state.commercial=normalizeCommercial(state.commercial,state.settings||{});state.commercial.studioProfile={...state.commercial.studioProfile,studioName:draft.studioName,professionalName:draft.trainerName,updatedAt:new Date().toISOString()};addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName} • enquadramento de logo`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual e enquadramentos salvos.');});
+    root.addEventListener('submit',e=>{e.preventDefault();draft.appName=String(appInput.value||'').trim().slice(0,36)||BRAND_DEFAULTS.appName;draft.studioName=String(studioInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.studioName;draft.trainerName=String(trainerInput.value||'').trim().slice(0,60)||BRAND_DEFAULTS.trainerName;draft.headerSignature=String(headerSignatureInput?.value||'').trim().slice(0,80);draft.showStudioContext=Boolean(showStudioContextInput?.checked);persistBrandingRecovery(state.settings||{},'antes de salvar identidade');state.settings.appName=draft.appName;state.settings.studioName=draft.studioName;state.settings.trainerName=draft.trainerName;state.settings.brandHeaderSignature=draft.headerSignature;state.settings.brandShowStudioContext=draft.showStudioContext;state.settings.brandLogoData=draft.logoData;state.settings.brandLogoFitBanner=normalizeLogoFit(draft.logoFitBanner,'banner');state.settings.brandLogoFitIcon=normalizeLogoFit(draft.logoFitIcon,'icon');state.settings.brandPrimaryColor=normalizeBrandColor(draft.primaryColor,BRAND_DEFAULTS.primaryColor);state.settings.brandAccentColor=normalizeBrandColor(draft.accentColor,BRAND_DEFAULTS.accentColor);state.commercial=normalizeCommercial(state.commercial,state.settings||{});state.commercial.studioProfile={...state.commercial.studioProfile,studioName:draft.studioName,professionalName:draft.trainerName,updatedAt:new Date().toISOString()};addAudit('Identidade visual atualizada',`${draft.appName} • ${draft.studioName} • cabeçalho ${draft.showStudioContext?'personalizado':'limpo'} • enquadramento de logo`);saveState();applyBranding();closeModal();renderSettings();toast('Identidade visual e cabeçalho salvos.');});
     refreshLogoFitEditor();
   }
 
@@ -7522,7 +7537,7 @@ select 'LEGAL GOVERNANCE V1 OK' as status;
     viewEl.innerHTML=`
       <section class="logo-feature brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('banner')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></section>
       <div class="section-head"><div><h3>Identidade visual</h3><p>Nome, logotipo e cores do seu Studio</p></div></div>
-      <section class="card brand-settings-card"><div class="brand-settings-preview"><span class="brand-settings-logo-frame brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></span><div><span>${escapeHTML(brandAppName())}</span><strong>${escapeHTML(brandStudioName())}</strong><small>${escapeHTML(state.settings.trainerName||BRAND_DEFAULTS.trainerName)}</small></div><em>${escapeHTML(brandInitials())}</em></div><div class="brand-settings-footer"><div class="brand-swatches" aria-label="Cores atuais"><i style="--swatch:${escapeHTML(brandingSettings().primaryColor)}"></i><i style="--swatch:${escapeHTML(brandingSettings().accentColor)}"></i><span>${escapeHTML(brandingSettings().primaryColor)} • ${escapeHTML(brandingSettings().accentColor)}</span></div><button class="btn btn-primary btn-small" id="configureBranding">Personalizar</button></div></section>
+      <section class="card brand-settings-card"><div class="brand-settings-preview"><span class="brand-settings-logo-frame brand-fitted-media" style="${escapeHTML(logoFitVars(brandingLogoFit('icon')))}"><img src="${escapeHTML(brandingLogoSrc())}" alt="Logo ${escapeHTML(brandStudioName())}" /></span><div><span>${escapeHTML(brandAppName())}</span><strong>${escapeHTML(brandStudioName())}</strong><small>${escapeHTML(state.settings.trainerName||BRAND_DEFAULTS.trainerName)}</small></div><em class="brand-product-mark-tile" aria-label="Vigexa 360">${productMarkHTML('vigexa-product-mark-preview')}</em></div><div class="brand-settings-footer"><div class="brand-swatches" aria-label="Cores atuais"><i style="--swatch:${escapeHTML(brandingSettings().primaryColor)}"></i><i style="--swatch:${escapeHTML(brandingSettings().accentColor)}"></i><span>${escapeHTML(brandingSettings().primaryColor)} • ${escapeHTML(brandingSettings().accentColor)}</span></div><button class="btn btn-primary btn-small" id="configureBranding">Personalizar</button></div></section>
 
       <div class="section-head"><div><h3>Aplicativo</h3><p>Seus dados ficam protegidos neste aparelho</p></div></div>
       <section class="card">

@@ -2304,7 +2304,7 @@ body.access-session-locked .toast-root{z-index:5200}
 @media(min-width:1050px){.brand-mini .vigexa-lockup{font-size:14px!important}.brand-mini-logo-frame{width:48px;height:48px;flex-basis:48px;border-radius:15px}}
 
 
-/* V13.3.3 • Vigexa 360 • Identidade Comercial Final */
+/* V13.3.4 • Vigexa 360 • X dinâmico nos avatares de produto */
 .vigexa-lockup{display:inline-flex!important;align-items:center;white-space:nowrap;line-height:1;font-weight:900!important;letter-spacing:.035em!important;color:#f5f2ea!important;text-shadow:0 1px 0 rgba(255,255,255,.06)}
 .vigexa-wordmark-x-wrap{display:inline-grid;place-items:center;width:1.12em;height:1.12em;margin:0 .025em;vertical-align:-.12em;flex:0 0 auto}
 .vigexa-wordmark-x{width:100%;height:100%;display:block;object-fit:contain;filter:drop-shadow(0 0 5px rgba(227,174,55,.34)) drop-shadow(0 1px 0 rgba(255,236,170,.32))}
@@ -2320,3 +2320,36 @@ body.access-session-locked .toast-root{z-index:5200}
 .topbar h1{font-size:27px!important;letter-spacing:-.045em!important}
 @media(max-width:390px){.vigexa-topbar-lockup{font-size:13.5px!important}.topbar-studio-context{font-size:8.6px!important;max-width:54vw}.topbar-product-logo-frame{width:40px!important;height:40px!important;flex-basis:40px!important;padding:4px!important}.topbar h1{font-size:23px!important}}
 @media(min-width:1050px){.topbar-product-logo-frame{display:flex!important}.topbar-brand-cluster{gap:12px!important}.vigexa-topbar-lockup{font-size:16px!important}.topbar-studio-context{max-width:560px}}
+
+
+/* V13.3.4 • Product Mark Avatar — usa o X Vigexa no lugar das iniciais do produto. */
+.avatar-btn .vigexa-product-mark-avatar{width:72%;height:72%;display:block;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.30))}
+.brand-settings-preview .brand-product-mark-tile,.brand-editor-preview .brand-product-mark-tile{overflow:hidden;padding:0}
+.brand-product-mark-tile .vigexa-product-mark-preview{width:74%;height:74%;display:block;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.28))}
+
+
+/* V13.3.5 • Cabeçalho Clean — uma única marca de produto no avatar de acesso. */
+.topbar-brand-cluster{gap:0!important;min-width:0}
+.topbar-identity-copy{gap:0;min-width:0}
+.vigexa-topbar-lockup{margin:0 0 5px!important;font-size:14px!important;opacity:.92}
+.topbar h1{margin:0!important;font-size:25px!important;line-height:1.05;letter-spacing:-.04em!important}
+.topbar-studio-context{order:3;margin:5px 0 0!important;font-size:8.5px!important;line-height:1.2;letter-spacing:.10em!important;color:rgba(218,186,112,.72)!important;max-width:min(68vw,520px)}
+.topbar-studio-context[hidden]{display:none!important}
+@media(max-width:390px){.vigexa-topbar-lockup{font-size:12.5px!important;margin-bottom:4px!important}.topbar h1{font-size:22px!important}.topbar-studio-context{font-size:7.9px!important;max-width:60vw;margin-top:4px!important}}
+@media(min-width:1050px){.topbar-brand-cluster{gap:0!important}.vigexa-topbar-lockup{font-size:14.5px!important}.topbar h1{font-size:27px!important}.topbar-studio-context{max-width:560px}}
+
+/* White Label • assinatura do cliente opcional, sem "Private Edition" forçado. */
+.brand-header-editor{display:grid;gap:12px}
+.brand-header-editor-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand-header-editor-head>div{display:grid;gap:4px;min-width:0}
+.brand-header-editor-head strong{font-size:13px;letter-spacing:-.01em}
+.brand-header-editor-head small,.brand-header-signature-field>small{color:var(--muted);font-size:9px;line-height:1.45}
+.brand-header-switch{position:relative;display:block;flex:0 0 auto;width:46px;height:26px;cursor:pointer}
+.brand-header-switch input{position:absolute;opacity:0;pointer-events:none}
+.brand-header-switch span{position:absolute;inset:0;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#181a1f;transition:.18s ease}
+.brand-header-switch span:after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#8b8f96;box-shadow:0 2px 7px rgba(0,0,0,.34);transition:.18s ease}
+.brand-header-switch input:checked+span{border-color:rgba(var(--brand-accent-rgb),.34);background:rgba(var(--brand-primary-rgb),.14)}
+.brand-header-switch input:checked+span:after{transform:translateX(20px);background:var(--gold2)}
+.brand-header-signature-field{margin:0!important;transition:opacity .16s ease}
+.brand-header-signature-field.is-disabled{opacity:.46}
+.brand-header-signature-field input:disabled{cursor:not-allowed}
