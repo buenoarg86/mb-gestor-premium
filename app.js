@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V13.2.0 — Comercial • Governança Jurídica e Privacidade
+// MB Gestor Luxury Pro V13.2.1 — Hotfix SuperDB • Governança Jurídica Compatível
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V13.2.0 — Comercial • Governança Jurídica e Privacidade
+  // MB Gestor Luxury Pro V13.2.1 — Hotfix SuperDB • Governança Jurídica Compatível
 
-  const APP_VERSION = '13.2.0';
+  const APP_VERSION = '13.2.1';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -6385,7 +6385,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function commercialFoundationSql(){
     const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
-    return `-- MB Gestor Luxury Pro V13.2.0
+    return `-- MB Gestor Luxury Pro V13.2.1
 -- Fundação SaaS Comercial V2 • Isolamento multi-Studio compatível com SuperDB
 -- Princípios: tenant verificado no servidor, RLS default-deny, menor privilégio,
 -- assinatura server-authoritative, auditoria e provisionamento seguro.
@@ -6855,7 +6855,7 @@ MODELO OPERACIONAL: este aviso é um rascunho estruturado para revisão jurídic
 
   function commercialLegalMigrationSql(){
     const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
-    return `-- MB Gestor Luxury Pro V13.2.0
+    return `-- MB Gestor Luxury Pro V13.2.1
 -- Governança Jurídica e Privacidade • SuperDB
 -- Adiciona publicação versionada e imutável de Termos/Aviso, aceite server-side
 -- e consentimento opcional separado. Não usa FORCE RLS para manter compatibilidade
@@ -7096,29 +7096,9 @@ grant execute on function ${schema}.app_legal_status(text) to authenticated;
 grant execute on function ${schema}.app_accept_current_legal(text) to authenticated;
 grant execute on function ${schema}.app_set_optional_consent(text,text,boolean,text) to authenticated;
 
--- Atualiza a verificação de segurança para RLS default-deny compatível com SECURITY DEFINER.
-create or replace function ${schema}.app_security_posture(p_workspace_id text)
-returns jsonb language plpgsql stable security definer set search_path = ${schema}, auth, pg_temp as $$
-declare
-  v_uid uuid:=auth.uid(); v_expected int:=9; v_rls int:=0; v_force int:=0; v_policy_tables int:=0; v_write_grants int:=0;
-  v_super boolean:=false; v_bypass boolean:=false; v_ok boolean;
-begin
-  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
-  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner','admin']) then raise exception 'Sem permissão.'; end if;
-  select count(*) filter(where c.relrowsecurity),count(*) filter(where c.relforcerowsecurity)
-    into v_rls,v_force
-    from pg_class c join pg_namespace n on n.oid=c.relnamespace
-   where n.nspname='${schema}' and c.relname in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents');
-  select count(distinct tablename) into v_policy_tables from pg_policies
-   where schemaname='${schema}' and tablename in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents');
-  select coalesce(rolsuper,false),coalesce(rolbypassrls,false) into v_super,v_bypass from pg_roles where rolname='authenticated';
-  select count(*) into v_write_grants from information_schema.role_table_grants
-   where grantee='authenticated' and table_schema='${schema}'
-     and table_name in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents')
-     and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER');
-  v_ok := v_rls=v_expected and v_policy_tables=v_expected and not coalesce(v_super,false) and not coalesce(v_bypass,false) and v_write_grants=0;
-  return jsonb_build_object('ok',v_ok,'foundation_version',2,'migration_id','v13.2-legal-governance-v1','expected_tables',v_expected,'rls_enabled',v_rls,'rls_forced',v_force,'policy_tables',v_policy_tables,'rls_all',v_rls=v_expected,'force_rls_required',false,'policies_present',v_policy_tables=v_expected,'request_role_safe',not coalesce(v_super,false) and not coalesce(v_bypass,false),'subscription_client_write',v_write_grants>0,'direct_write_grants',v_write_grants,'legal_backend_version',1,'verified_at',now());
-end; $$;
+-- Compatibilidade SuperDB: preserva app_security_posture da Fundação SaaS V2 já validada.
+-- Esta migração jurídica é verificada separadamente por app_legal_status, existência das RPCs
+-- e bloqueio de escrita direta para authenticated, sem consultar schemas internos do PostgreSQL.
 
 insert into ${schema}.app_foundation_meta(key,value,updated_at)
 values('legal_governance',jsonb_build_object('version',1,'migration_id','v13.2-legal-governance-v1','applied_at',now()),now())

@@ -1,6 +1,6 @@
-// MB Gestor Luxury Pro V13.2.0 — Comercial • Governança Jurídica e Privacidade
-const CACHE='mb-gestor-luxury-pro-v13-2-0-legal-governance';
-const ASSETS=['./','./index.html','./styles.css?v=13.2.0','./app.js?v=13.2.0','./student-portal.html','./student-portal.js?v=13.2.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
+// MB Gestor Luxury Pro V13.2.1 — Hotfix SuperDB • Governança Jurídica Compatível
+const CACHE='mb-gestor-luxury-pro-v13-2-1-legal-governance';
+const ASSETS=['./','./index.html','./styles.css?v=13.2.1','./app.js?v=13.2.1','./student-portal.html','./student-portal.js?v=13.2.1','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

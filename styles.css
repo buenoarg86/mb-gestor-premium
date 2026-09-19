@@ -2266,7 +2266,7 @@ body.access-session-locked .toast-root{z-index:5200}
 .commercial-limit-card p{margin:0;color:#a9a7a2;line-height:1.55}
 
 
-/* V13.2.0 • Governança Jurídica e Privacidade */
+/* V13.2.1 • Governança Jurídica e Privacidade */
 .legal-status-strip{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .legal-status-strip span{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:#111318;font-size:.75rem;font-weight:850;color:var(--muted)}
 .legal-status-strip span.ok{color:#84d9ab;border-color:rgba(98,197,144,.24);background:rgba(50,138,94,.10)}
