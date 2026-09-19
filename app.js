@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V13.2.1 — Hotfix SuperDB • Governança Jurídica Compatível
+// VIGEXA360 V13.3.0 — Identidade Premium • Logo + Portal + Ícone
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V13.2.1 — Hotfix SuperDB • Governança Jurídica Compatível
+  // VIGEXA360 V13.3.0 — Identidade Premium • Logo + Portal + Ícone
 
-  const APP_VERSION = '13.2.1';
+  const APP_VERSION = '13.3.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -213,7 +213,7 @@
     settings: {
       studioName: 'Meu Studio',
       trainerName: 'Profissional',
-      appName: 'MB Gestor',
+      appName: 'VIGEXA360',
       brandLogoData: '',
       brandLogoFitBanner: structuredClone(BRAND_LOGO_FIT_LEGACY_DEFAULTS.banner),
       brandLogoFitIcon: structuredClone(BRAND_LOGO_FIT_LEGACY_DEFAULTS.icon),
@@ -1384,9 +1384,19 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     return fresh;
   }
 
+  function migrateLegacyProductBrandSettings(raw={}){
+    const src=(raw&&typeof raw==='object')?{...raw}:{};
+    const normalized=String(src.appName||'').trim().toLocaleUpperCase('pt-BR');
+    const isLegacyDefault=normalized==='MB GESTOR'||normalized==='MB GESTOR LUXURY PRO';
+    if(!isLegacyDefault)return src;
+    // V13.3.0 • migra apenas a identidade-padrão antiga. White Label customizado permanece intocado.
+    return {...src,appName:'VIGEXA360',brandLogoData:'',brandLogoFitBanner:freshLogoFit('banner'),brandLogoFitIcon:freshLogoFit('icon'),brandPrimaryColor:normalizeBrandColor(src.brandPrimaryColor,'#d7a33d'),brandAccentColor:normalizeBrandColor(src.brandAccentColor,'#f3c76a')};
+  }
+
   function hydrateState(parsed={}, {preserveWorkspace=null}={}){
     const existingBusiness=stateHasBusinessData(parsed);
-    const operationSource=parsed.settings?.operationConfig || (existingBusiness?LEGACY_COMPAT_OPERATION_CONFIG:DEFAULT_OPERATION_CONFIG);
+    const migratedSettings=migrateLegacyProductBrandSettings(parsed.settings||{});
+    const operationSource=migratedSettings.operationConfig || (existingBusiness?LEGACY_COMPAT_OPERATION_CONFIG:DEFAULT_OPERATION_CONFIG);
     const workspaceSource=(parsed.workspace&&typeof parsed.workspace==='object')?parsed.workspace:(preserveWorkspace||{});
     const normalizedWorkspace=normalizeWorkspace(workspaceSource);
     return {
@@ -1394,7 +1404,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       ...parsed,
       version:DATA_SCHEMA_VERSION,
       workspace:normalizedWorkspace,
-      commercial:normalizeCommercial(parsed.commercial,parsed.settings||{}),
+      commercial:normalizeCommercial(parsed.commercial,migratedSettings),
       dataFoundation:normalizeDataFoundation(parsed.dataFoundation,normalizedWorkspace.id,existingBusiness),
       studentPortal:normalizeStudentPortal(parsed.studentPortal),
       students:Array.isArray(parsed.students)?parsed.students:[],
@@ -1417,7 +1427,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       posturalAssessments:Array.isArray(parsed.posturalAssessments)?parsed.posturalAssessments:[],
       auditLog:Array.isArray(parsed.auditLog)?parsed.auditLog:[],
       trash:Array.isArray(parsed.trash)?parsed.trash:[],
-      settings:{...DEFAULT_STATE.settings,...(parsed.settings||{}),backupHistory:normalizeBackupHistory(parsed.settings?.backupHistory),operationConfig:normalizeOperationConfig(operationSource)}
+      settings:{...DEFAULT_STATE.settings,...migratedSettings,backupHistory:normalizeBackupHistory(migratedSettings.backupHistory),operationConfig:normalizeOperationConfig(operationSource)}
     };
   }
 
@@ -1427,11 +1437,13 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
       if(!raw)return createFreshState();
       const parsed=JSON.parse(raw);
       const hydrated=hydrateState(parsed);
+      const legacyProductName=String(parsed.settings?.appName||'').trim().toLocaleUpperCase('pt-BR');
+      const needsProductBrandMigration=legacyProductName==='MB GESTOR'||legacyProductName==='MB GESTOR LUXURY PRO';
       const needsFoundationMigration=Number(parsed.version)!==DATA_SCHEMA_VERSION||!parsed.workspace?.id||!parsed.workspace?.createdAt||Number(parsed.workspace?.schemaVersion)!==WORKSPACE_SCHEMA_VERSION||Number(parsed.commercial?.schemaVersion)!==COMMERCIAL_SCHEMA_VERSION||Number(parsed.commercial?.access?.schemaVersion)!==ACCESS_SCHEMA_VERSION||Number(parsed.dataFoundation?.schemaVersion)!==DATA_OWNERSHIP_SCHEMA_VERSION||Number(parsed.studentPortal?.schemaVersion)!==STUDENT_PORTAL_SCHEMA_VERSION||!parsed.settings?.operationConfig;
-      if(needsFoundationMigration){
+      if(needsFoundationMigration||needsProductBrandMigration){
         // Antes de qualquer persistência de migração, guardamos a identidade EXATA que já existia.
         // Isso impede que uma atualização comercial neutralize silenciosamente uma marca configurada.
-        persistBrandingRecovery(parsed.settings||{},'pré-migração comercial');
+        persistBrandingRecovery(parsed.settings||{},needsProductBrandMigration?'pré-identidade VIGEXA360':'pré-migração comercial');
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(hydrated));}catch(err){console.warn('Migração comercial carregada em memória; persistência adiada.',err);}
       }
       return hydrated;
@@ -1476,7 +1488,7 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     return `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
   }
 
-  const BRAND_DEFAULTS={appName:'MB Gestor',studioName:'Meu Studio',trainerName:'Profissional',logoData:'',primaryColor:'#d7a33d',accentColor:'#f3c76a'};
+  const BRAND_DEFAULTS={appName:'VIGEXA360',studioName:'Meu Studio',trainerName:'Profissional',logoData:'',primaryColor:'#d7a33d',accentColor:'#f3c76a'};
   function normalizeBrandColor(value,fallback){const v=String(value||'').trim();return /^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():fallback}
   function brandingSettings(){
     return {
@@ -1504,8 +1516,9 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
   function brandStudioName(){return brandingSettings().studioName}
   function brandInitials(){
     const source=brandAppName()||brandStudioName();
+    if(String(source).trim().toUpperCase()==='VIGEXA360')return 'VX';
     const parts=String(source).replace(/[^\p{L}\p{N} ]/gu,' ').trim().split(/\s+/).filter(Boolean);
-    return (parts.length>1?`${parts[0][0]}${parts[1][0]}`:String(parts[0]||'MB').slice(0,2)).toUpperCase();
+    return (parts.length>1?`${parts[0][0]}${parts[1][0]}`:String(parts[0]||'VX').slice(0,2)).toUpperCase();
   }
   function brandingLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
   function brandingReportLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
@@ -1515,10 +1528,12 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     root.style.setProperty('--gold',b.primaryColor);root.style.setProperty('--gold2',b.accentColor);
     root.style.setProperty('--brand-primary-rgb',brandRgb(b.primaryColor));root.style.setProperty('--brand-accent-rgb',brandRgb(b.accentColor));root.classList.add('brand-runtime');
     const studioEl=$('#studioBrandName');if(studioEl)studioEl.textContent=b.studioName;
-    const appEl=$('#appBrandName');if(appEl)appEl.textContent=b.appName;
+    const appEl=$('#appBrandName');if(appEl){if(String(b.appName).trim().toUpperCase()==='VIGEXA360'){appEl.classList.add('vigexa-lockup');appEl.innerHTML='VIGE<span class="vigexa-brand-x">X</span>A<span class="vigexa-brand-360">360</span>';}else{appEl.classList.remove('vigexa-lockup');appEl.textContent=b.appName;}}
     const avatar=$('#brandAvatar');if(avatar)avatar.textContent=brandInitials();
     const sideLogo=$('#brandMiniLogo');if(sideLogo){sideLogo.src=brandingLogoSrc();sideLogo.alt=`Logo ${b.studioName}`;}
+    const topLogo=$('#topbarProductLogo');if(topLogo){topLogo.src=brandingLogoSrc();topLogo.alt=`Logo ${b.appName}`;}
     applyLogoFitToFrame($('#brandMiniLogoFrame'),b.logoFitIcon);
+    applyLogoFitToFrame($('#topbarProductLogoFrame'),b.logoFitIcon);
     document.title=`${b.appName} • ${b.studioName}`;
     document.querySelector('meta[name="application-name"]')?.setAttribute('content',b.appName);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content',b.appName);

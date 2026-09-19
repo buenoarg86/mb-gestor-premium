@@ -2287,3 +2287,18 @@ body.access-session-locked .toast-root{z-index:5200}
 .legal-document-view summary{cursor:pointer;padding:14px;font-weight:850;color:var(--text)}
 .legal-document-view pre{margin:0;padding:0 14px 16px;white-space:pre-wrap;word-break:break-word;color:#c7cbd3;font-family:inherit;font-size:.82rem;line-height:1.55;max-height:58vh;overflow:auto}
 @media(max-width:620px){.legal-form-grid,.legal-version-grid{grid-template-columns:1fr}.legal-editor-form textarea{min-height:250px}.legal-inline-actions .btn{flex:1 1 auto}}
+
+
+/* V13.3.0 — VIGEXA360 • identidade premium segura */
+.topbar-brand-cluster{display:flex;align-items:center;gap:11px;min-width:0}
+.topbar-product-logo-frame{width:42px;height:42px;flex:0 0 42px;border-radius:13px;border:1px solid rgba(var(--brand-accent-rgb),.22);background:#050505;box-shadow:0 8px 22px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.03)}
+.topbar-product-logo-frame>img{object-fit:contain!important}
+@media(max-width:390px){.topbar{padding-left:12px;padding-right:12px}.topbar-brand-cluster{gap:9px}.topbar-product-logo-frame{width:38px;height:38px;flex-basis:38px;border-radius:12px}.topbar h1{font-size:24px}}
+@media(min-width:1050px){.topbar-product-logo-frame{display:none}.topbar-brand-cluster{gap:0}}
+
+.vigexa-lockup{font-weight:950!important;letter-spacing:.018em!important;color:#f7f5ef!important;text-shadow:0 1px 0 rgba(255,255,255,.08)}
+.vigexa-lockup .vigexa-brand-x{color:#efb83d;text-shadow:0 0 14px rgba(215,163,61,.22),0 1px 0 #fff1ad}
+.vigexa-lockup .vigexa-brand-360{margin-left:2px;color:#f1c65e;font-weight:800;letter-spacing:-.02em}
+.brand-mini-logo-frame{background:radial-gradient(circle at 45% 36%,rgba(243,199,106,.12),transparent 56%),#050505!important;border-color:rgba(243,199,106,.26)!important;box-shadow:0 10px 28px rgba(0,0,0,.42),0 0 0 1px rgba(215,163,61,.04),inset 0 1px 0 rgba(255,255,255,.03)}
+.brand-mini-logo-frame>img{object-fit:contain!important}
+@media(min-width:1050px){.brand-mini .vigexa-lockup{font-size:14px!important}.brand-mini-logo-frame{width:48px;height:48px;flex-basis:48px;border-radius:15px}}
