@@ -1,9 +1,9 @@
-// MB Gestor Luxury Pro V13.1.1 — Comercial • Ativação SuperDB Resiliente
+// MB Gestor Luxury Pro V13.2.0 — Comercial • Governança Jurídica e Privacidade
 (() => {
   'use strict';
-  // MB Gestor Luxury Pro V13.1.1 — Comercial • Ativação SuperDB Resiliente
+  // MB Gestor Luxury Pro V13.2.0 — Comercial • Governança Jurídica e Privacidade
 
-  const APP_VERSION = '13.1.2';
+  const APP_VERSION = '13.2.0';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -11,11 +11,11 @@
   const DATA_OWNERSHIP_SCHEMA_VERSION = 1;
   const COMMERCIAL_LICENSE_SCHEMA_VERSION = 2;
   const COMMERCIAL_ONBOARDING_SCHEMA_VERSION = 1;
-  const COMMERCIAL_PRIVACY_SCHEMA_VERSION = 1;
+  const COMMERCIAL_PRIVACY_SCHEMA_VERSION = 2;
   const COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION = 1;
   const COMMERCIAL_BACKEND_FOUNDATION_VERSION = 2;
-  const COMMERCIAL_TERMS_VERSION = 'pending-legal-review';
-  const COMMERCIAL_PRIVACY_VERSION = 'pending-legal-review';
+  const COMMERCIAL_TERMS_VERSION = 'draft-unpublished';
+  const COMMERCIAL_PRIVACY_VERSION = 'draft-unpublished';
   const COMMERCIAL_DEFAULT_ENTITLEMENTS = Object.freeze({students:true,schedule:true,finance:true,receipts:true,assessments:true,intelligence:true,team:true,portal:true,reminders:true,protectedBackup:true});
   const COMMERCIAL_PLAN_CATALOG = Object.freeze({
     local:{label:'Local',description:'Operação atual neste aparelho, sem cobrança online.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}},
@@ -163,7 +163,7 @@
       installation: {id:'',createdAt:'',label:'Este dispositivo'},
       license: {schemaVersion:COMMERCIAL_LICENSE_SCHEMA_VERSION,status:'local-active',plan:'local',checkedAt:null,source:'local',validFrom:null,validUntil:null,trialEndsAt:null,renewalAt:null,graceUntil:null,serverVerifiedAt:null,verificationState:'local',customerRef:null,subscriptionRef:null,externalRef:null,entitlements:{},limits:{}},
       onboarding: {schemaVersion:COMMERCIAL_ONBOARDING_SCHEMA_VERSION,status:'not-started',startedAt:null,completedAt:null,dismissedAt:null,lastStep:1,steps:{identity:false,operation:false,security:false,backup:false,online:false}},
-      privacy: {schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,documentsPublished:false,termsVersion:'',privacyVersion:'',termsAcceptedAt:null,privacyAcceptedAt:null,acceptedBy:null,marketingConsent:false,marketingConsentAt:null,lastPortableExportAt:null,lastDataRequestAt:null},
+      privacy: {schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,documentsPublished:false,termsVersion:'',privacyVersion:'',termsAcceptedAt:null,privacyAcceptedAt:null,acceptedBy:null,marketingConsent:false,marketingConsentAt:null,lastPortableExportAt:null,lastDataRequestAt:null,legalBackendVersion:0,legalBackendVerifiedAt:null,legalStatus:'draft',providerLegalName:'',providerTradeName:'MB Gestor',providerContactEmail:'',privacyContactEmail:'',effectiveDate:'',termsTitle:'Termos de Uso do MB Gestor',privacyTitle:'Aviso de Privacidade do MB Gestor',termsDraft:'',privacyDraft:'',termsHash:'',privacyHash:'',publishedAt:null,legalReviewConfirmed:false,legalReviewedBy:'',legalReviewedAt:null,lastLegalError:null},
       infrastructure: {schemaVersion:COMMERCIAL_INFRASTRUCTURE_SCHEMA_VERSION,backendFoundationVersion:0,status:'local',verifiedAt:null,provisionedAt:null,lastError:null,productionDomain:'',pilotValidatedAt:null,releaseChannel:'pwa'},
       sync: {mode:'off',lastSyncAt:null},
       access: {schemaVersion:ACCESS_SCHEMA_VERSION,mode:'local-prepared',ownerMemberId:'owner',members:[],updatedAt:null}
@@ -369,8 +369,39 @@
     return {schemaVersion:COMMERCIAL_ONBOARDING_SCHEMA_VERSION,status:allowed.has(String(source.status||''))?String(source.status):'not-started',startedAt:source.startedAt||null,completedAt:source.completedAt||null,dismissedAt:source.dismissedAt||null,lastStep:Math.max(1,Math.min(5,Number(source.lastStep)||1)),steps:{identity:steps.identity===true,operation:steps.operation===true,security:steps.security===true,backup:steps.backup===true,online:steps.online===true}};
   }
   function normalizeCommercialPrivacy(raw={}){
-    const source=raw&&typeof raw==='object'?raw:{};
-    return {schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,documentsPublished:source.documentsPublished===true,termsVersion:String(source.termsVersion||'').slice(0,64),privacyVersion:String(source.privacyVersion||'').slice(0,64),termsAcceptedAt:source.termsAcceptedAt||null,privacyAcceptedAt:source.privacyAcceptedAt||null,acceptedBy:String(source.acceptedBy||'').slice(0,120)||null,marketingConsent:source.marketingConsent===true,marketingConsentAt:source.marketingConsentAt||null,lastPortableExportAt:source.lastPortableExportAt||null,lastDataRequestAt:source.lastDataRequestAt||null};
+    const source=raw&&typeof raw==='object'?raw:{},allowedStatus=new Set(['draft','reviewed','published']);
+    return {
+      schemaVersion:COMMERCIAL_PRIVACY_SCHEMA_VERSION,
+      documentsPublished:source.documentsPublished===true,
+      termsVersion:String(source.termsVersion||'').trim().slice(0,64),
+      privacyVersion:String(source.privacyVersion||'').trim().slice(0,64),
+      termsAcceptedAt:source.termsAcceptedAt||null,
+      privacyAcceptedAt:source.privacyAcceptedAt||null,
+      acceptedBy:String(source.acceptedBy||'').slice(0,120)||null,
+      marketingConsent:source.marketingConsent===true,
+      marketingConsentAt:source.marketingConsentAt||null,
+      lastPortableExportAt:source.lastPortableExportAt||null,
+      lastDataRequestAt:source.lastDataRequestAt||null,
+      legalBackendVersion:Math.max(0,Math.floor(Number(source.legalBackendVersion)||0)),
+      legalBackendVerifiedAt:source.legalBackendVerifiedAt||null,
+      legalStatus:allowedStatus.has(String(source.legalStatus||''))?String(source.legalStatus):(source.documentsPublished===true?'published':'draft'),
+      providerLegalName:String(source.providerLegalName||'').trim().slice(0,160),
+      providerTradeName:String(source.providerTradeName||'MB Gestor').trim().slice(0,100)||'MB Gestor',
+      providerContactEmail:String(source.providerContactEmail||'').trim().slice(0,160),
+      privacyContactEmail:String(source.privacyContactEmail||'').trim().slice(0,160),
+      effectiveDate:String(source.effectiveDate||'').trim().slice(0,10),
+      termsTitle:String(source.termsTitle||'Termos de Uso do MB Gestor').trim().slice(0,160),
+      privacyTitle:String(source.privacyTitle||'Aviso de Privacidade do MB Gestor').trim().slice(0,160),
+      termsDraft:String(source.termsDraft||'').slice(0,30000),
+      privacyDraft:String(source.privacyDraft||'').slice(0,30000),
+      termsHash:String(source.termsHash||'').trim().slice(0,64),
+      privacyHash:String(source.privacyHash||'').trim().slice(0,64),
+      publishedAt:source.publishedAt||null,
+      legalReviewConfirmed:source.legalReviewConfirmed===true,
+      legalReviewedBy:String(source.legalReviewedBy||'').trim().slice(0,120),
+      legalReviewedAt:source.legalReviewedAt||null,
+      lastLegalError:String(source.lastLegalError||'').slice(0,300)||null
+    };
   }
   function normalizeCommercialInfrastructure(raw={}){
     const source=raw&&typeof raw==='object'?raw:{},allowed=new Set(['local','pending','connected','error']);
@@ -6229,7 +6260,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       {id:'backup',label:'Recuperação e backup',detail:'Existe ao menos uma cópia registrada desta instalação.',ok:Boolean(state.settings?.lastBackupAt)},
       {id:'portal',label:'Acesso online e Portal',detail:'Conta online conectada e Portal protegido por RLS.',ok:portalBackend.connected===true},
       {id:'backend',label:'Fundação SaaS do backend',detail:`Estrutura multi-tenant V${COMMERCIAL_BACKEND_FOUNDATION_VERSION}, RLS e menor privilégio verificados.`,ok:commercialBackendFoundationReady()&&infra.securityPosture==='ok'},
-      {id:'legal',label:'Termos e Privacidade',detail:'Documentos jurídicos finais publicados e versionados.',ok:privacy.documentsPublished===true&&Boolean(privacy.termsVersion&&privacy.privacyVersion)},
+      {id:'legal',label:'Termos e Privacidade',detail:'Documentos publicados, versionados e aceitos pela conta responsável.',ok:Number(privacy.legalBackendVersion)>=1&&privacy.documentsPublished===true&&Boolean(privacy.termsVersion&&privacy.privacyVersion&&privacy.termsAcceptedAt&&privacy.privacyAcceptedAt)},
       {id:'billing',label:'Assinatura e cobrança',detail:'Plano online ligado ao cliente e controlado pelo servidor.',ok:billingLinked},
       {id:'updates',label:'Atualização segura do PWA',detail:'Aplicativo publicado em HTTPS com camada de atualização.',ok:httpsReady},
       {id:'domain',label:'Domínio comercial',detail:'Endereço próprio de produção definido.',ok:Boolean(String(infra.productionDomain||'').trim())},
@@ -6292,7 +6323,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
       if(!studentPortalBackendConfigured())throw new Error('Configure primeiro o acesso online do Portal.');
       await ensureStudentPortalBackendSession();
       const raw=await studentPortalApi('/rpc/app_security_posture',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}}),result=Array.isArray(raw)?(raw[0]||{}):(raw||{});
-      const ok=result.ok===true&&Number(result.foundation_version)>=COMMERCIAL_BACKEND_FOUNDATION_VERSION&&result.rls_all===true&&result.force_rls_all===true&&result.policies_present===true&&result.request_role_safe===true&&result.subscription_client_write===false;
+      const ok=result.ok===true&&Number(result.foundation_version)>=COMMERCIAL_BACKEND_FOUNDATION_VERSION&&result.rls_all===true&&result.policies_present===true&&result.request_role_safe===true&&result.subscription_client_write===false;
       const infra=commercialInfrastructure(),now=new Date().toISOString();
       state.commercial.infrastructure=normalizeCommercialInfrastructure({...infra,securityPosture:ok?'ok':'warning',securityVerifiedAt:now,migrationId:String(result.migration_id||infra.migrationId||''),lastError:ok?null:'A verificação de isolamento não passou em todos os controles.'});
       saveState();
@@ -6354,14 +6385,14 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
 
   function commercialFoundationSql(){
     const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
-    return `-- MB Gestor Luxury Pro V13.1.0
--- Fundação SaaS Comercial V2 • Isolamento multi-Studio endurecido
+    return `-- MB Gestor Luxury Pro V13.2.0
+-- Fundação SaaS Comercial V2 • Isolamento multi-Studio compatível com SuperDB
 -- Princípios: tenant verificado no servidor, RLS default-deny, menor privilégio,
 -- assinatura server-authoritative, auditoria e provisionamento seguro.
 -- Execute no SQL Editor da SuperDB com uma conta administrativa.
 -- Nunca coloque service_role, senha administrativa ou segredo de webhook no app.
+-- SuperDB: não use BEGIN/COMMIT; o editor já executa a chamada de forma atômica.
 
-begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
@@ -6499,13 +6530,13 @@ alter table ${schema}.app_subscriptions enable row level security;
 alter table ${schema}.app_legal_acceptances enable row level security;
 alter table ${schema}.app_data_requests enable row level security;
 alter table ${schema}.app_audit_log enable row level security;
-alter table ${schema}.app_workspaces force row level security;
-alter table ${schema}.app_workspace_members force row level security;
-alter table ${schema}.app_installations force row level security;
-alter table ${schema}.app_subscriptions force row level security;
-alter table ${schema}.app_legal_acceptances force row level security;
-alter table ${schema}.app_data_requests force row level security;
-alter table ${schema}.app_audit_log force row level security;
+alter table ${schema}.app_workspaces no force row level security;
+alter table ${schema}.app_workspace_members no force row level security;
+alter table ${schema}.app_installations no force row level security;
+alter table ${schema}.app_subscriptions no force row level security;
+alter table ${schema}.app_legal_acceptances no force row level security;
+alter table ${schema}.app_data_requests no force row level security;
+alter table ${schema}.app_audit_log no force row level security;
 
 revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from anon, public;
 revoke all on ${schema}.app_workspaces, ${schema}.app_workspace_members, ${schema}.app_installations, ${schema}.app_subscriptions, ${schema}.app_legal_acceptances, ${schema}.app_data_requests, ${schema}.app_audit_log from authenticated;
@@ -6660,8 +6691,8 @@ begin
   select count(distinct tablename) into v_policy_tables from pg_policies where schemaname='${schema}' and tablename in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log');
   select coalesce(rolsuper,false),coalesce(rolbypassrls,false) into v_super,v_bypass from pg_roles where rolname='authenticated';
   select count(*) into v_write_grants from information_schema.role_table_grants where grantee='authenticated' and table_schema='${schema}' and table_name in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log') and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER');
-  v_ok := v_rls=v_expected and v_force=v_expected and v_policy_tables=v_expected and not coalesce(v_super,false) and not coalesce(v_bypass,false) and v_write_grants=0;
-  return jsonb_build_object('ok',v_ok,'foundation_version',2,'migration_id','v13.1-tenant-isolation-v2','expected_tables',v_expected,'rls_enabled',v_rls,'rls_forced',v_force,'policy_tables',v_policy_tables,'rls_all',v_rls=v_expected,'force_rls_all',v_force=v_expected,'policies_present',v_policy_tables=v_expected,'request_role_safe',not coalesce(v_super,false) and not coalesce(v_bypass,false),'subscription_client_write',v_write_grants>0,'direct_write_grants',v_write_grants,'verified_at',now());
+  v_ok := v_rls=v_expected and v_policy_tables=v_expected and not coalesce(v_super,false) and not coalesce(v_bypass,false) and v_write_grants=0;
+  return jsonb_build_object('ok',v_ok,'foundation_version',2,'migration_id','v13.2-superdb-rls-compatible','expected_tables',v_expected,'rls_enabled',v_rls,'rls_forced',v_force,'policy_tables',v_policy_tables,'rls_all',v_rls=v_expected,'force_rls_all',v_force=v_expected,'force_rls_required',false,'policies_present',v_policy_tables=v_expected,'request_role_safe',not coalesce(v_super,false) and not coalesce(v_bypass,false),'subscription_client_write',v_write_grants>0,'direct_write_grants',v_write_grants,'verified_at',now());
 end; $$;
 
 -- RPCs são a superfície de mutação do cliente. Tabelas continuam sem escrita direta.
@@ -6693,7 +6724,6 @@ on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_
 
 -- IMPORTANTE: app_subscriptions continua sem INSERT/UPDATE/DELETE para authenticated.
 -- Cobrança, upgrade, downgrade e cancelamento devem ser escritos somente por backend/webhook confiável.
-commit;
 `;
   }
 
@@ -6705,6 +6735,512 @@ commit;
   async function copyCommercialFoundationSql(){
     const sql=commercialFoundationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema do backend.');
     try{await navigator.clipboard.writeText(sql);toast('SQL da Fundação SaaS copiado.')}catch{downloadCommercialFoundationSql()}
+  }
+
+
+  function commercialLegalBackendReady(){
+    return Number(commercialPrivacy().legalBackendVersion)>=1;
+  }
+
+  function commercialLegalDefaultVersion(){
+    const d=new Date(),m=String(d.getMonth()+1).padStart(2,'0');
+    return `${d.getFullYear()}.${m}.1`;
+  }
+
+  function commercialLegalTermsTemplate(meta={}){
+    const provider=String(meta.providerLegalName||'').trim()||'[IDENTIDADE JURÍDICA DO FORNECEDOR]';
+    const trade=String(meta.providerTradeName||'MB Gestor').trim()||'MB Gestor';
+    const contact=String(meta.providerContactEmail||'').trim()||'[E-MAIL DE CONTATO]';
+    const privacy=String(meta.privacyContactEmail||'').trim()||'[E-MAIL DE PRIVACIDADE]';
+    const version=String(meta.termsVersion||commercialLegalDefaultVersion());
+    const effective=String(meta.effectiveDate||isoToday());
+    return `TERMOS DE USO DO ${trade.toUpperCase()} — USUÁRIO EMPRESARIAL
+Versão ${version} • Vigência ${effective}
+
+1. PARTES E ESCOPO
+Estes Termos regulam o uso empresarial do ${trade}, fornecido por ${provider}. O serviço é destinado à gestão de Studios, profissionais e equipes autorizadas. A publicação comercial definitiva deste documento deve ser revisada juridicamente para refletir a entidade fornecedora, modelo de cobrança, território e obrigações efetivamente contratadas.
+
+2. CONTA, IDENTIDADE E RESPONSABILIDADE DE ACESSO
+A conta responsável deve usar informações verdadeiras e manter seus meios de autenticação protegidos. Perfis de equipe são individuais e devem receber apenas as permissões necessárias. Compartilhar credenciais, contornar controles de acesso ou tentar acessar outro Workspace é proibido.
+
+3. USO PERMITIDO E CONDUTA
+O usuário empresarial pode utilizar o serviço para administrar sua própria operação, alunos, agenda, avaliações, comunicações, documentos e rotinas financeiras. É vedado utilizar o serviço para atividade ilícita, violar direitos de terceiros, introduzir código malicioso, tentar explorar vulnerabilidades ou interferir na disponibilidade do serviço.
+
+4. DADOS DO STUDIO E CONTEÚDO
+Os dados inseridos pelo Studio permanecem vinculados ao respectivo Workspace. O Studio é responsável pela legitimidade dos dados que coleta e pelas instruções dadas ao software. O fornecedor não adquire propriedade sobre cadastros, avaliações, documentos ou conteúdo operacional do cliente apenas por hospedá-los ou processá-los.
+
+5. PRIVACIDADE E PROTEÇÃO DE DADOS
+O tratamento de dados pessoais é descrito no Aviso de Privacidade vigente. Quando o ${trade} atuar por instrução do Studio sobre dados de alunos, o Studio define as finalidades do tratamento e deve manter base legal adequada. Para operações próprias de conta, segurança, suporte e cobrança, o fornecedor poderá atuar segundo as responsabilidades definidas na documentação jurídica aplicável.
+
+6. SEGURANÇA
+O serviço emprega separação por Workspace, autenticação, autorização, trilhas de auditoria, RLS no backend e mecanismos de backup. Nenhum sistema elimina integralmente riscos. O cliente deve proteger seus dispositivos, perfis, PINs, códigos e contas de e-mail, revogando acessos que deixem de ser necessários.
+
+7. DISPONIBILIDADE, ATUALIZAÇÕES E MANUTENÇÃO
+O serviço poderá receber correções, atualizações de segurança e melhorias. Manutenções e indisponibilidades podem ocorrer. Compromissos específicos de nível de serviço, suporte e disponibilidade somente valem quando definidos em contratação comercial própria.
+
+8. PLANOS, COBRANÇA E CANCELAMENTO
+Preço, ciclo de cobrança, período de teste, renovação, inadimplência, upgrade, downgrade e cancelamento devem ser apresentados antes da contratação e controlados pelo backend de cobrança. Nenhuma cobrança deve ser considerada válida apenas porque um valor foi alterado no JavaScript do cliente.
+
+9. EXPORTAÇÃO, ENCERRAMENTO E RETENÇÃO
+O Studio poderá utilizar os recursos disponíveis de exportação e portabilidade. Após encerramento, dados podem permanecer pelo período necessário ao cumprimento de obrigações legais, prevenção de fraude, exercício de direitos e rotinas de backup, conforme a Política de Privacidade e a legislação aplicável.
+
+10. PROPRIEDADE INTELECTUAL
+O software, marca, interface, componentes e materiais do ${trade} permanecem protegidos pelos direitos aplicáveis. O cliente conserva os direitos sobre seu conteúdo e identidade visual própria, sem transferir direitos sobre o software.
+
+11. RESPONSABILIDADES E LIMITES
+Cada parte responde por suas obrigações legais e contratuais. Limitações de responsabilidade, garantias, indenização, foro e regras específicas de contratação devem ser definidas na revisão jurídica final e não devem ser presumidas a partir deste modelo técnico.
+
+12. ALTERAÇÕES DOS TERMOS
+Mudanças materiais devem gerar nova versão, nova data de vigência e, quando aplicável, novo aceite. O histórico de versões e aceites deve permanecer auditável.
+
+13. CONTATO
+Contato comercial e suporte: ${contact}
+Privacidade e proteção de dados: ${privacy}
+
+MODELO OPERACIONAL: este texto é um rascunho estruturado para revisão jurídica antes de publicação comercial definitiva.`;
+  }
+
+  function commercialLegalPrivacyTemplate(meta={}){
+    const provider=String(meta.providerLegalName||'').trim()||'[IDENTIDADE JURÍDICA DO FORNECEDOR]';
+    const trade=String(meta.providerTradeName||'MB Gestor').trim()||'MB Gestor';
+    const contact=String(meta.providerContactEmail||'').trim()||'[E-MAIL DE CONTATO]';
+    const privacy=String(meta.privacyContactEmail||'').trim()||'[E-MAIL DE PRIVACIDADE]';
+    const version=String(meta.privacyVersion||commercialLegalDefaultVersion());
+    const effective=String(meta.effectiveDate||isoToday());
+    return `AVISO DE PRIVACIDADE DO ${trade.toUpperCase()}
+Versão ${version} • Vigência ${effective}
+
+1. OBJETIVO
+Este Aviso explica como dados pessoais podem ser tratados no ${trade}, quais controles existem e como titulares podem exercer seus direitos. A versão comercial definitiva deve refletir os fluxos reais do produto, fornecedores contratados e decisões do controlador.
+
+2. PAPÉIS NO TRATAMENTO
+O Studio que cadastra alunos normalmente define as finalidades e os meios essenciais do tratamento desses dados e deve avaliar seu papel como Controlador. ${provider}, enquanto fornecedor do ${trade}, pode atuar como Operador quando processa dados conforme instruções do Studio. Para dados necessários à própria conta do serviço, segurança, prevenção a abuso, suporte e cobrança, os papéis devem ser definidos conforme a operação concreta e a legislação aplicável.
+
+3. CATEGORIAS DE DADOS
+Conforme os módulos habilitados, podem existir dados de identificação e contato, agenda e presença, pagamentos e recibos, avaliações físicas e posturais, medidas corporais, registros de evolução, mensagens operacionais, dados de equipe, logs técnicos, identificadores de dispositivo e informações de segurança. Dados relacionados à saúde ou condição física podem constituir dados pessoais sensíveis e exigem avaliação específica da hipótese legal aplicável.
+
+4. FINALIDADES E BASES LEGAIS
+Os dados podem ser utilizados para prestar o serviço contratado, autenticar usuários, separar Workspaces, manter agenda e histórico, produzir relatórios, processar solicitações, prevenir fraude, registrar auditoria, cumprir obrigações legais e manter segurança. A base legal de cada tratamento deve ser definida e documentada pelo agente responsável. Consentimento não deve ser usado como padrão quando outra hipótese legal adequada for aplicável, e consentimentos opcionais devem ser separados e revogáveis.
+
+5. DADOS SENSÍVEIS E AVALIAÇÕES
+Antes de tratar dados sensíveis, o Studio deve definir e documentar a hipótese legal aplicável, limitar a coleta ao necessário, restringir permissões e informar o titular de forma clara. O ${trade} não deve expor avaliações ou dados sensíveis a outros Studios.
+
+6. COMPARTILHAMENTO E FORNECEDORES
+Dados podem ser processados por provedores de infraestrutura, autenticação, comunicação, suporte, armazenamento e cobrança estritamente conforme a função contratada. Fornecedores devem receber apenas o necessário e estar sujeitos a obrigações de segurança e proteção de dados. Transferências internacionais, quando existirem, devem ser documentadas e utilizar mecanismo jurídico adequado.
+
+7. RETENÇÃO E EXCLUSÃO
+Dados devem ser mantidos pelo tempo necessário às finalidades informadas, obrigações legais, defesa de direitos, prevenção a fraude e rotinas técnicas de backup. Solicitações de exclusão devem considerar retenções obrigatórias e não devem apagar silenciosamente registros cuja manutenção seja legalmente necessária.
+
+8. SEGURANÇA
+O ${trade} utiliza autenticação, autorização por função, separação por Workspace, políticas RLS, comunicação HTTPS, backups e auditoria. O acesso administrativo deve seguir menor privilégio. Incidentes relevantes devem ser avaliados e tratados conforme a legislação e procedimentos aplicáveis.
+
+9. DIREITOS DOS TITULARES
+Titulares podem solicitar, conforme aplicável, confirmação de tratamento, acesso, correção, informação sobre compartilhamentos, anonimização, bloqueio ou eliminação de dados inadequados, portabilidade quando cabível e demais direitos previstos na legislação. Solicitações devem ser autenticadas de forma compatível com o risco para evitar entrega de dados à pessoa errada.
+
+10. CRIANÇAS E ADOLESCENTES
+Quando o Studio tratar dados de crianças ou adolescentes, deve aplicar as regras específicas vigentes, observar o melhor interesse e adotar controles apropriados de informação, autorização e acesso.
+
+11. DECISÕES AUTOMATIZADAS
+Se futuramente houver decisões baseadas exclusivamente em tratamento automatizado que afetem interesses do titular, a operação deverá informar esse uso e disponibilizar os direitos aplicáveis. Recursos de inteligência do Studio não devem ser apresentados como diagnóstico médico ou decisão automática definitiva.
+
+12. ALTERAÇÕES E VERSIONAMENTO
+Mudanças materiais deste Aviso devem gerar nova versão e data de vigência. O sistema mantém referência da versão publicada e dos aceites ou ciências registrados.
+
+13. CONTATO
+Contato do fornecedor: ${contact}
+Canal de privacidade: ${privacy}
+
+MODELO OPERACIONAL: este aviso é um rascunho estruturado para revisão jurídica antes da publicação comercial definitiva.`;
+  }
+
+  function commercialLegalMigrationSql(){
+    const schema=String(loadStudentPortalBackendConfig().schema||'').replace(/[^a-zA-Z0-9_]/g,'');if(!schema)return '';
+    return `-- MB Gestor Luxury Pro V13.2.0
+-- Governança Jurídica e Privacidade • SuperDB
+-- Adiciona publicação versionada e imutável de Termos/Aviso, aceite server-side
+-- e consentimento opcional separado. Não usa FORCE RLS para manter compatibilidade
+-- com as RPCs SECURITY DEFINER do SuperDB.
+-- Execute no SQL Editor com conta administrativa.
+-- SuperDB: não use BEGIN/COMMIT; o editor já executa a chamada de forma atômica.
+
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
+create table if not exists ${schema}.app_legal_documents (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  document_type text not null check (document_type in ('business_terms','privacy_notice')),
+  version text not null,
+  title text not null,
+  body text not null,
+  content_sha256 text not null check (content_sha256 ~ '^[0-9a-f]{64}$'),
+  provider_name text not null,
+  provider_contact text not null,
+  privacy_contact text not null,
+  reviewed_by text not null,
+  status text not null default 'published' check (status in ('published','superseded')),
+  effective_at date not null,
+  published_by uuid not null,
+  published_at timestamptz not null default now(),
+  unique(workspace_id, document_type, version)
+);
+create index if not exists idx_app_legal_documents_current
+  on ${schema}.app_legal_documents(workspace_id, document_type, status, published_at desc);
+
+create table if not exists ${schema}.app_privacy_consents (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null references ${schema}.app_workspaces(workspace_id) on delete cascade,
+  auth_user_id uuid not null,
+  purpose text not null check (purpose in ('marketing')),
+  granted boolean not null,
+  policy_version text not null,
+  changed_at timestamptz not null default now(),
+  unique(workspace_id, auth_user_id, purpose)
+);
+
+alter table ${schema}.app_legal_documents enable row level security;
+alter table ${schema}.app_privacy_consents enable row level security;
+alter table ${schema}.app_legal_documents no force row level security;
+alter table ${schema}.app_privacy_consents no force row level security;
+
+revoke all on ${schema}.app_legal_documents, ${schema}.app_privacy_consents from anon, public, authenticated;
+grant select on ${schema}.app_legal_documents, ${schema}.app_privacy_consents to authenticated;
+
+drop policy if exists app_legal_document_read on ${schema}.app_legal_documents;
+create policy app_legal_document_read on ${schema}.app_legal_documents
+for select to authenticated using (
+  ${schema}.app_is_workspace_member(workspace_id)
+  or (
+    document_type='privacy_notice'
+    and status='published'
+    and exists(
+      select 1 from ${schema}.portal_student_accounts a
+      where a.workspace_id=app_legal_documents.workspace_id
+        and a.auth_user_id=auth.uid()
+        and a.status='active'
+    )
+  )
+);
+
+drop policy if exists app_privacy_consent_read on ${schema}.app_privacy_consents;
+create policy app_privacy_consent_read on ${schema}.app_privacy_consents
+for select to authenticated using (
+  auth_user_id=auth.uid()
+  or ${schema}.app_has_workspace_role(workspace_id,array['owner','admin'])
+);
+
+create or replace function ${schema}.app_publish_legal_bundle(
+  p_workspace_id text,
+  p_terms_version text,
+  p_privacy_version text,
+  p_effective_at date,
+  p_terms_title text,
+  p_terms_body text,
+  p_terms_sha256 text,
+  p_privacy_title text,
+  p_privacy_body text,
+  p_privacy_sha256 text,
+  p_provider_name text,
+  p_provider_contact text,
+  p_privacy_contact text,
+  p_reviewed_by text,
+  p_review_confirmed boolean
+)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_terms_id uuid; v_privacy_id uuid;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner']) then raise exception 'Somente o proprietário pode publicar documentos jurídicos.'; end if;
+  if coalesce(p_review_confirmed,false) is not true then raise exception 'Confirmação de revisão jurídica obrigatória.'; end if;
+  if trim(coalesce(p_provider_name,''))='' then raise exception 'Identidade jurídica do fornecedor obrigatória.'; end if;
+  if trim(coalesce(p_provider_contact,''))='' or position('@' in p_provider_contact)=0 then raise exception 'E-mail de contato inválido.'; end if;
+  if trim(coalesce(p_privacy_contact,''))='' or position('@' in p_privacy_contact)=0 then raise exception 'Canal de privacidade inválido.'; end if;
+  if trim(coalesce(p_reviewed_by,''))='' then raise exception 'Identificação do revisor jurídico obrigatória.'; end if;
+  if coalesce(p_terms_version,'') !~ '^[A-Za-z0-9._-]{1,64}$' or coalesce(p_privacy_version,'') !~ '^[A-Za-z0-9._-]{1,64}$' then raise exception 'Versão jurídica inválida.'; end if;
+  if char_length(coalesce(p_terms_body,'')) < 600 or char_length(coalesce(p_privacy_body,'')) < 600 then raise exception 'Documentos jurídicos incompletos.'; end if;
+  if position('MODELO OPERACIONAL:' in upper(p_terms_body))>0 or position('MODELO OPERACIONAL:' in upper(p_privacy_body))>0
+     or position('[IDENTIDADE JURÍDICA' in upper(p_terms_body))>0 or position('[IDENTIDADE JURÍDICA' in upper(p_privacy_body))>0
+  then raise exception 'Remova marcações de rascunho antes da publicação.'; end if;
+  if char_length(p_terms_body) > 30000 or char_length(p_privacy_body) > 30000 then raise exception 'Documento jurídico excede o limite.'; end if;
+  if coalesce(p_terms_sha256,'') !~ '^[0-9a-f]{64}$' or coalesce(p_privacy_sha256,'') !~ '^[0-9a-f]{64}$' then raise exception 'Assinatura de integridade inválida.'; end if;
+  if p_effective_at is null then raise exception 'Data de vigência obrigatória.'; end if;
+
+  if exists(select 1 from ${schema}.app_legal_documents where workspace_id=p_workspace_id and document_type='business_terms' and version=p_terms_version)
+     or exists(select 1 from ${schema}.app_legal_documents where workspace_id=p_workspace_id and document_type='privacy_notice' and version=p_privacy_version)
+  then raise exception 'Versão já publicada. Crie uma nova versão para alterar o conteúdo.'; end if;
+
+  update ${schema}.app_legal_documents set status='superseded'
+   where workspace_id=p_workspace_id and document_type in ('business_terms','privacy_notice') and status='published';
+
+  insert into ${schema}.app_legal_documents(workspace_id,document_type,version,title,body,content_sha256,provider_name,provider_contact,privacy_contact,reviewed_by,status,effective_at,published_by)
+  values(p_workspace_id,'business_terms',left(trim(p_terms_version),64),left(trim(p_terms_title),160),p_terms_body,p_terms_sha256,left(trim(p_provider_name),160),left(trim(p_provider_contact),160),left(trim(p_privacy_contact),160),left(trim(p_reviewed_by),120),'published',p_effective_at,v_uid)
+  returning id into v_terms_id;
+
+  insert into ${schema}.app_legal_documents(workspace_id,document_type,version,title,body,content_sha256,provider_name,provider_contact,privacy_contact,reviewed_by,status,effective_at,published_by)
+  values(p_workspace_id,'privacy_notice',left(trim(p_privacy_version),64),left(trim(p_privacy_title),160),p_privacy_body,p_privacy_sha256,left(trim(p_provider_name),160),left(trim(p_provider_contact),160),left(trim(p_privacy_contact),160),left(trim(p_reviewed_by),120),'published',p_effective_at,v_uid)
+  returning id into v_privacy_id;
+
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+  values(p_workspace_id,v_uid,'legal.bundle_published','legal_bundle',v_terms_id::text,
+    jsonb_build_object('terms_version',p_terms_version,'privacy_version',p_privacy_version,'effective_at',p_effective_at,'terms_sha256',p_terms_sha256,'privacy_sha256',p_privacy_sha256,'reviewed_by',left(trim(p_reviewed_by),120)));
+
+  return jsonb_build_object('published',true,'terms_id',v_terms_id,'privacy_id',v_privacy_id,'terms_version',p_terms_version,'privacy_version',p_privacy_version,'published_at',now());
+end; $$;
+
+create or replace function ${schema}.app_legal_status(p_workspace_id text)
+returns jsonb language plpgsql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+declare
+  v_uid uuid:=auth.uid(); v_terms ${schema}.app_legal_documents%rowtype; v_privacy ${schema}.app_legal_documents%rowtype;
+  v_accept ${schema}.app_legal_acceptances%rowtype; v_marketing boolean:=false;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso a este Workspace.'; end if;
+
+  select * into v_terms from ${schema}.app_legal_documents
+   where workspace_id=p_workspace_id and document_type='business_terms' and status='published'
+   order by published_at desc limit 1;
+  select * into v_privacy from ${schema}.app_legal_documents
+   where workspace_id=p_workspace_id and document_type='privacy_notice' and status='published'
+   order by published_at desc limit 1;
+
+  if v_terms.id is not null and v_privacy.id is not null then
+    select * into v_accept from ${schema}.app_legal_acceptances
+     where workspace_id=p_workspace_id and auth_user_id=v_uid
+       and terms_version=v_terms.version and privacy_version=v_privacy.version
+     order by accepted_at desc limit 1;
+  end if;
+
+  select coalesce(granted,false) into v_marketing from ${schema}.app_privacy_consents
+   where workspace_id=p_workspace_id and auth_user_id=v_uid and purpose='marketing';
+
+  return jsonb_build_object(
+    'legal_backend_version',1,
+    'documents_published',v_terms.id is not null and v_privacy.id is not null,
+    'terms_version',coalesce(v_terms.version,''),
+    'privacy_version',coalesce(v_privacy.version,''),
+    'terms_title',coalesce(v_terms.title,''),
+    'privacy_title',coalesce(v_privacy.title,''),
+    'terms_sha256',coalesce(v_terms.content_sha256,''),
+    'privacy_sha256',coalesce(v_privacy.content_sha256,''),
+    'effective_at',coalesce(v_terms.effective_at,v_privacy.effective_at),
+    'published_at',greatest(v_terms.published_at,v_privacy.published_at),
+    'accepted',v_accept.id is not null,
+    'accepted_at',v_accept.accepted_at,
+    'marketing_consent',coalesce(v_marketing,false),
+    'verified_at',now()
+  );
+end; $$;
+
+create or replace function ${schema}.app_accept_current_legal(p_workspace_id text)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare
+  v_uid uuid:=auth.uid(); v_terms text; v_privacy text; v_id uuid; v_existing uuid; v_accepted_at timestamptz;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso a este Workspace.'; end if;
+
+  select version into v_terms from ${schema}.app_legal_documents
+   where workspace_id=p_workspace_id and document_type='business_terms' and status='published'
+   order by published_at desc limit 1;
+  select version into v_privacy from ${schema}.app_legal_documents
+   where workspace_id=p_workspace_id and document_type='privacy_notice' and status='published'
+   order by published_at desc limit 1;
+
+  if coalesce(v_terms,'')='' or coalesce(v_privacy,'')='' then raise exception 'Documentos jurídicos ainda não publicados.'; end if;
+
+  select id,accepted_at into v_existing,v_accepted_at from ${schema}.app_legal_acceptances
+   where workspace_id=p_workspace_id and auth_user_id=v_uid and terms_version=v_terms and privacy_version=v_privacy
+   limit 1;
+
+  if v_existing is null then
+    insert into ${schema}.app_legal_acceptances(workspace_id,auth_user_id,terms_version,privacy_version,marketing_consent)
+    values(p_workspace_id,v_uid,v_terms,v_privacy,false) returning id,accepted_at into v_id,v_accepted_at;
+    insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+    values(p_workspace_id,v_uid,'legal.accepted','legal_acceptance',v_id::text,jsonb_build_object('terms',v_terms,'privacy',v_privacy));
+  else
+    v_id:=v_existing;
+  end if;
+  return jsonb_build_object('accepted',true,'id',v_id,'terms_version',v_terms,'privacy_version',v_privacy,'accepted_at',v_accepted_at);
+end; $$;
+
+create or replace function ${schema}.app_set_optional_consent(p_workspace_id text,p_purpose text,p_granted boolean,p_policy_version text)
+returns jsonb language plpgsql security definer set search_path = ${schema}, auth, pg_temp as $$
+declare v_uid uuid:=auth.uid(); v_id uuid;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_is_workspace_member(p_workspace_id) then raise exception 'Sem acesso a este Workspace.'; end if;
+  if p_purpose not in ('marketing') then raise exception 'Finalidade de consentimento inválida.'; end if;
+  if trim(coalesce(p_policy_version,''))='' then raise exception 'Versão da política obrigatória.'; end if;
+
+  insert into ${schema}.app_privacy_consents(workspace_id,auth_user_id,purpose,granted,policy_version,changed_at)
+  values(p_workspace_id,v_uid,p_purpose,coalesce(p_granted,false),left(trim(p_policy_version),64),now())
+  on conflict(workspace_id,auth_user_id,purpose)
+  do update set granted=excluded.granted,policy_version=excluded.policy_version,changed_at=now()
+  returning id into v_id;
+
+  insert into ${schema}.app_audit_log(workspace_id,actor_user_id,event,entity_type,entity_id,detail)
+  values(p_workspace_id,v_uid,'privacy.consent_changed','privacy_consent',v_id::text,jsonb_build_object('purpose',p_purpose,'granted',coalesce(p_granted,false),'policy_version',p_policy_version));
+
+  return jsonb_build_object('saved',true,'granted',coalesce(p_granted,false),'changed_at',now());
+end; $$;
+
+-- RPC antiga permitia versão escolhida pelo cliente. Mantida apenas para compatibilidade,
+-- mas sem EXECUTE para authenticated após esta migração.
+revoke execute on function ${schema}.app_register_legal_acceptance(text,text,text,boolean) from public, anon, authenticated;
+revoke execute on function ${schema}.app_publish_legal_bundle(text,text,text,date,text,text,text,text,text,text,text,text,text,text,boolean) from public, anon;
+revoke execute on function ${schema}.app_legal_status(text) from public, anon;
+revoke execute on function ${schema}.app_accept_current_legal(text) from public, anon;
+revoke execute on function ${schema}.app_set_optional_consent(text,text,boolean,text) from public, anon;
+grant execute on function ${schema}.app_publish_legal_bundle(text,text,text,date,text,text,text,text,text,text,text,text,text,text,boolean) to authenticated;
+grant execute on function ${schema}.app_legal_status(text) to authenticated;
+grant execute on function ${schema}.app_accept_current_legal(text) to authenticated;
+grant execute on function ${schema}.app_set_optional_consent(text,text,boolean,text) to authenticated;
+
+-- Atualiza a verificação de segurança para RLS default-deny compatível com SECURITY DEFINER.
+create or replace function ${schema}.app_security_posture(p_workspace_id text)
+returns jsonb language plpgsql stable security definer set search_path = ${schema}, auth, pg_temp as $$
+declare
+  v_uid uuid:=auth.uid(); v_expected int:=9; v_rls int:=0; v_force int:=0; v_policy_tables int:=0; v_write_grants int:=0;
+  v_super boolean:=false; v_bypass boolean:=false; v_ok boolean;
+begin
+  if v_uid is null then raise exception 'Autenticação obrigatória.'; end if;
+  if not ${schema}.app_has_workspace_role(p_workspace_id,array['owner','admin']) then raise exception 'Sem permissão.'; end if;
+  select count(*) filter(where c.relrowsecurity),count(*) filter(where c.relforcerowsecurity)
+    into v_rls,v_force
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='${schema}' and c.relname in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents');
+  select count(distinct tablename) into v_policy_tables from pg_policies
+   where schemaname='${schema}' and tablename in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents');
+  select coalesce(rolsuper,false),coalesce(rolbypassrls,false) into v_super,v_bypass from pg_roles where rolname='authenticated';
+  select count(*) into v_write_grants from information_schema.role_table_grants
+   where grantee='authenticated' and table_schema='${schema}'
+     and table_name in ('app_workspaces','app_workspace_members','app_installations','app_subscriptions','app_legal_acceptances','app_data_requests','app_audit_log','app_legal_documents','app_privacy_consents')
+     and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER');
+  v_ok := v_rls=v_expected and v_policy_tables=v_expected and not coalesce(v_super,false) and not coalesce(v_bypass,false) and v_write_grants=0;
+  return jsonb_build_object('ok',v_ok,'foundation_version',2,'migration_id','v13.2-legal-governance-v1','expected_tables',v_expected,'rls_enabled',v_rls,'rls_forced',v_force,'policy_tables',v_policy_tables,'rls_all',v_rls=v_expected,'force_rls_required',false,'policies_present',v_policy_tables=v_expected,'request_role_safe',not coalesce(v_super,false) and not coalesce(v_bypass,false),'subscription_client_write',v_write_grants>0,'direct_write_grants',v_write_grants,'legal_backend_version',1,'verified_at',now());
+end; $$;
+
+insert into ${schema}.app_foundation_meta(key,value,updated_at)
+values('legal_governance',jsonb_build_object('version',1,'migration_id','v13.2-legal-governance-v1','applied_at',now()),now())
+on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at;
+
+select 'LEGAL GOVERNANCE V1 OK' as status;
+`;
+  }
+
+  function downloadCommercialLegalSql(){
+    const sql=commercialLegalMigrationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema.');
+    downloadText(`MB_Gestor_V13.2_Governanca_Juridica_SuperDB_${isoToday()}.sql`,sql);toast('SQL jurídico gerado.');
+  }
+
+  async function copyCommercialLegalSql(){
+    const sql=commercialLegalMigrationSql();if(!sql)return toast('Configure primeiro o acesso online para definir o schema.');
+    try{await navigator.clipboard.writeText(sql);toast('SQL jurídico copiado.')}catch{downloadCommercialLegalSql()}
+  }
+
+  async function verifyCommercialLegalBackend({silent=false}={}){
+    try{
+      await ensureStudentPortalBackendSession();
+      const raw=await studentPortalApi('/rpc/app_legal_status',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}}),result=Array.isArray(raw)?(raw[0]||{}):(raw||{}),now=new Date().toISOString(),privacy=commercialPrivacy();
+      state.commercial.privacy=normalizeCommercialPrivacy({...privacy,
+        legalBackendVersion:Number(result.legal_backend_version)||1,
+        legalBackendVerifiedAt:result.verified_at||now,
+        documentsPublished:result.documents_published===true,
+        legalStatus:result.documents_published===true?'published':privacy.legalStatus,
+        termsVersion:String(result.terms_version||privacy.termsVersion||''),
+        privacyVersion:String(result.privacy_version||privacy.privacyVersion||''),
+        termsTitle:String(result.terms_title||privacy.termsTitle||''),
+        privacyTitle:String(result.privacy_title||privacy.privacyTitle||''),
+        termsHash:String(result.terms_sha256||privacy.termsHash||''),
+        privacyHash:String(result.privacy_sha256||privacy.privacyHash||''),
+        effectiveDate:String(result.effective_at||privacy.effectiveDate||'').slice(0,10),
+        publishedAt:result.published_at||privacy.publishedAt||null,
+        termsAcceptedAt:result.accepted===true?(result.accepted_at||privacy.termsAcceptedAt||now):null,
+        privacyAcceptedAt:result.accepted===true?(result.accepted_at||privacy.privacyAcceptedAt||now):null,
+        acceptedBy:result.accepted===true?(studentPortalBackendStatus().session?.email||privacy.acceptedBy||null):null,
+        marketingConsent:result.marketing_consent===true,
+        marketingConsentAt:result.marketing_consent===true?(privacy.marketingConsentAt||now):privacy.marketingConsentAt,
+        lastLegalError:null
+      });
+      saveState();if(!silent)toast(result.documents_published?'Governança jurídica verificada.':'Backend jurídico pronto. Documentos ainda não publicados.');return result;
+    }catch(err){
+      const privacy=commercialPrivacy();state.commercial.privacy=normalizeCommercialPrivacy({...privacy,lastLegalError:err?.message||'Falha na verificação jurídica.'});saveState();
+      if(!silent)toast(err?.message||'Não foi possível verificar a governança jurídica.');
+      throw err;
+    }
+  }
+
+  async function publishCommercialLegalBundle(payload={}){
+    await ensureStudentPortalBackendSession();
+    const terms=String(payload.termsBody||''),privacyBody=String(payload.privacyBody||''),termsHash=await sha256Hex(terms),privacyHash=await sha256Hex(privacyBody);
+    if(!termsHash||!privacyHash)throw new Error('Não foi possível calcular a integridade dos documentos.');
+    const raw=await studentPortalApi('/rpc/app_publish_legal_bundle',{method:'POST',auth:true,body:{
+      p_workspace_id:String(state.workspace?.id||''),
+      p_terms_version:String(payload.termsVersion||'').trim(),
+      p_privacy_version:String(payload.privacyVersion||'').trim(),
+      p_effective_at:String(payload.effectiveDate||'').trim(),
+      p_terms_title:String(payload.termsTitle||'').trim(),
+      p_terms_body:terms,
+      p_terms_sha256:termsHash,
+      p_privacy_title:String(payload.privacyTitle||'').trim(),
+      p_privacy_body:privacyBody,
+      p_privacy_sha256:privacyHash,
+      p_provider_name:String(payload.providerLegalName||'').trim(),
+      p_provider_contact:String(payload.providerContactEmail||'').trim(),
+      p_privacy_contact:String(payload.privacyContactEmail||'').trim(),
+      p_reviewed_by:String(payload.reviewedBy||'').trim(),
+      p_review_confirmed:payload.reviewConfirmed===true
+    }});
+    const result=Array.isArray(raw)?(raw[0]||{}):(raw||{}),now=new Date().toISOString(),current=commercialPrivacy();
+    state.commercial.privacy=normalizeCommercialPrivacy({...current,...payload,termsDraft:terms,privacyDraft:privacyBody,termsHash,privacyHash,documentsPublished:true,legalStatus:'published',publishedAt:result.published_at||now,legalReviewConfirmed:true,legalReviewedAt:now,termsAcceptedAt:null,privacyAcceptedAt:null,acceptedBy:null,lastLegalError:null});
+    addAudit('Documentos jurídicos publicados',`Termos ${payload.termsVersion} • Privacidade ${payload.privacyVersion}`);
+    saveState();
+    return result;
+  }
+
+  async function acceptCommercialLegalDocuments(marketingConsent=false){
+    await ensureStudentPortalBackendSession();
+    const raw=await studentPortalApi('/rpc/app_accept_current_legal',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||'')}}),result=Array.isArray(raw)?(raw[0]||{}):(raw||{}),now=new Date().toISOString();
+    const privacy=commercialPrivacy();
+    state.commercial.privacy=normalizeCommercialPrivacy({...privacy,termsAcceptedAt:result.accepted_at||now,privacyAcceptedAt:result.accepted_at||now,acceptedBy:studentPortalBackendStatus().session?.email||commercialOwner().email||'Conta responsável'});
+    try{
+      const consent=await studentPortalApi('/rpc/app_set_optional_consent',{method:'POST',auth:true,body:{p_workspace_id:String(state.workspace?.id||''),p_purpose:'marketing',p_granted:marketingConsent===true,p_policy_version:String(privacy.privacyVersion||'')}});
+      state.commercial.privacy=normalizeCommercialPrivacy({...state.commercial.privacy,marketingConsent:marketingConsent===true,marketingConsentAt:consent?.changed_at||now});
+    }catch(err){console.warn('Consentimento opcional',err)}
+    addAudit('Termos comerciais aceitos',`Termos ${privacy.termsVersion} • Privacidade ${privacy.privacyVersion}`);
+    saveState();return result;
+  }
+
+  function openCommercialLegalAcceptance(){
+    const p=commercialPrivacy();if(!p.documentsPublished)return toast('Publique os documentos antes do aceite.');
+    openModal('Aceite jurídico',`<form id="commercialLegalAcceptanceForm" class="form-grid"><div class="privacy-center-hero"><span>${icon('file')}</span><div><small>VERSÕES PUBLICADAS</small><strong>Confirme os documentos vigentes</strong><p>O aceite obrigatório e o consentimento comercial opcional são registrados separadamente.</p></div></div><div class="legal-version-grid"><article><small>TERMOS</small><strong>${escapeHTML(p.termsVersion)}</strong><span>${escapeHTML(p.termsTitle)}</span><em>${escapeHTML((p.termsHash||'').slice(0,12))}${p.termsHash?'…':''}</em></article><article><small>PRIVACIDADE</small><strong>${escapeHTML(p.privacyVersion)}</strong><span>${escapeHTML(p.privacyTitle)}</span><em>${escapeHTML((p.privacyHash||'').slice(0,12))}${p.privacyHash?'…':''}</em></article></div><label class="toggle-row"><input name="acceptTerms" type="checkbox" required><span><strong>Li e aceito os Termos de Uso vigentes</strong><small>Obrigatório para continuar a preparação comercial com esta conta.</small></span></label><label class="toggle-row"><input name="ackPrivacy" type="checkbox" required><span><strong>Li o Aviso de Privacidade vigente</strong><small>Confirmo ciência da forma como os dados são tratados.</small></span></label><label class="toggle-row"><input name="marketing" type="checkbox"><span><strong>Comunicações comerciais opcionais</strong><small>Opcional e revogável. Não interfere no uso do serviço.</small></span></label><div class="modal-actions"><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary">Registrar aceite</button></div></form>`);
+    $('#commercialLegalAcceptanceForm')?.addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,fd=new FormData(form),btn=form.querySelector('button[type="submit"]');if(fd.get('acceptTerms')!=='on'||fd.get('ackPrivacy')!=='on')return toast('Confirme os dois documentos obrigatórios.');btn.disabled=true;btn.textContent='Registrando…';try{await acceptCommercialLegalDocuments(fd.get('marketing')==='on');closeModal();renderSettings();toast('Aceite jurídico registrado com auditoria.');setTimeout(openPrivacyDataCenter,80)}catch(err){btn.disabled=false;btn.textContent='Registrar aceite';toast(err?.message||'Não foi possível registrar o aceite.')}})
+  }
+
+  function openCommercialLegalEditor(){
+    const p=commercialPrivacy(),version=p.termsVersion||commercialLegalDefaultVersion(),privacyVersion=p.privacyVersion||version,effective=p.effectiveDate||isoToday();
+    const meta={...p,termsVersion:version,privacyVersion,effectiveDate:effective};
+    const terms=p.termsDraft||commercialLegalTermsTemplate(meta),privacyBody=p.privacyDraft||commercialLegalPrivacyTemplate(meta);
+    openModal('Termos e Privacidade',`<form id="commercialLegalEditorForm" class="form-grid legal-editor-form"><div class="privacy-center-hero"><span>${icon('file')}</span><div><small>GOVERNANÇA JURÍDICA</small><strong>Documentos versionados e auditáveis</strong><p>Rascunhos profissionais com publicação protegida. A versão comercial definitiva deve ser revisada por profissional jurídico habilitado.</p></div></div><div class="legal-form-grid"><div class="field"><label>Identidade jurídica do fornecedor *</label><input name="providerLegalName" maxlength="160" value="${escapeHTML(p.providerLegalName||'')}" placeholder="Razão social ou nome empresarial responsável" required></div><div class="field"><label>Nome comercial</label><input name="providerTradeName" maxlength="100" value="${escapeHTML(p.providerTradeName||'MB Gestor')}" required></div><div class="field"><label>E-mail de contato *</label><input name="providerContactEmail" type="email" maxlength="160" value="${escapeHTML(p.providerContactEmail||commercialOwner().email||'')}" required></div><div class="field"><label>Canal de privacidade *</label><input name="privacyContactEmail" type="email" maxlength="160" value="${escapeHTML(p.privacyContactEmail||commercialOwner().email||'')}" required></div><div class="field"><label>Versão dos Termos *</label><input name="termsVersion" maxlength="64" value="${escapeHTML(version)}" pattern="[A-Za-z0-9._-]{1,64}" required></div><div class="field"><label>Versão da Privacidade *</label><input name="privacyVersion" maxlength="64" value="${escapeHTML(privacyVersion)}" pattern="[A-Za-z0-9._-]{1,64}" required></div><div class="field"><label>Vigência *</label><input name="effectiveDate" type="date" value="${escapeHTML(effective)}" required></div><div class="field"><label>Revisado por *</label><input name="reviewedBy" maxlength="120" value="${escapeHTML(p.legalReviewedBy||'')}" placeholder="Nome do profissional / escritório" required></div></div><details class="settings-simple-details" open><summary><span>Termos de Uso empresarial</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="field"><label>Título</label><input name="termsTitle" maxlength="160" value="${escapeHTML(p.termsTitle||'Termos de Uso do MB Gestor')}" required></div><div class="field"><label>Conteúdo</label><textarea name="termsBody" rows="18" maxlength="30000" required>${escapeHTML(terms)}</textarea></div></div></details><details class="settings-simple-details"><summary><span>Aviso de Privacidade</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><div class="field"><label>Título</label><input name="privacyTitle" maxlength="160" value="${escapeHTML(p.privacyTitle||'Aviso de Privacidade do MB Gestor')}" required></div><div class="field"><label>Conteúdo</label><textarea name="privacyBody" rows="18" maxlength="30000" required>${escapeHTML(privacyBody)}</textarea></div></div></details><label class="toggle-row legal-review-confirm"><input name="reviewConfirmed" type="checkbox"><span><strong>Confirmo a revisão jurídica antes da publicação</strong><small>Marque somente quando identidade, bases legais, fornecedores, retenção, cobrança e demais cláusulas refletirem a operação real.</small></span></label><div class="field"><label>Para publicar, digite PUBLICAR</label><input name="publishPhrase" autocomplete="off" autocapitalize="characters" placeholder="PUBLICAR"></div><div class="notice compact"><strong>Publicação é imutável por versão.</strong><br>Para alterar um documento já publicado, crie nova versão. O consentimento de marketing permanece separado e opcional.</div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="saveLegalDraft">Salvar rascunho</button><button type="button" class="btn btn-secondary" data-close-modal>Cancelar</button><button type="submit" class="btn btn-primary" ${commercialLegalBackendReady()?'':'disabled'}>Publicar versões</button></div>${commercialLegalBackendReady()?'':'<div class="notice warn"><strong>Backend jurídico pendente.</strong><br>Aplique e verifique a atualização jurídica antes de publicar.</div>'}</form>`);
+    const form=$('#commercialLegalEditorForm');
+    const readPayload=()=>{const fd=new FormData(form);return {providerLegalName:String(fd.get('providerLegalName')||'').trim(),providerTradeName:String(fd.get('providerTradeName')||'').trim(),providerContactEmail:String(fd.get('providerContactEmail')||'').trim(),privacyContactEmail:String(fd.get('privacyContactEmail')||'').trim(),termsVersion:String(fd.get('termsVersion')||'').trim(),privacyVersion:String(fd.get('privacyVersion')||'').trim(),effectiveDate:String(fd.get('effectiveDate')||'').trim(),reviewedBy:String(fd.get('reviewedBy')||'').trim(),termsTitle:String(fd.get('termsTitle')||'').trim(),privacyTitle:String(fd.get('privacyTitle')||'').trim(),termsBody:String(fd.get('termsBody')||''),privacyBody:String(fd.get('privacyBody')||''),reviewConfirmed:fd.get('reviewConfirmed')==='on',publishPhrase:String(fd.get('publishPhrase')||'').trim().toUpperCase()}};
+    $('#saveLegalDraft')?.addEventListener('click',()=>{const v=readPayload(),current=commercialPrivacy();state.commercial.privacy=normalizeCommercialPrivacy({...current,...v,termsDraft:v.termsBody,privacyDraft:v.privacyBody,legalStatus:v.reviewConfirmed?'reviewed':'draft',legalReviewConfirmed:v.reviewConfirmed,legalReviewedBy:v.reviewedBy,legalReviewedAt:v.reviewConfirmed?new Date().toISOString():current.legalReviewedAt,lastLegalError:null});saveState();toast('Rascunho jurídico salvo neste aparelho.');});
+    form?.addEventListener('submit',async e=>{e.preventDefault();const v=readPayload();if(v.publishPhrase!=='PUBLICAR')return toast('Digite PUBLICAR para confirmar.');if(!v.reviewConfirmed)return toast('Confirme a revisão jurídica antes de publicar.');if(!v.providerLegalName||!v.providerContactEmail||!v.privacyContactEmail||!v.reviewedBy)return toast('Complete a identidade, contatos e o revisor jurídico.');if(v.termsBody.length<600||v.privacyBody.length<600)return toast('Revise os documentos: o conteúdo está incompleto.');if(/MODELO OPERACIONAL:|\[IDENTIDADE JURÍDICA/i.test(v.termsBody+v.privacyBody))return toast('Remova as marcações de rascunho antes de publicar.');const btn=form.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='Publicando…';try{await publishCommercialLegalBundle(v);await verifyCommercialLegalBackend({silent:true});closeModal();renderSettings();toast('Documentos publicados com versão e integridade registradas.');setTimeout(openCommercialLegalAcceptance,100)}catch(err){const current=commercialPrivacy();state.commercial.privacy=normalizeCommercialPrivacy({...current,lastLegalError:err?.message||'Falha na publicação.'});saveState();btn.disabled=false;btn.textContent='Publicar versões';toast(err?.message||'Não foi possível publicar os documentos.')}})
+  }
+
+  function openCommercialLegalViewer(){
+    const p=commercialPrivacy(),terms=p.termsDraft||'',privacyBody=p.privacyDraft||'';
+    openModal('Documentos jurídicos',`<div class="privacy-center-hero"><span>${icon('file')}</span><div><small>VERSÕES VIGENTES</small><strong>${p.documentsPublished?'Documentos publicados':'Rascunhos locais'}</strong><p>${p.documentsPublished?`Termos ${escapeHTML(p.termsVersion)} • Privacidade ${escapeHTML(p.privacyVersion)} • vigência ${escapeHTML(licenseDateLabel(p.effectiveDate||'','—'))}.`:'Ainda não há documentos publicados.'}</p></div></div><div class="legal-document-view"><details open><summary>Termos de Uso • ${escapeHTML(p.termsVersion||'rascunho')}</summary><pre>${escapeHTML(terms||'Conteúdo não armazenado neste aparelho. Use o backend jurídico para consultar a versão publicada.')}</pre></details><details><summary>Aviso de Privacidade • ${escapeHTML(p.privacyVersion||'rascunho')}</summary><pre>${escapeHTML(privacyBody||'Conteúdo não armazenado neste aparelho. Use o backend jurídico para consultar a versão publicada.')}</pre></details></div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+  }
+
+  function openCommercialLegalCenter(){
+    const p=commercialPrivacy(),backendReady=commercialLegalBackendReady(),accepted=Boolean(p.termsAcceptedAt&&p.privacyAcceptedAt),published=p.documentsPublished===true;
+    openModal('Governança jurídica',`<div class="privacy-center-hero"><span>${icon('lock')}</span><div><small>TERMOS • PRIVACIDADE • LGPD</small><strong>${published?'Documentos vigentes e versionados':'Preparação jurídica comercial'}</strong><p>Separação entre publicação, aceite obrigatório e consentimento opcional. Nenhuma versão é marcada como pronta sem publicação e aceite registrados.</p></div></div><div class="legal-status-strip"><span class="${backendReady?'ok':'warn'}">${backendReady?'Backend jurídico pronto':'Backend jurídico pendente'}</span><span class="${published?'ok':'warn'}">${published?`Publicado • ${escapeHTML(p.termsVersion)} / ${escapeHTML(p.privacyVersion)}`:'Documentos não publicados'}</span><span class="${accepted?'ok':'warn'}">${accepted?'Aceite atual registrado':'Aceite atual pendente'}</span></div><section class="privacy-center-grid"><article><span>Backend jurídico</span><strong>${backendReady?'Governança V1 verificada':'Aplicação necessária'}</strong><p>Armazena versões imutáveis, integridade SHA-256, auditoria e aceita somente a versão corrente definida no servidor.</p><div class="legal-inline-actions"><button class="btn btn-secondary btn-small" id="legalVerifyBackend">Verificar</button>${backendReady?'':'<button class="btn btn-secondary btn-small" id="legalCopySql">Copiar SQL</button><button class="btn btn-secondary btn-small" id="legalDownloadSql">Baixar SQL</button>'}</div></article><article><span>Documentos</span><strong>${published?'Publicados':'Rascunho protegido'}</strong><p>${published?`Vigência ${escapeHTML(licenseDateLabel(p.effectiveDate||'','—'))}. Alterações exigem nova versão.`:'Modelos profissionais são gerados para revisão e não são publicados automaticamente.'}</p><div class="legal-inline-actions"><button class="btn btn-primary btn-small" id="legalEditDocs">${published?'Criar nova versão':'Preparar documentos'}</button>${published?'<button class="btn btn-secondary btn-small" id="legalViewDocs">Ver documentos</button>':''}</div></article><article><span>Aceite e consentimento</span><strong>${accepted?'Aceite vigente':'Pendente'}</strong><p>Termos/Aviso são obrigatórios para a conta responsável. Marketing é opcional, separado e pode ser revogado.</p>${published&&!accepted?'<button class="btn btn-primary btn-small" id="legalAcceptDocs">Revisar e aceitar</button>':`<span class="pill">${p.marketingConsent?'Marketing autorizado':'Marketing não autorizado'}</span>`}</article></section>${p.lastLegalError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(p.lastLegalError)}</div>`:''}<div class="notice compact"><strong>Controle jurídico ≠ parecer jurídico.</strong><br>O sistema garante versionamento, consentimento separado e evidência técnica; a adequação do texto e das bases legais deve ser revisada para a operação real.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#legalVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#legalVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialLegalBackend();closeModal();renderSettings();setTimeout(openCommercialLegalCenter,80)}catch{closeModal();renderSettings();setTimeout(openCommercialLegalCenter,80)}});
+    $('#legalCopySql')?.addEventListener('click',copyCommercialLegalSql);$('#legalDownloadSql')?.addEventListener('click',downloadCommercialLegalSql);
+    $('#legalEditDocs')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialLegalEditor,60)});
+    $('#legalViewDocs')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialLegalViewer,60)});
+    $('#legalAcceptDocs')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialLegalAcceptance,60)});
   }
 
   function privacyPortableState(){
@@ -6730,8 +7266,9 @@ commit;
   }
 
   function openPrivacyDataCenter(){
-    const privacy=commercialPrivacy(),infra=commercialInfrastructure(),published=privacy.documentsPublished===true;
-    openModal('Privacidade e dados',`<div class="privacy-center-hero"><span>${icon('lock')}</span><div><small>CONTROLE DOS SEUS DADOS</small><strong>Portabilidade, transparência e solicitações</strong><p>Recursos técnicos preparados para uma operação comercial alinhada à LGPD. Os textos jurídicos finais devem ser revisados por profissional habilitado.</p></div></div><section class="privacy-center-grid"><article><span>Exportação</span><strong>${privacy.lastPortableExportAt?`Última: ${escapeHTML(formatDateTimeBR(privacy.lastPortableExportAt))}`:'Disponível'}</strong><p>Gera um arquivo legível com os dados do Studio e remove hashes, PINs e identificadores sensíveis de assinatura.</p><button class="btn btn-primary btn-small" id="privacyExportPortable">Exportar meus dados</button></article><article><span>Termos e Privacidade</span><strong>${published?'Publicados':'Aguardando versão jurídica final'}</strong><p>${published?`Termos ${escapeHTML(privacy.termsVersion)} • Privacidade ${escapeHTML(privacy.privacyVersion)}.`:'A estrutura de versionamento está pronta. Não registramos aceite de documentos que ainda não foram publicados.'}</p></article><article><span>Conta online</span><strong>${commercialBackendFoundationReady()?'Fundação conectada':'Ainda não ativada'}</strong><p>A exclusão online é tratada como solicitação auditável; o app nunca apaga silenciosamente dados remotos.</p>${commercialBackendFoundationReady()?'<button class="btn btn-danger btn-small" id="privacyRequestDeletion">Solicitar exclusão</button>':'<span class="pill">Disponível após ativação SaaS</span>'}</article></section><div class="notice compact"><strong>Backup ≠ portabilidade.</strong><br>Use Backup para recuperar o aplicativo. Use Exportar meus dados para transparência e portabilidade.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    const privacy=commercialPrivacy(),published=privacy.documentsPublished===true,legalReady=Number(privacy.legalBackendVersion)>=1&&published&&Boolean(privacy.termsAcceptedAt&&privacy.privacyAcceptedAt);
+    openModal('Privacidade e dados',`<div class="privacy-center-hero"><span>${icon('lock')}</span><div><small>CONTROLE DOS SEUS DADOS</small><strong>Privacidade por design e governança jurídica</strong><p>Portabilidade, solicitações auditáveis, documentos versionados e consentimentos separados para uma operação comercial profissional.</p></div></div><section class="privacy-center-grid"><article><span>Governança jurídica</span><strong>${legalReady?'Pronta':published?'Aceite pendente':'Em preparação'}</strong><p>${published?`Termos ${escapeHTML(privacy.termsVersion)} • Privacidade ${escapeHTML(privacy.privacyVersion)}.`:'Modelos e backend jurídico preparados para publicação controlada, sem marcar rascunhos como documentos finais.'}</p><button class="btn btn-primary btn-small" id="privacyOpenLegal">Gerenciar Termos e Privacidade</button></article><article><span>Exportação</span><strong>${privacy.lastPortableExportAt?`Última: ${escapeHTML(formatDateTimeBR(privacy.lastPortableExportAt))}`:'Disponível'}</strong><p>Gera um arquivo legível com os dados do Studio e remove hashes, PINs e identificadores sensíveis de assinatura.</p><button class="btn btn-secondary btn-small" id="privacyExportPortable">Exportar meus dados</button></article><article><span>Conta online</span><strong>${commercialBackendFoundationReady()?'Fundação conectada':'Ainda não ativada'}</strong><p>A exclusão online é tratada como solicitação auditável; o app nunca apaga silenciosamente dados remotos.</p>${commercialBackendFoundationReady()?'<button class="btn btn-danger btn-small" id="privacyRequestDeletion">Solicitar exclusão</button>':'<span class="pill">Disponível após ativação SaaS</span>'}</article></section><div class="notice compact"><strong>Backup ≠ portabilidade.</strong><br>Use Backup para recuperar o aplicativo. Use Exportar meus dados para transparência e portabilidade.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    $('#privacyOpenLegal')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialLegalCenter,60)});
     $('#privacyExportPortable')?.addEventListener('click',exportPortableData);$('#privacyRequestDeletion')?.addEventListener('click',()=>{closeModal();setTimeout(openCommercialDeletionRequest,60)});
   }
 
@@ -6741,7 +7278,7 @@ commit;
 
   function openCommercialLaunchCenter(){
     const readiness=commercialLaunchReadiness(),infra=commercialInfrastructure(),portal=studentPortalBackendStatus(),backendAction=commercialBackendFoundationReady()?'Verificar novamente':portal.connected?'Ativar estrutura online':portal.configured?'Confirmar / conectar conta':'Configurar acesso online';
-    openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialVerifyIsolation" ${portal.authenticated?'':'disabled'}>Verificar isolamento multi-Studio</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS V2 usa ID de Studio gerado/validado no servidor, RLS com FORCE, menor privilégio, dispositivos, assinatura server-side, aceite jurídico, solicitações de dados e auditoria. Segredos administrativos nunca vão para o app.</p><div class="settings-help-copy"><strong>Estado da conexão:</strong> ${portal.configured?'configurado':'não configurado'} • ${portal.liveAuthenticated?'sessão ativa':portal.remembered?'sessão lembrada':'sem sessão'} • ${portal.connected?'Workspace conectado':'Workspace ainda não confirmado'}</div><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
+    openModal('Preparação comercial',`<div class="commercial-launch-hero"><span>${readiness.done===readiness.total?'✓':'↗'}</span><div><small>FUNDAÇÃO SAAS</small><strong>${readiness.done}/${readiness.total} pilares preparados</strong><p>O Studio atual continua funcionando enquanto cada camada comercial é ativada e validada separadamente.</p></div></div><div class="commercial-readiness-list">${readiness.checks.map(c=>`<div class="commercial-readiness-row ${c.ok?'ready':'pending'}"><b>${c.ok?'✓':'•'}</b><div><strong>${escapeHTML(c.label)}</strong><span>${escapeHTML(c.detail)}</span></div><em>${c.ok?'Pronto':'Pendente'}</em></div>`).join('')}</div><section class="commercial-launch-actions"><button class="btn btn-primary" id="commercialBackendAction">${escapeHTML(backendAction)}</button><button class="btn btn-secondary" id="commercialVerifyBackend" ${portal.authenticated?'':'disabled'}>Verificar backend comercial</button><button class="btn btn-secondary" id="commercialVerifyIsolation" ${portal.authenticated?'':'disabled'}>Verificar isolamento multi-Studio</button><button class="btn btn-secondary" id="commercialOpenPrivacy">Privacidade e dados</button><button class="btn btn-secondary" id="commercialOpenPlan">Plano e assinatura</button><button class="btn btn-secondary" id="commercialDeploymentSettings">Domínio e piloto</button></section><details class="settings-simple-details"><summary><span>Ferramentas técnicas de implantação</span><b aria-hidden="true">⌄</b></summary><div class="settings-simple-details-body"><p class="settings-help-copy">A Fundação SaaS V2 usa ID de Studio validado no servidor, RLS default-deny compatível com RPCs seguras, menor privilégio, dispositivos, assinatura server-side, governança jurídica, solicitações de dados e auditoria. Segredos administrativos nunca vão para o app.</p><div class="settings-help-copy"><strong>Estado da conexão:</strong> ${portal.configured?'configurado':'não configurado'} • ${portal.liveAuthenticated?'sessão ativa':portal.remembered?'sessão lembrada':'sem sessão'} • ${portal.connected?'Workspace conectado':'Workspace ainda não confirmado'}</div><div class="modal-actions compact"><button class="btn btn-secondary" id="commercialCopySql" type="button">Copiar SQL</button><button class="btn btn-secondary" id="commercialDownloadSql" type="button">Baixar SQL</button></div>${infra.lastError?`<div class="notice danger"><strong>Última tentativa:</strong><br>${escapeHTML(infra.lastError)}</div>`:''}</div></details><div class="notice compact"><strong>Próxima fronteira técnica.</strong><br>Depois de aplicar e verificar a Fundação SaaS, assinatura/cobrança deve ser ligada por backend/webhook confiável; nunca pelo JavaScript do cliente.</div><div class="modal-actions"><button class="btn btn-secondary" data-close-modal>Fechar</button></div>`);
     $('#commercialBackendAction')?.addEventListener('click',async()=>{const btn=$('#commercialBackendAction');btn.disabled=true;btn.textContent='Verificando…';try{if(commercialBackendFoundationReady())await verifyCommercialBackendFoundation();else await bootstrapCommercialWorkspaceOnline();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch(err){const message=err?.message||'Não foi possível ativar a estrutura comercial.';if(!commercialInfrastructure().lastError){state.commercial.infrastructure=normalizeCommercialInfrastructure({...commercialInfrastructure(),status:'error',securityPosture:'error',lastError:message});saveState()}toast(message);closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
     $('#commercialVerifyBackend')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyBackend');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialBackendFoundation();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
     $('#commercialVerifyIsolation')?.addEventListener('click',async()=>{const btn=$('#commercialVerifyIsolation');btn.disabled=true;btn.textContent='Verificando…';try{await verifyCommercialSecurityPosture();closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}catch{closeModal();renderSettings();setTimeout(openCommercialLaunchCenter,80)}});
@@ -6865,8 +7402,8 @@ commit;
     push('license','Plano e licença',licenseOk?'ok':'danger',licenseOk?(license.plan==='local'&&license.source==='local'?`Plano Local ativo • licença online não vinculada • sem cobrança.`:`Plano ${commercialPlanLabel()} • ${commercialLicenseStatusLabel()} • origem ${license.source}.`):'Estrutura de licença ausente ou inválida.');
     const infrastructure=commercialInfrastructure(),infraReady=infrastructure.backendFoundationVersion>=COMMERCIAL_BACKEND_FOUNDATION_VERSION&&infrastructure.status==='connected';
     push('commercial-backend','Fundação SaaS online',infraReady?'ok':studentPortalBackendConfigured()?'warn':'warn',infraReady?`Backend comercial V${infrastructure.backendFoundationVersion} verificado e ligado ao Workspace.`:studentPortalBackendConfigured()?'Backend do Portal configurado; fundação comercial ainda não verificada.':'Backend online ainda não configurado nesta instalação.');
-    const privacy=commercialPrivacy(),privacyReady=privacy.documentsPublished&&Boolean(privacy.termsVersion&&privacy.privacyVersion);
-    push('privacy','Privacidade e direitos de dados',privacyReady?'ok':'warn',privacyReady?`Documentos publicados • Termos ${privacy.termsVersion} • Privacidade ${privacy.privacyVersion}.`:'Mecanismo de portabilidade pronto; textos jurídicos finais ainda precisam ser publicados e revisados.');
+    const privacy=commercialPrivacy(),privacyReady=Number(privacy.legalBackendVersion)>=1&&privacy.documentsPublished&&Boolean(privacy.termsVersion&&privacy.privacyVersion&&privacy.termsAcceptedAt&&privacy.privacyAcceptedAt);
+    push('privacy','Privacidade e direitos de dados',privacyReady?'ok':'warn',privacyReady?`Governança jurídica pronta • Termos ${privacy.termsVersion} • Privacidade ${privacy.privacyVersion} • aceite vigente.`:'Portabilidade pronta; governança jurídica exige backend V1, publicação versionada e aceite atual.');
     const access=commercialAccess(),accessMembers=Array.isArray(access.members)?access.members:[],ownerCount=accessMembers.filter(x=>x.id==='owner'&&x.role==='owner'&&x.status==='active').length,activeAccess=accessMembers.filter(x=>x.status!=='inactive'),credentialsOk=access.mode!=='local-session'||activeAccess.every(accessCredentialReady),recoveryOk=access.mode!=='local-session'||Boolean(access.recoverySalt&&access.recoveryHash),accessOk=Number(access.schemaVersion)===ACCESS_SCHEMA_VERSION&&ownerCount===1&&credentialsOk&&recoveryOk;
     push('access','Equipe e permissões',accessOk?'ok':'danger',accessOk?`${accessMembers.length} ${accessMembers.length===1?'perfil local':'perfis locais'} • ${activeAccess.length} ativo(s) • matriz V${ACCESS_SCHEMA_VERSION} • ${access.mode==='local-session'?'sessões por perfil ativas':'sessões por perfil desativadas'}.`:'Estrutura de acesso inválida, credencial pendente ou proprietário principal ausente.');
     const portal=normalizeStudentPortal(state.studentPortal),portalOk=Number(portal.schemaVersion)===STUDENT_PORTAL_SCHEMA_VERSION&&portal.students&&typeof portal.students==='object';

@@ -2264,3 +2264,26 @@ body.access-session-locked .toast-root{z-index:5200}
 .commercial-limit-card small{font-weight:900;letter-spacing:.13em;color:var(--gold,#d6b25e)}
 .commercial-limit-card strong{font-size:1.2rem;color:#f4f2ed}
 .commercial-limit-card p{margin:0;color:#a9a7a2;line-height:1.55}
+
+
+/* V13.2.0 • Governança Jurídica e Privacidade */
+.legal-status-strip{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.legal-status-strip span{padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:#111318;font-size:.75rem;font-weight:850;color:var(--muted)}
+.legal-status-strip span.ok{color:#84d9ab;border-color:rgba(98,197,144,.24);background:rgba(50,138,94,.10)}
+.legal-status-strip span.warn{color:var(--gold2);border-color:rgba(var(--brand-primary-rgb),.22);background:rgba(var(--brand-primary-rgb),.08)}
+.legal-inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+.legal-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.legal-editor-form textarea{min-height:300px;resize:vertical;line-height:1.5;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem}
+.legal-review-confirm{border-color:rgba(var(--brand-primary-rgb),.26);background:rgba(var(--brand-primary-rgb),.06)}
+.legal-version-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.legal-version-grid article{padding:14px;border-radius:17px;border:1px solid var(--line);background:#111318}
+.legal-version-grid small,.legal-version-grid strong,.legal-version-grid span,.legal-version-grid em{display:block}
+.legal-version-grid small{color:var(--gold2);font-size:.68rem;font-weight:900;letter-spacing:.1em}
+.legal-version-grid strong{font-size:1.05rem;margin-top:3px}
+.legal-version-grid span{color:var(--muted);font-size:.8rem;margin-top:4px}
+.legal-version-grid em{color:#7f8795;font-size:.72rem;font-style:normal;margin-top:7px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.legal-document-view{display:grid;gap:10px}
+.legal-document-view details{border:1px solid var(--line);border-radius:17px;background:#111318;overflow:hidden}
+.legal-document-view summary{cursor:pointer;padding:14px;font-weight:850;color:var(--text)}
+.legal-document-view pre{margin:0;padding:0 14px 16px;white-space:pre-wrap;word-break:break-word;color:#c7cbd3;font-family:inherit;font-size:.82rem;line-height:1.55;max-height:58vh;overflow:auto}
+@media(max-width:620px){.legal-form-grid,.legal-version-grid{grid-template-columns:1fr}.legal-editor-form textarea{min-height:250px}.legal-inline-actions .btn{flex:1 1 auto}}

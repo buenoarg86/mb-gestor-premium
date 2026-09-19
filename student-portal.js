@@ -1,4 +1,4 @@
-// MB Gestor Luxury Pro V13.1.0 — Portal do Aluno • Autenticação Simplificada
+// MB Gestor Luxury Pro V13.2.0 — Portal do Aluno • Base preservada
 (()=>{'use strict';
 const $=(s,r=document)=>r.querySelector(s),app=$('#app'),SUPERDB_DATA_API_URL='https://api.superdb.com.br',CFG_KEY='mb_student_portal_public_config_v1',SESSION_KEY='mb_student_portal_session_v1',TRUST_KEY='mb_student_portal_trusted_v1',INVITE_KEY='mb_student_portal_invite_v1',INVITE_EMAIL_KEY='mb_student_portal_invite_email_v1',LAST_EMAIL_KEY='mb_student_portal_last_email_v1',PASSWORD_OFFER_MS=30*24*60*60*1000,PASSWORD_SNOOZE_MS=30*24*60*60*1000;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
