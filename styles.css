@@ -1,4 +1,4 @@
-/* MB Gestor Luxury Pro V12.1.1 — Global Branding Theme Hotfix */
+/* Histórico legado V12.1.1 — Global Branding Theme Hotfix */
 :root{
   --bg:#08090b;--panel:#111216;--panel2:#17191f;--panel3:#202229;--text:#f6f3ec;--muted:#9b9ca3;
   --gold:#d7a33d;--gold2:#f3c76a;--line:#2d2f36;--danger:#e96868;--ok:#68c58d;--warn:#e8b75f;
@@ -332,12 +332,12 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .date-month-nav{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;margin-top:6px;padding:6px 8px;border:1px solid rgba(255,255,255,.055);border-radius:10px;background:rgba(255,255,255,.018)}
 .date-month-nav>span{color:#858992;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}.date-month-nav input[type=month]{min-height:34px!important;padding:6px 8px!important;border-radius:8px!important;font-size:10px!important;background:#101216!important}
 
-/* MB Gestor Luxury Pro V9.7.3 — Stabilization & Corrective Baseline */
+/* Histórico legado V9.7.3 — Stabilization & Corrective Baseline */
 
-/* MB Gestor Luxury Pro V9.7.5 — Consolidation & Commercial Hardening */
+/* Histórico legado V9.7.5 — Consolidation & Commercial Hardening */
 
 
-/* MB Gestor Luxury Pro V9.7.5 — commercial-grade corrective polish */
+/* Histórico legado V9.7.5 — commercial-grade corrective polish */
 .metric.actionable{cursor:pointer;position:relative;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
 .metric.actionable::after{content:'›';position:absolute;right:14px;top:12px;color:rgba(var(--brand-accent-rgb),.55);font-size:22px;font-weight:700}
 .metric.actionable:active{transform:scale(.985)}
@@ -356,7 +356,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .audit-row.audit-money .audit-dot{background:#79c997;box-shadow:0 0 0 5px rgba(121,201,151,.07)}
 
 
-/* MB Gestor Luxury Pro V9.7.6 — Audit Closure & Final Corrective */
+/* Histórico legado V9.7.6 — Audit Closure & Final Corrective */
 .makeup-confirmation-notice{display:grid;gap:4px}
 .makeup-confirmation-notice>strong,.makeup-confirmation-notice>span{display:block}
 .manual-booking-note{color:var(--gold2);font-weight:800}
@@ -366,7 +366,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .photo-preview .photo-placeholder svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
 
 
-/* MB Gestor Luxury Pro V9.7.7 — Weekend Agenda & Capacity Guard Hotfix */
+/* Histórico legado V9.7.7 — Weekend Agenda & Capacity Guard Hotfix */
 .schedule-day-tabs{grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .schedule-day-tab{padding-left:2px;padding-right:2px}
 .schedule-day-tab.weekend-tab:not(.active){border-color:rgba(105,164,231,.11);background:linear-gradient(160deg,rgba(75,125,194,.055),#101115)}
@@ -388,7 +388,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .makeup-capacity-alert strong{color:#f4d792;font-size:13px}.makeup-capacity-alert span{font-size:12px;color:#c9bea5}.makeup-capacity-alert b{color:#f4d792}
 
 
-/* MB Gestor Luxury Pro V9.8.1 — Avaliação Física + Evolução */
+/* Histórico legado V9.8.1 — Avaliação Física + Evolução */
 .assessment-hero{position:relative;overflow:hidden;display:flex;justify-content:space-between;align-items:center;gap:18px;padding:22px;border:1px solid rgba(var(--brand-accent-rgb),.18);border-radius:26px;background:radial-gradient(circle at 90% 10%,rgba(var(--brand-primary-rgb),.16),transparent 34%),linear-gradient(145deg,#18191d,#0e0f12 72%);box-shadow:var(--shadow)}
 .assessment-hero h2{margin:5px 0 7px;font-size:27px;letter-spacing:-.03em}.assessment-hero p{margin:0;color:#a7a9b0;font-size:12px;line-height:1.55;max-width:620px}.assessment-hero-icon,.assessment-emblem{flex:0 0 auto;display:grid;place-items:center;color:#e6c66f;background:linear-gradient(145deg,rgba(var(--brand-accent-rgb),.13),rgba(var(--brand-accent-rgb),.035));border:1px solid rgba(var(--brand-accent-rgb),.22);box-shadow:inset 0 1px rgba(255,255,255,.03),0 12px 28px rgba(0,0,0,.22)}
 .assessment-hero-icon{width:72px;height:72px;border-radius:22px}.assessment-hero-icon svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.6}.assessment-top-metrics{margin-bottom:14px}.assessment-guidance{display:grid;gap:4px;margin:14px 0;padding:13px 14px;border-radius:16px;border:1px solid rgba(104,197,141,.13);background:rgba(104,197,141,.035)}.assessment-guidance strong{font-size:12px;color:#cfd6d1}.assessment-guidance span{font-size:11px;color:#858b88;line-height:1.5}.assessment-tabs{margin-top:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;overflow:visible;padding-bottom:0}.assessment-tabs .tab{display:flex;align-items:center;justify-content:center;min-height:46px;padding:10px 9px;text-align:center;white-space:normal;line-height:1.15}.assessment-student-list{gap:10px}.assessment-student-card{display:flex;align-items:center;justify-content:space-between;gap:14px}.assessment-student-main{display:flex;align-items:center;gap:12px;min-width:0}.assessment-student-main>div:last-child{min-width:0}.assessment-student-main strong{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.assessment-student-main>div>span{display:block;color:#888b92;font-size:11px;margin-top:4px}.assessment-student-actions{display:flex;gap:7px;flex:0 0 auto}.assessment-inline-status{display:flex!important;flex-wrap:wrap;gap:6px 10px;margin-top:8px!important}.assessment-inline-status>span{display:inline-flex!important;align-items:center;gap:5px;margin:0!important;font-size:10px!important;color:#a4a7ad!important}.assessment-inline-status b{color:#e0e1e3}.assessment-inline-status .status{font-size:8px;padding:3px 6px}
@@ -398,7 +398,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 @media(max-width:620px){.assessment-hero{padding:18px}.assessment-hero h2{font-size:23px}.assessment-hero-icon{width:58px;height:58px;border-radius:18px}.assessment-student-card{align-items:flex-start;display:grid}.assessment-student-actions{width:100%}.assessment-student-actions .btn{flex:1}.assessment-history-head,.assessment-detail-head{align-items:stretch;display:grid}.assessment-history-head .btn,.assessment-detail-head .btn{width:100%}.assessment-bilateral-table>div{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(58px,.7fr))}.profile-assessment-actions{display:grid}.assessment-pair-title{align-items:flex-end}}
 @media(min-width:720px){.assessment-profile-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.assessment-detail-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 
-/* MB Gestor Luxury Pro V9.8.1 — Avaliação Física + Evolução */
+/* Histórico legado V9.8.1 — Avaliação Física + Evolução */
 .assessment-context-chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 11px}.assessment-context-chips span{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:6px 9px;border:1px solid rgba(var(--brand-accent-rgb),.13);border-radius:999px;background:rgba(var(--brand-accent-rgb),.045);color:#b9b2a0;font-size:9px;line-height:1.2}.assessment-context-chips b{color:var(--gold2);font-size:8px;letter-spacing:.06em;text-transform:uppercase}.assessment-student-main .assessment-context-chips{margin:8px 0 0}.assessment-student-main .assessment-context-chips span{font-size:8px;padding:5px 7px}.assessment-student-main .assessment-context-chips b{font-size:7px}.assessment-history-top-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}.assessment-history-card .assessment-context-chips{margin:0 0 10px}
 .assessment-evolution-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}.assessment-evolution-head strong{display:block;margin-top:4px;font-size:16px}.assessment-evolution-head p{margin:4px 0 0;color:#81848c;font-size:10px;line-height:1.45}.assessment-evolution-note{display:grid;gap:4px;margin:12px 0;padding:12px 13px;border:1px solid rgba(var(--brand-accent-rgb),.14);border-radius:14px;background:linear-gradient(145deg,rgba(var(--brand-accent-rgb),.055),rgba(255,255,255,.012))}.assessment-evolution-note strong{font-size:11px;color:var(--gold2)}.assessment-evolution-note span{color:#96928a;font-size:9px;line-height:1.5}
 .assessment-trend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 16px}.assessment-trend-card{min-width:0;padding:12px;border:1px solid rgba(255,255,255,.065);border-radius:15px;background:linear-gradient(145deg,#15171b,#0e1013);box-shadow:inset 0 1px rgba(255,255,255,.02)}.assessment-trend-card>span,.assessment-trend-card>strong,.assessment-trend-card>small{display:block}.assessment-trend-card>span{color:#777b83;font-size:8px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.assessment-trend-card>strong{margin-top:5px;font-size:18px;letter-spacing:-.02em}.assessment-trend-card>small{margin-top:5px;color:#ada99f;font-size:9px;line-height:1.3}.assessment-trend-card>small.up,.assessment-trend-card>small.down{color:var(--gold2)}.assessment-trend-card>small.flat{color:#8d9198}.assessment-trend-card>small i{color:#6f7279;font-style:normal}
@@ -417,7 +417,7 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.main,.view{min-width:0;ma
 .modal-confirm-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:9px;margin-top:18px}.modal-confirm-actions .btn{min-height:46px}
 @media(max-width:430px){.modal-confirm-layer{padding:14px}.modal-confirm-card{padding:17px}.modal-confirm-actions{grid-template-columns:1fr}}
 
-/* MB Gestor Luxury Pro V9.9.4 — Etapa 3A • Persistência & Proteções */
+/* Histórico legado V9.9.4 — Etapa 3A • Persistência & Proteções */
 .assessment-guide-entry{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;margin:0 0 16px;padding:13px 14px;border:1px solid rgba(var(--brand-accent-rgb),.18);border-radius:17px;background:radial-gradient(circle at 8% 10%,rgba(var(--brand-primary-rgb),.12),transparent 31%),linear-gradient(145deg,#17191d,#101115);color:#f1f1f2;text-align:left;box-shadow:0 12px 28px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.025);cursor:pointer;transition:.18s ease}
 .assessment-guide-entry:hover,.assessment-guide-entry:focus-visible{border-color:rgba(var(--brand-accent-rgb),.34);transform:translateY(-1px)}
 .assessment-guide-entry>span:nth-child(2){min-width:0}.assessment-guide-entry b,.assessment-guide-entry small{display:block}.assessment-guide-entry b{font-size:12px;letter-spacing:.01em}.assessment-guide-entry small{margin-top:3px;color:#888c93;font-size:10px;line-height:1.4}.assessment-guide-entry-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;color:var(--gold2);background:rgba(var(--brand-accent-rgb),.08);border:1px solid rgba(var(--brand-accent-rgb),.15)}.assessment-guide-entry-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round}.assessment-guide-entry>i{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;color:#8f8a7e;background:rgba(255,255,255,.025)}.assessment-guide-entry>i svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}
@@ -1931,7 +1931,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 }
 
 
-/* MB Gestor Luxury Pro V12.12.0 — Backup Comercial Protegido • Etapa 1 */
+/* Histórico legado V12.12.0 — Backup Comercial Protegido • Etapa 1 */
 .backup-commercial-card{overflow:hidden}
 .backup-commercial-status{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;margin:-1px -1px 0;padding:15px;border-bottom:1px solid rgba(255,255,255,.07);background:linear-gradient(145deg,#15171c,#0e0f12)}
 .backup-commercial-shield{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:20px;font-weight:950;background:#202229;color:#c9cbd0}
@@ -1952,7 +1952,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 .backup-restore-summary .ok strong{color:#8dd9aa}.backup-restore-summary .warn strong{color:#efc878}.notice.warn{border-left-color:#efc878;background:rgba(233,184,95,.07);color:#e8d5ad}.backup-incompatible-hero{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid rgba(233,104,104,.24);border-radius:16px;background:rgba(233,104,104,.05);margin-bottom:12px}.backup-incompatible-hero>span{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(233,104,104,.10);color:#f09292;font-size:20px;font-weight:950}.backup-incompatible-hero strong,.backup-incompatible-hero small{display:block}.backup-incompatible-hero small{margin-top:3px;color:#9c8588;font-size:9px}
 @media(max-width:560px){.backup-commercial-status{grid-template-columns:42px minmax(0,1fr)}.backup-workspace-chip{grid-column:2;justify-self:start}.backup-center-actions{grid-template-columns:1fr}.backup-safety-card{align-items:stretch;flex-direction:column}.backup-safety-card .btn{width:100%}}
 
-/* MB Gestor Luxury Pro V12.13.0 — Multiusuário e Permissões • Etapa 1 */
+/* Histórico legado V12.13.0 — Multiusuário e Permissões • Etapa 1 */
 .team-access-settings-card{overflow:hidden}
 .team-access-settings-head{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:16px;align-items:center;padding:18px 0 20px}
 .team-access-settings-head>span{width:58px;height:58px;border-radius:18px;display:grid;place-items:center;color:var(--gold2);background:linear-gradient(145deg,rgba(var(--brand-primary-rgb),.18),rgba(255,255,255,.025));border:1px solid rgba(var(--brand-accent-rgb),.18)}
@@ -2028,7 +2028,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 }
 
 
-/* MB Gestor Luxury Pro V12.13.1 — Permissões • Seletor Premium de Função */
+/* Histórico legado V12.13.1 — Permissões • Seletor Premium de Função */
 .access-role-field{display:grid;gap:9px}
 .access-role-field-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .access-role-field-head>label{margin:0}
@@ -2048,7 +2048,7 @@ body.agenda-simulation-mode .schedule-pro-head{border-color:rgba(var(--brand-acc
 .access-role-choice.role-finance.selected strong{color:#f1d27f}
 @media(max-width:380px){.access-role-picker{grid-template-columns:1fr}.access-role-choice{min-height:78px}}
 
-/* MB Gestor Luxury Pro V12.14.1 — Hotfix • Rotação de Credenciais e Feedback de Acesso */
+/* Histórico legado V12.14.1 — Hotfix • Rotação de Credenciais e Feedback de Acesso */
 body.access-session-locked{overflow:hidden;background:#070708}
 body.access-session-locked #appShell{visibility:hidden;pointer-events:none;user-select:none}
 .team-access-hero.session-on{border-color:rgba(98,205,144,.28);background:linear-gradient(145deg,rgba(57,139,97,.12),rgba(15,17,19,.96))}
@@ -2079,7 +2079,7 @@ body.access-session-locked .toast-root{z-index:5200}
 .access-gate-foot{text-align:center;margin-top:14px;color:#696e77;font-size:.68rem;line-height:1.35}
 @media(max-width:620px){.access-session-status{align-items:stretch;flex-direction:column}.access-session-status>.btn,.access-session-status-actions,.access-session-status-actions .btn{width:100%}.access-session-status-actions{display:grid;grid-template-columns:1fr}.access-gate-layer{place-items:center;padding-left:14px;padding-right:14px}.access-gate-card{padding:17px;border-radius:24px}.access-gate-brand{grid-template-columns:58px minmax(0,1fr)}.access-gate-logo{width:58px;height:58px;border-radius:18px}.access-gate-brand strong{font-size:1.22rem}}
 
-/* MB Gestor Luxury Pro V12.14.2 — Hotfix • Código de Recuperação Visível */
+/* Histórico legado V12.14.2 — Hotfix • Código de Recuperação Visível */
 
 /* ================================================================
    V12.16.2 — Portal do Aluno • Deny by Default Completo
@@ -2181,7 +2181,7 @@ body.access-session-locked .toast-root{z-index:5200}
 .student-portal-or{display:flex;align-items:center;gap:10px;margin:2px 0}.student-portal-or:before,.student-portal-or:after{content:"";height:1px;background:rgba(255,255,255,.07);flex:1}.student-portal-or span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 @media(max-width:620px){.student-portal-safety-card>summary,.student-portal-simple-details>summary{padding:13px 14px}.student-portal-safety-body,.student-portal-simple-details-body{padding:0 14px 14px}.student-portal-device-trust{grid-template-columns:36px minmax(0,1fr)}.student-portal-device-trust>span{width:36px;height:36px}}
 
-/* MB Gestor Luxury Pro V12.18.6 — Comercial Clean UX • blocos recolhíveis e linguagem simplificada */
+/* Histórico legado V12.18.6 — Comercial Clean UX • blocos recolhíveis e linguagem simplificada */
 .settings-simple-details{margin-top:12px;border-top:1px solid rgba(255,255,255,.06)}
 .settings-simple-details>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 2px 4px;color:#d7d8dc;font-size:12px;font-weight:850;user-select:none}
 .settings-simple-details>summary::-webkit-details-marker{display:none}
@@ -2289,7 +2289,7 @@ body.access-session-locked .toast-root{z-index:5200}
 @media(max-width:620px){.legal-form-grid,.legal-version-grid{grid-template-columns:1fr}.legal-editor-form textarea{min-height:250px}.legal-inline-actions .btn{flex:1 1 auto}}
 
 
-/* V13.3.0 — VIGEXA360 • identidade premium segura */
+/* V13.3.0 — Vigexa 360 • identidade premium segura */
 .topbar-brand-cluster{display:flex;align-items:center;gap:11px;min-width:0}
 .topbar-product-logo-frame{width:42px;height:42px;flex:0 0 42px;border-radius:13px;border:1px solid rgba(var(--brand-accent-rgb),.22);background:#050505;box-shadow:0 8px 22px rgba(0,0,0,.30),inset 0 1px 0 rgba(255,255,255,.03)}
 .topbar-product-logo-frame>img{object-fit:contain!important}
@@ -2304,7 +2304,7 @@ body.access-session-locked .toast-root{z-index:5200}
 @media(min-width:1050px){.brand-mini .vigexa-lockup{font-size:14px!important}.brand-mini-logo-frame{width:48px;height:48px;flex-basis:48px;border-radius:15px}}
 
 
-/* V13.3.2 • VIGEXA360 Identidade Dinâmica Premium */
+/* V13.3.3 • Vigexa 360 • Identidade Comercial Final */
 .vigexa-lockup{display:inline-flex!important;align-items:center;white-space:nowrap;line-height:1;font-weight:900!important;letter-spacing:.035em!important;color:#f5f2ea!important;text-shadow:0 1px 0 rgba(255,255,255,.06)}
 .vigexa-wordmark-x-wrap{display:inline-grid;place-items:center;width:1.12em;height:1.12em;margin:0 .025em;vertical-align:-.12em;flex:0 0 auto}
 .vigexa-wordmark-x{width:100%;height:100%;display:block;object-fit:contain;filter:drop-shadow(0 0 5px rgba(227,174,55,.34)) drop-shadow(0 1px 0 rgba(255,236,170,.32))}

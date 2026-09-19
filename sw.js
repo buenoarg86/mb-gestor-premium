@@ -1,6 +1,6 @@
-// VIGEXA360 V13.3.2 — Identidade Dinâmica Premium • Header Comercial
-const CACHE='vigexa360-v13-3-2-dynamic-premium-brand';
-const ASSETS=['./','./index.html','./styles.css?v=13.3.2','./app.js?v=13.3.2','./student-portal.html','./student-portal.js?v=13.3.2','./manifest.webmanifest','./assets/vigexa-x-dynamic-192.png','./assets/vigexa360-icon-v2-192.png','./assets/vigexa360-icon-v2-512.png','./assets/vigexa360-icon-v2-maskable-512.png','./assets/vigexa360-apple-touch-v2.png'];
+// Vigexa 360 V13.3.3 — Identidade Comercial Final • Cache
+const CACHE='vigexa360-v13-3-3-identity-final';
+const ASSETS=['./','./index.html','./styles.css?v=13.3.3','./app.js?v=13.3.3','./student-portal.html','./student-portal.js?v=13.3.3','./manifest.webmanifest','./assets/vigexa-x-dynamic-192.png','./assets/vigexa360-icon-v2-192.png','./assets/vigexa360-icon-v2-512.png','./assets/vigexa360-icon-v2-maskable-512.png','./assets/vigexa360-apple-touch-v2.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
