@@ -2302,3 +2302,21 @@ body.access-session-locked .toast-root{z-index:5200}
 .brand-mini-logo-frame{background:radial-gradient(circle at 45% 36%,rgba(243,199,106,.12),transparent 56%),#050505!important;border-color:rgba(243,199,106,.26)!important;box-shadow:0 10px 28px rgba(0,0,0,.42),0 0 0 1px rgba(215,163,61,.04),inset 0 1px 0 rgba(255,255,255,.03)}
 .brand-mini-logo-frame>img{object-fit:contain!important}
 @media(min-width:1050px){.brand-mini .vigexa-lockup{font-size:14px!important}.brand-mini-logo-frame{width:48px;height:48px;flex-basis:48px;border-radius:15px}}
+
+
+/* V13.3.2 • VIGEXA360 Identidade Dinâmica Premium */
+.vigexa-lockup{display:inline-flex!important;align-items:center;white-space:nowrap;line-height:1;font-weight:900!important;letter-spacing:.035em!important;color:#f5f2ea!important;text-shadow:0 1px 0 rgba(255,255,255,.06)}
+.vigexa-wordmark-x-wrap{display:inline-grid;place-items:center;width:1.12em;height:1.12em;margin:0 .025em;vertical-align:-.12em;flex:0 0 auto}
+.vigexa-wordmark-x{width:100%;height:100%;display:block;object-fit:contain;filter:drop-shadow(0 0 5px rgba(227,174,55,.34)) drop-shadow(0 1px 0 rgba(255,236,170,.32))}
+.vigexa-lockup .vigexa-brand-360{font-size:.64em;margin-left:.18em;color:#e7b84c;font-weight:650;letter-spacing:.04em;transform:translateY(-.18em)}
+.vigexa-topbar-lockup{font-size:15px!important;margin:0 0 4px!important;opacity:.98}
+.topbar-identity-copy{display:flex;flex-direction:column;min-width:0}
+.topbar-studio-context{margin:0 0 4px!important;font-size:9.5px!important;letter-spacing:.115em!important;color:rgba(235,195,99,.86)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(62vw,520px)}
+.topbar-brand-cluster{gap:10px!important}
+.topbar-product-logo-frame{width:44px!important;height:44px!important;flex:0 0 44px!important;border-radius:14px!important;padding:5px;background:radial-gradient(circle at 46% 35%,rgba(242,195,91,.12),transparent 52%),linear-gradient(145deg,#0b0b0d,#050506)!important;border-color:rgba(235,186,75,.26)!important;box-shadow:0 10px 26px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.035),0 0 0 1px rgba(191,137,27,.035)!important}
+.topbar-product-logo-frame>img{object-fit:contain!important;border-radius:0!important}
+.brand-mini-logo-frame{padding:5px!important}
+.brand-mini-logo-frame>img{object-fit:contain!important;border-radius:0!important}
+.topbar h1{font-size:27px!important;letter-spacing:-.045em!important}
+@media(max-width:390px){.vigexa-topbar-lockup{font-size:13.5px!important}.topbar-studio-context{font-size:8.6px!important;max-width:54vw}.topbar-product-logo-frame{width:40px!important;height:40px!important;flex-basis:40px!important;padding:4px!important}.topbar h1{font-size:23px!important}}
+@media(min-width:1050px){.topbar-product-logo-frame{display:flex!important}.topbar-brand-cluster{gap:12px!important}.vigexa-topbar-lockup{font-size:16px!important}.topbar-studio-context{max-width:560px}}

@@ -1,9 +1,9 @@
-// VIGEXA360 V13.3.1 — Camada de Marca • Produto + White Label
+// VIGEXA360 V13.3.2 — Identidade Dinâmica Premium • Header Comercial
 (() => {
   'use strict';
-  // VIGEXA360 V13.3.1 — Camada de Marca • Produto + White Label
+  // VIGEXA360 V13.3.2 — Identidade Dinâmica Premium • Header Comercial
 
-  const APP_VERSION = '13.3.1';
+  const APP_VERSION = '13.3.2';
   const DATA_SCHEMA_VERSION = 3;
   const WORKSPACE_SCHEMA_VERSION = 2;
   const COMMERCIAL_SCHEMA_VERSION = 6;
@@ -25,7 +25,7 @@
     studio:{label:'Studio',description:'Plano para operações com equipe e maior escala.',entitlements:{...COMMERCIAL_DEFAULT_ENTITLEMENTS},limits:{students:null,teamMembers:null,portalStudents:null}}
   });
   const PRODUCT_NAME = 'VIGEXA360';
-  const PRODUCT_LOGO_SRC = 'assets/icon-192.png';
+  const PRODUCT_LOGO_SRC = 'assets/vigexa-x-dynamic-192.png';
   const STORAGE_KEY = 'mb_gestor_premium_v1';
   const ACCESS_SESSION_KEY = `${STORAGE_KEY}_access_session_v1`;
   const DATA_FOUNDATION_BACKUP_TAG = 'workspace-foundation-v1';
@@ -1521,6 +1521,14 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     const parts=String(source).replace(/[^\p{L}\p{N} ]/gu,' ').trim().split(/\s+/).filter(Boolean);
     return (parts.length>1?`${parts[0][0]}${parts[1][0]}`:String(parts[0]||'VX').slice(0,2)).toUpperCase();
   }
+  function productEditionLabel(){
+    const plan=String(state?.commercial?.license?.plan||'local');
+    return ({local:'Private Edition',trial:'Trial Edition',starter:'Starter',pro:'Pro',studio:'Studio Edition'})[plan]||'Private Edition';
+  }
+  function productWordmarkHTML(){
+    return `VIGE<span class="vigexa-wordmark-x-wrap"><img class="vigexa-wordmark-x" src="${PRODUCT_LOGO_SRC}" alt="" aria-hidden="true"></span>A<span class="vigexa-brand-360">360</span>`;
+  }
+
   function brandingLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
   function brandingReportLogoSrc(){return brandingSettings().logoData||PRODUCT_LOGO_SRC}
   function brandRgb(hex){const v=normalizeBrandColor(hex,'#d7a33d').slice(1);return `${parseInt(v.slice(0,2),16)},${parseInt(v.slice(2,4),16)},${parseInt(v.slice(4,6),16)}`}
@@ -1528,9 +1536,10 @@ grant execute on function ${schema}.portal_claim_student_invite(text) to authent
     const b=brandingSettings(),root=document.documentElement;
     root.style.setProperty('--gold',b.primaryColor);root.style.setProperty('--gold2',b.accentColor);
     root.style.setProperty('--brand-primary-rgb',brandRgb(b.primaryColor));root.style.setProperty('--brand-accent-rgb',brandRgb(b.accentColor));root.classList.add('brand-runtime');
-    const studioEl=$('#studioBrandName');if(studioEl)studioEl.textContent=b.studioName;
+    const studioEl=$('#studioBrandName');if(studioEl)studioEl.textContent=`${b.studioName} • ${productEditionLabel()}`;
     // A marca do produto permanece VIGEXA360; nome/logo do Studio continuam independentes no White Label.
-    const appEl=$('#appBrandName');if(appEl){appEl.classList.add('vigexa-lockup');appEl.innerHTML='VIGE<span class="vigexa-brand-x">X</span>A<span class="vigexa-brand-360">360</span>';}
+    const appEl=$('#appBrandName');if(appEl){appEl.classList.add('vigexa-lockup');appEl.innerHTML=productWordmarkHTML();}
+    const topbarName=$('#topbarProductName');if(topbarName){topbarName.classList.add('vigexa-lockup');topbarName.innerHTML=productWordmarkHTML();}
     const avatar=$('#brandAvatar');if(avatar)avatar.textContent=brandInitials();
     const productFit=freshLogoFit('icon');
     const sideLogo=$('#brandMiniLogo');if(sideLogo){sideLogo.src=PRODUCT_LOGO_SRC;sideLogo.alt=PRODUCT_NAME;}
@@ -2895,7 +2904,7 @@ function openTrash(){const rows=state.trash||[];openModal('Lixeira protegida',`<
         <div class="luxury-glow"></div>
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="badge">${escapeHTML(brandAppName())} • Private Edition</span>
+            <span class="badge">${escapeHTML(PRODUCT_NAME)} • ${escapeHTML(productEditionLabel())}</span>
             <p class="luxury-kicker">${greetingText()}, ${escapeHTML(firstName)}</p>
             <h2>Sua gestão.<br><em>Sob controle.</em></h2>
             <p>Uma visão elegante e objetiva do que importa hoje.</p>

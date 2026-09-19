@@ -1,6 +1,6 @@
-// VIGEXA360 V13.3.1 — Camada de Marca • Produto + White Label
-const CACHE='vigexa360-v13-3-1-product-brand-layer';
-const ASSETS=['./','./index.html','./styles.css?v=13.3.1','./app.js?v=13.3.1','./student-portal.html','./student-portal.js?v=13.3.0','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png','./assets/icon-maskable-512.png','./assets/apple-touch-icon.png','./assets/vigexa360-icon-master.png'];
+// VIGEXA360 V13.3.2 — Identidade Dinâmica Premium • Header Comercial
+const CACHE='vigexa360-v13-3-2-dynamic-premium-brand';
+const ASSETS=['./','./index.html','./styles.css?v=13.3.2','./app.js?v=13.3.2','./student-portal.html','./student-portal.js?v=13.3.2','./manifest.webmanifest','./assets/vigexa-x-dynamic-192.png','./assets/vigexa360-icon-v2-192.png','./assets/vigexa360-icon-v2-512.png','./assets/vigexa360-icon-v2-maskable-512.png','./assets/vigexa360-apple-touch-v2.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
